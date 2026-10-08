@@ -4,14 +4,21 @@ import mapboxgl from 'mapbox-gl';
 const COLORS = ['#e36b4d', '#477bda', '#35a17e', '#a271c5', '#d2a33c'];
 const SPEEDS = [0.1, 0.2, 0.3, 0.4, 0.5, 1, 2];
 const START = [-2.9352, 43.2631];
-const makeInitialRoutes = () => [
-  { id: crypto.randomUUID(), name: 'Trayectoria A', color: COLORS[0], points: [] },
-  { id: crypto.randomUUID(), name: 'Trayectoria B', color: COLORS[1], points: [] },
-];
+const makeInitialRoutes = () => ['A', 'B', 'C', 'D'].map((letter, index) => ({
+  id: crypto.randomUUID(), name: `Trayectoria ${letter}`, color: COLORS[index], points: [],
+}));
+const ensureFourRoutes = routes => {
+  const expanded = [...routes];
+  while (expanded.length < 4) {
+    const index = expanded.length;
+    expanded.push({ id: crypto.randomUUID(), name: `Trayectoria ${String.fromCharCode(65 + index)}`, color: COLORS[index % COLORS.length], points: [] });
+  }
+  return expanded;
+};
 const loadLegacyRoutes = () => {
   try {
     const saved = JSON.parse(localStorage.getItem('traza-bizkaia-routes') || 'null');
-    if (Array.isArray(saved) && saved.length && saved.every(route => route.id && route.name && route.color && Array.isArray(route.points))) return saved;
+    if (Array.isArray(saved) && saved.length && saved.every(route => route.id && route.name && route.color && Array.isArray(route.points))) return ensureFourRoutes(saved);
   } catch { /* Start with an empty project if local data is malformed. */ }
   return makeInitialRoutes();
 };
@@ -27,7 +34,7 @@ const loadProjectRoutes = project => {
   if (!project || project.legacy) return loadLegacyRoutes();
   try {
     const saved = JSON.parse(localStorage.getItem(`traza-bizkaia-project-${project.id}`) || 'null');
-    if (Array.isArray(saved) && saved.length && saved.every(route => route.id && route.name && route.color && Array.isArray(route.points))) return saved;
+    if (Array.isArray(saved) && saved.length && saved.every(route => route.id && route.name && route.color && Array.isArray(route.points))) return ensureFourRoutes(saved);
   } catch { /* Start this project with blank routes if its local data is malformed. */ }
   return makeInitialRoutes();
 };
@@ -93,7 +100,7 @@ export default function App() {
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [height, setHeight] = useState(420);
+  const [height, setHeight] = useState(120);
   const [follow, setFollow] = useState(true);
   const [cameraView, setCameraView] = useState('top');
   const [mapReady, setMapReady] = useState(false);
@@ -235,6 +242,7 @@ export default function App() {
   useEffect(() => { routesRef.current = routes; activeRef.current = activeId; }, [routes, activeId]);
 
   const addRoute = () => {
+    if (routes.length >= 4) return;
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
     setPlaying(false);
     const letter = String.fromCharCode(65 + routes.length);
@@ -356,8 +364,15 @@ export default function App() {
       composeFrame();
       mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'none');
       const stream = videoCanvas.captureStream(30);
-      const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(type => MediaRecorder.isTypeSupported(type));
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const mimeType = ['video/mp4;codecs="avc1.42E01E"', 'video/mp4;codecs=avc1', 'video/mp4'].find(type => MediaRecorder.isTypeSupported(type));
+      if (!mimeType) {
+        cancelAnimationFrame(recordFrameRef.current);
+        stream.getTracks().forEach(track => track.stop());
+        mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'visible');
+        setExportMessage('Este navegador no puede grabar en MP4. Usa Safari actualizado para exportar el vídeo.');
+        return;
+      }
+      const recorder = new MediaRecorder(stream, { mimeType });
       chunksRef.current = [];
       recorderRef.current = recorder;
       recorder.ondataavailable = event => { if (event.data.size) chunksRef.current.push(event.data); };
@@ -365,9 +380,9 @@ export default function App() {
       recorder.onstop = async () => {
         cancelAnimationFrame(recordFrameRef.current);
         stream.getTracks().forEach(track => track.stop());
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/mp4' });
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const fileName = `${safeFileName(currentProject.name)}-${safeFileName(activeRoute.name)}-${stamp}.webm`;
+        const fileName = `${safeFileName(currentProject.name)}-${safeFileName(activeRoute.name)}-${stamp}.mp4`;
         try {
           if (folderRef.current) {
             const file = await folderRef.current.getFileHandle(fileName, { create: true });
@@ -397,7 +412,7 @@ export default function App() {
         offset: vehicleView ? [0, mapRef.current.getContainer().clientHeight * 0.22] : [0, 0],
         bearing: vehicleView ? start.bearing : 0,
         pitch: vehicleView ? 74 : 0,
-        zoom: vehicleView ? Math.max(19.3, Math.min(20.5, 21.4 - Math.log2(height / 100))) : Math.max(13.2, 17.5 - Math.log2(height / 90)),
+        zoom: vehicleView ? Math.max(19.3, Math.min(20.5, 21.4 - Math.log2(height / 100))) : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100))),
       });
       recorder.start(1000);
       setRecording(true);
@@ -408,7 +423,7 @@ export default function App() {
       setRecording(false);
       setPlaying(false);
       if (mapRef.current?.getLayer('route-points-layer')) mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'visible');
-      setExportMessage('No se pudo iniciar la grabación. Prueba con Google Chrome actualizado.');
+      setExportMessage('No se pudo iniciar la grabación MP4. Comprueba que Safari esté actualizado e inténtalo de nuevo.');
     }
   };
   const focusRoute = route => {
@@ -443,7 +458,7 @@ export default function App() {
       const vehicleView = cameraView === 'vehicle';
       const zoom = vehicleView
         ? Math.max(19.3, Math.min(20.5, 21.4 - Math.log2(height / 100)))
-        : Math.max(13.2, 17.5 - Math.log2(height / 90));
+        : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100)));
       map.easeTo({
         center: position.coords,
         offset: vehicleView ? [0, map.getContainer().clientHeight * 0.22] : [0, 0],
@@ -479,7 +494,7 @@ export default function App() {
         <div className="panel-heading"><div><p className="eyebrow">PROYECTO</p><h1 title={currentProject.name}>{currentProject.name}</h1></div><div className="project-actions"><button className="add-route" title="Crear proyecto" onClick={createProject}>+</button><button className="more-button" title="Cambiar nombre" onClick={renameProject}>···</button></div></div>
         {projectState.projects.length > 1 && <div className="project-switcher"><span className="eyebrow">CAMBIAR PROYECTO</span><select aria-label="Seleccionar proyecto" value={currentProject.id} onChange={event => switchProject(event.target.value)}>{projectState.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>}
         <div className="location-chip"><span className="pin-icon">⌖</span><div><strong>Bizkaia, Euskadi</strong><small>Vista inicial · mapa real</small></div><span className="chip-live">LIVE</span></div>
-        <div className="section-title"><div><span className="eyebrow">CAPAS DE RECORRIDO</span><span className="count-badge">{routes.length}</span></div><button className="add-route" onClick={addRoute} aria-label="Crear trayectoria">+</button></div>
+        <div className="section-title"><div><span className="eyebrow">CAPAS DE RECORRIDO</span><span className="count-badge">{routes.length}/4</span></div><button className="add-route" onClick={addRoute} disabled={routes.length >= 4} aria-label="Crear trayectoria" title={routes.length >= 4 ? 'Ya tienes las cuatro trayectorias' : 'Crear trayectoria'}>+</button></div>
         <div className="route-list">
           {routes.map((route, index) => <article key={route.id} className={`route-card ${activeId === route.id ? 'selected' : ''}`}>
             <button className="route-main" onClick={() => setActive(route.id)}><span className="route-swatch" style={{ '--route-color': route.color }}><span /></span><span className="route-info"><strong>{route.name}</strong><small>{route.points.length} {route.points.length === 1 ? 'punto' : 'puntos'}{route.points.length > 1 ? ` · ${Math.round(route.points.slice(1).reduce((sum, p, i) => sum + distance(route.points[i], p), 0))} m` : ''}</small></span><span className="route-key">{String.fromCharCode(65 + index)}</span></button>
@@ -496,17 +511,17 @@ export default function App() {
         <div className="play-card">
           <button className={`play-button ${playing ? 'is-playing' : ''}`} onClick={togglePlayback} disabled={!activeRoute || activeRoute.points.length < 2} aria-label={playing ? 'Pausar' : 'Reproducir'}>{playing ? 'Ⅱ' : '▶'}</button>
           <div className="play-copy"><strong>{playing ? 'Simulación en curso' : 'Vista previa del recorrido'}</strong><small>{activeRoute?.points.length < 2 ? 'Añade al menos dos puntos' : `Sigue ${activeRoute?.name}`}</small></div>
-          <button className="restart-button" title="Volver al inicio" onClick={() => { progressRef.current = 0; setProgress(0); if (activeRoute?.points[0]) mapRef.current?.flyTo({ center: activeRoute.points[0], zoom: 15, pitch: 48, duration: 700 }); }}>↺</button>
+          <button className="restart-button" title="Volver al inicio" onClick={() => { progressRef.current = 0; setProgress(0); if (activeRoute?.points[0]) { const vehicleView = cameraView === 'vehicle'; mapRef.current?.flyTo({ center: activeRoute.points[0], zoom: vehicleView ? Math.max(19.3, Math.min(20.5, 21.4 - Math.log2(height / 100))) : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100))), pitch: vehicleView ? 74 : 0, bearing: vehicleView ? interpolateRoute(activeRoute.points, 0).bearing : 0, duration: 700 }); } }}>↺</button>
         </div>
         <div className="video-card">
-          <div className="video-card-heading"><strong>Exportar vídeo</strong><span>WEBM</span></div>
+          <div className="video-card-heading"><strong>Vídeo · {activeRoute?.name}</strong><span>MP4</span></div>
           <div className="video-actions"><button className="folder-button" onClick={chooseOutputFolder}>▰ {folderName || 'Elegir carpeta…'}</button><button className="export-button" disabled={!recording && (!folderName || !activeRoute || activeRoute.points.length < 2)} onClick={exportVideo}>{recording ? '■ Finalizar y guardar' : '● Grabar vídeo'}</button></div>
-          <small>{exportMessage || (folderName ? `Se guardará en «${folderName}».` : 'Elige dónde guardar el archivo.')}</small>
+          <small>{exportMessage || (folderName ? `Se guardará en «${folderName}».` : 'Selecciona una trayectoria y elige dónde guardar su vídeo MP4.')}</small>
         </div>
         <div className="control-group"><div className="control-label"><span>Perspectiva de cámara</span><strong>{cameraView === 'top' ? 'Vertical' : 'A ras de suelo'}</strong></div><div className="segmented view-segmented"><button className={cameraView === 'top' ? 'on' : ''} onClick={() => setCameraView('top')}>⊙ Vertical</button><button className={cameraView === 'vehicle' ? 'on' : ''} onClick={() => setCameraView('vehicle')}>▰ A bordo</button></div><small className="view-note">Sin puntos de paso · vista baja simulada, no grabación interior real.</small></div>
         <div className="timeline"><div className="timeline-track"><div className="timeline-fill" style={{ width: `${progress * 100}%` }} /><span className="timeline-knob" style={{ left: `${progress * 100}%` }} /></div><div className="timeline-labels"><span>00:00</span><span>{Math.max(0, Math.round(totalDistance / 16 / speed))} s aprox.</span></div></div>
         <div className="control-group"><div className="control-label"><span>Velocidad</span><strong>{speed.toLocaleString('es-ES', { minimumFractionDigits: speed < 1 ? 1 : 0, maximumFractionDigits: 1 })}×</strong></div><div className="segmented speed-segmented">{SPEEDS.map(value => <button key={value} className={speed === value ? 'on' : ''} onClick={() => setSpeed(value)}>{value.toLocaleString('es-ES', { minimumFractionDigits: value < 1 ? 1 : 0, maximumFractionDigits: 1 })}×</button>)}</div></div>
-        <div className="control-group"><div className="control-label"><span>Altura de cámara</span><strong>{height} m</strong></div><input type="range" min="100" max="1200" step="20" value={height} onChange={event => setHeight(Number(event.target.value))} /></div>
+        <div className="control-group"><div className="control-label"><span>Altura de cámara</span><strong>{height} m</strong></div><input type="range" min="50" max="500" step="10" value={height} onChange={event => setHeight(Number(event.target.value))} /></div>
         <div className="control-group orientation-row"><div><strong>Orientación dinámica</strong><small>La cámara gira con la trayectoria</small></div><button className={`switch ${follow ? 'on' : ''}`} onClick={() => setFollow(!follow)} aria-label="Alternar orientación"><span /></button></div>
         <div className="future-card"><span>✦</span><p><strong>Siguiente paso</strong><br />Marcadores de incidencias y notas.</p><span className="soon-tag">PRÓXIMAMENTE</span></div>
         <div className="sidebar-footer"><span>TRAZA 01</span><span>GUARDADO EN ESTE NAVEGADOR</span></div>

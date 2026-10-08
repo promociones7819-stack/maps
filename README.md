@@ -32,11 +32,11 @@ Herramienta local para crear proyectos de recorridos aéreos sobre cartografía 
 - El mapa comienza centrado en Bizkaia. Usa rueda/pellizco para zoom, arrastra para desplazarte y los controles del mapa para girar o inclinar.
 - Pulsa **Añadir puntos en el mapa** y haz clic sobre la imagen para trazar la trayectoria activa. Pulsa el botón otra vez para volver a navegar por el mapa.
 - Crea un proyecto con **+** junto al nombre; la aplicación te pedirá un nombre. Si tienes varios proyectos, usa el selector para cambiar entre ellos. Los proyectos y sus rutas se conservan en ese navegador.
-- Crea más trayectorias con **+**. Cada una conserva su color y aparece junto a las demás.
+- El proyecto incluye cuatro trayectorias independientes (A, B, C y D), cada una con su color. Selecciona una en la lista para editarla o reproducirla; las cuatro pueden verse a la vez.
 - Selecciona un punto y usa el icono de papelera para quitarlo. Arrastra un punto para recolocarlo. **Enfocar** ajusta el mapa a una trayectoria.
-- Reproduce cualquier trayectoria con dos puntos o más. Ajusta velocidad (0,1× a 2×), altura y orientación dinámica desde el panel.
+- Reproduce cualquier trayectoria con dos puntos o más. La vista vertical empieza a 120 m, mantiene la cámara directamente encima del vehículo y permite ajustar la altura entre 50 y 500 m.
 - Elige una cámara vertical sobre el vehículo o una perspectiva baja orientada según la trayectoria. Los puntos de paso se ocultan durante la reproducción.
-- En **Exportar vídeo**, pulsa **Elegir carpeta** y concede al navegador permiso para guardar allí. Pulsa **Grabar vídeo**: se grabará el recorrido completo en `.webm` o `.mp4`, con un nombre basado en el proyecto y la trayectoria. También puedes parar antes con **Finalizar y guardar**.
+- Selecciona una trayectoria y, en **Vídeo · Trayectoria**, pulsa **Elegir carpeta** y **Grabar vídeo**. Cada recorrido se guarda como `.mp4` con el nombre del proyecto y de esa trayectoria. Puedes parar antes con **Finalizar y guardar**. La grabación MP4 requiere un navegador que la admita, como Safari actualizado.
 - Si el navegador no permite elegir carpetas, el vídeo se descargará en la carpeta de descargas configurada en el navegador.
 - Las rutas se guardan en el almacenamiento local del navegador de ese equipo.
 
