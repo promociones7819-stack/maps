@@ -76,7 +76,12 @@ function interpolateRoute(points, fraction) {
 }
 
 export default function App() {
-  const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+  const [savedToken, setSavedToken] = useState(() => {
+    try { return localStorage.getItem('traza-bizkaia-mapbox-token') || ''; } catch { return ''; }
+  });
+  const [tokenInput, setTokenInput] = useState(savedToken);
+  const [tokenMessage, setTokenMessage] = useState('');
+  const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || savedToken;
   const mapNode = useRef(null), mapRef = useRef(null), routesRef = useRef([]), activeRef = useRef('');
   const progressRef = useRef(0), rafRef = useRef(0), lastFrameRef = useRef(0);
   const recorderRef = useRef(null), chunksRef = useRef([]), folderRef = useRef(null), recordFrameRef = useRef(0);
@@ -103,6 +108,18 @@ export default function App() {
 
   const activeRoute = routes.find(route => route.id === activeId) || routes[0];
   const totalDistance = useMemo(() => activeRoute?.points.slice(1).reduce((sum, p, i) => sum + distance(activeRoute.points[i], p), 0) || 0, [activeRoute]);
+
+  const saveMapboxToken = event => {
+    event.preventDefault();
+    const value = tokenInput.trim();
+    if (!value.startsWith('pk.')) {
+      setTokenMessage('El token público debe empezar por pk.');
+      return;
+    }
+    try { localStorage.setItem('traza-bizkaia-mapbox-token', value); } catch { /* Keep the token for this session if storage is unavailable. */ }
+    setSavedToken(value);
+    setTokenMessage('Token guardado en este navegador.');
+  };
 
   const updateSources = useCallback((nextRoutes = routesRef.current, selected = activeRef.current, vehicle = null) => {
     const map = mapRef.current;
@@ -496,7 +513,7 @@ export default function App() {
       </aside>
       <section className="map-panel">
         <div ref={mapNode} className="map-canvas" />
-        {!token && <div className="map-overlay setup-overlay"><div className="setup-card"><div className="setup-symbol">⌖</div><p className="eyebrow">CONFIGURACIÓN INICIAL</p><h2>Conecta tu mapa de Mapbox</h2><p>La aplicación usa imágenes satélite reales. Añade tu token público de Mapbox para cargar el mapa y empezar a trazar.</p><ol><li>Crea un token público en tu cuenta de Mapbox.</li><li>Copia <code>.env.example</code> como <code>.env.local</code>.</li><li>Pega el token en <code>VITE_MAPBOX_ACCESS_TOKEN</code> y reinicia la aplicación.</li></ol><div className="token-note"><span>🔒</span> Usa un token <strong>público</strong> (pk.) con restricciones de origen. Nunca pongas un token secreto (sk.) en el navegador.</div></div></div>}
+        {!token && <div className="map-overlay setup-overlay"><div className="setup-card"><div className="setup-symbol">⌖</div><p className="eyebrow">CONFIGURACIÓN INICIAL</p><h2>Conecta tu mapa de Mapbox</h2><p>El token solo se guarda en este navegador. Pega aquí tu token público de Mapbox para cargar el mapa y empezar a trazar.</p><form className="token-form" onSubmit={saveMapboxToken}><label htmlFor="mapbox-token">Token público de Mapbox</label><input id="mapbox-token" type="password" autoComplete="off" placeholder="pk.…" value={tokenInput} onChange={event => setTokenInput(event.target.value)} /><button type="submit" disabled={!tokenInput.trim()}>Conectar mapa</button>{tokenMessage && <small role="status">{tokenMessage}</small>}</form><div className="token-note"><span>🔒</span> Usa un token <strong>público</strong> que empieza por pk. Nunca pegues aquí uno secreto que empieza por sk.</div></div></div>}
         {token && mapError && !mapReady && <div className="map-overlay"><div className="map-error"><strong>No se ha podido cargar el mapa</strong><p>{mapError}</p><small>Comprueba el token y la conexión a internet.</small></div></div>}
         <div className="map-top-tools"><div className="map-pill"><span className="satellite-icon">▧</span><span>SATÉLITE</span><span className="pill-divider" /><span>3D</span></div><button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button></div>
         <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>Mapa · Bizkaia</span></div>

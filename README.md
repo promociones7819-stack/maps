@@ -9,8 +9,8 @@ Herramienta local para crear proyectos de recorridos aéreos sobre cartografía 
 
 ## Puesta en marcha en macOS
 
-1. Copia `.env.example` y llama al archivo resultante `.env.local`.
-2. En `.env.local`, sustituye el texto de ejemplo por tu token público:
+1. Abre la aplicación publicada y pega el token público en la pantalla de conexión. Se guardará en ese navegador para las siguientes visitas.
+2. Para desarrollo local, también puedes copiar `.env.example` como `.env.local` y sustituir el texto de ejemplo por tu token público:
 
    ```env
    VITE_MAPBOX_ACCESS_TOKEN=pk.tu_token_publico
@@ -25,7 +25,7 @@ Herramienta local para crear proyectos de recorridos aéreos sobre cartografía 
    npm run dev
    ```
 
-4. Abre en el navegador la dirección local que indique Vite (normalmente `http://localhost:5173`). Si cambias `.env.local`, detén y vuelve a iniciar `npm run dev`.
+4. Abre en el navegador la dirección local que indique Vite (normalmente `http://localhost:5173`). Si Safari bloquea la dirección HTTP por tener activado “Solo HTTPS”, abre la dirección en otro navegador o desactiva esa opción para la dirección local. Si cambias `.env.local`, detén y vuelve a iniciar `npm run dev`.
 
 ## Uso
 
