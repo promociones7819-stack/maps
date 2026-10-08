@@ -91,7 +91,7 @@ export default function App() {
   const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || savedToken;
   const mapNode = useRef(null), mapRef = useRef(null), routesRef = useRef([]), activeRef = useRef('');
   const progressRef = useRef(0), rafRef = useRef(0), lastFrameRef = useRef(0);
-  const recorderRef = useRef(null), chunksRef = useRef([]), folderRef = useRef(null), recordFrameRef = useRef(0);
+  const recorderRef = useRef(null), chunksRef = useRef([]), folderRef = useRef(null), recordFrameRef = useRef(0), audioResourcesRef = useRef(null), mediaStreamRef = useRef(null), audioInputRef = useRef(null);
   const [projectState, setProjectState] = useState(loadProjectState);
   const currentProject = projectState.projects.find(project => project.id === projectState.activeProjectId) || projectState.projects[0];
   const [routes, setRoutes] = useState(() => loadProjectRoutes(currentProject));
@@ -107,6 +107,8 @@ export default function App() {
   const [mapError, setMapError] = useState('');
   const [progress, setProgress] = useState(0);
   const [recording, setRecording] = useState(false);
+  const [audioFile, setAudioFile] = useState(null);
+  const [recordMicrophone, setRecordMicrophone] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [exportMessage, setExportMessage] = useState('');
   const [nameDialog, setNameDialog] = useState(null);
@@ -126,6 +128,19 @@ export default function App() {
     try { localStorage.setItem('traza-bizkaia-mapbox-token', value); } catch { /* Keep the token for this session if storage is unavailable. */ }
     setSavedToken(value);
     setTokenMessage('Token guardado en este navegador.');
+  };
+  const releaseAudio = async () => {
+    const resources = audioResourcesRef.current;
+    audioResourcesRef.current = null;
+    const stream = mediaStreamRef.current;
+    mediaStreamRef.current = null;
+    stream?.getTracks().forEach(track => track.stop());
+    if (!resources) return;
+    resources.audio?.pause();
+    if (resources.audio) resources.audio.removeAttribute('src');
+    if (resources.url) URL.revokeObjectURL(resources.url);
+    resources.microphone?.getTracks().forEach(track => track.stop());
+    if (resources.context?.state !== 'closed') await resources.context?.close().catch(() => {});
   };
 
   const updateSources = useCallback((nextRoutes = routesRef.current, selected = activeRef.current, vehicle = null) => {
@@ -330,7 +345,7 @@ export default function App() {
       if (error.name !== 'AbortError') setExportMessage('No se pudo acceder a esa carpeta. Elige otra.');
     }
   };
-  const exportVideo = () => {
+  const exportVideo = async () => {
     if (recording) {
       setPlaying(false);
       if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
@@ -364,10 +379,38 @@ export default function App() {
       composeFrame();
       mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'none');
       const stream = videoCanvas.captureStream(30);
-      const mimeType = ['video/mp4;codecs="avc1.42E01E"', 'video/mp4;codecs=avc1', 'video/mp4'].find(type => MediaRecorder.isTypeSupported(type));
+      mediaStreamRef.current = stream;
+      let audioElement = null;
+      let audioContext = null;
+      let microphone = null;
+      let audioUrl = null;
+      if (audioFile || recordMicrophone) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) throw new Error('Audio recording is not supported in this browser');
+        audioContext = new AudioContextClass();
+        audioResourcesRef.current = { audio: null, context: audioContext, microphone: null, url: null };
+        const destination = audioContext.createMediaStreamDestination();
+        if (audioFile) {
+          audioUrl = URL.createObjectURL(audioFile);
+          audioElement = new Audio(audioUrl);
+          audioElement.preload = 'auto';
+          audioContext.createMediaElementSource(audioElement).connect(destination);
+          audioResourcesRef.current = { ...audioResourcesRef.current, audio: audioElement, url: audioUrl };
+        }
+        if (recordMicrophone) {
+          if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone access is unavailable');
+          setExportMessage('Esperando permiso para usar el micrófono…');
+          microphone = await navigator.mediaDevices.getUserMedia({ audio: true });
+          audioResourcesRef.current = { ...audioResourcesRef.current, microphone };
+          audioContext.createMediaStreamSource(microphone).connect(destination);
+        }
+        await audioContext.resume();
+        destination.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+      }
+      const mimeType = ['video/mp4;codecs="avc1.42E01E,mp4a.40.2"', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs="avc1.42E01E"', 'video/mp4;codecs=avc1', 'video/mp4'].find(type => MediaRecorder.isTypeSupported(type));
       if (!mimeType) {
         cancelAnimationFrame(recordFrameRef.current);
-        stream.getTracks().forEach(track => track.stop());
+        await releaseAudio();
         mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'visible');
         setExportMessage('Este navegador no puede grabar en MP4. Usa Safari actualizado para exportar el vídeo.');
         return;
@@ -376,10 +419,10 @@ export default function App() {
       chunksRef.current = [];
       recorderRef.current = recorder;
       recorder.ondataavailable = event => { if (event.data.size) chunksRef.current.push(event.data); };
-      recorder.onerror = () => { cancelAnimationFrame(recordFrameRef.current); setExportMessage('La grabación falló. Inténtalo de nuevo.'); setRecording(false); setPlaying(false); };
+      recorder.onerror = () => { cancelAnimationFrame(recordFrameRef.current); void releaseAudio(); setExportMessage('La grabación falló. Inténtalo de nuevo.'); setRecording(false); setPlaying(false); };
       recorder.onstop = async () => {
         cancelAnimationFrame(recordFrameRef.current);
-        stream.getTracks().forEach(track => track.stop());
+        await releaseAudio();
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/mp4' });
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const fileName = `${safeFileName(currentProject.name)}-${safeFileName(activeRoute.name)}-${stamp}.mp4`;
@@ -414,12 +457,14 @@ export default function App() {
         pitch: vehicleView ? 74 : 0,
         zoom: vehicleView ? Math.max(19.3, Math.min(20.5, 21.4 - Math.log2(height / 100))) : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100))),
       });
+      if (audioElement) { audioElement.currentTime = 0; await audioElement.play(); }
       recorder.start(1000);
       setRecording(true);
       setPlaying(true);
       setExportMessage('Grabando el recorrido. Se guardará automáticamente al llegar al final.');
     } catch {
       cancelAnimationFrame(recordFrameRef.current);
+      await releaseAudio();
       setRecording(false);
       setPlaying(false);
       if (mapRef.current?.getLayer('route-points-layer')) mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'visible');
@@ -481,7 +526,11 @@ export default function App() {
   const togglePlayback = () => {
     if (!activeRoute || activeRoute.points.length < 2) return;
     if (progressRef.current >= 1) progressRef.current = 0;
-    setPlaying(value => !value);
+    const nextPlaying = !playing;
+    const audio = audioResourcesRef.current?.audio;
+    if (nextPlaying) audio?.play().catch(() => {});
+    else audio?.pause();
+    setPlaying(nextPlaying);
   };
 
   return <main className="app-shell">
@@ -517,6 +566,13 @@ export default function App() {
           <div className="video-card-heading"><strong>Vídeo · {activeRoute?.name}</strong><span>MP4</span></div>
           <div className="video-actions"><button className="folder-button" onClick={chooseOutputFolder}>▰ {folderName || 'Elegir carpeta…'}</button><button className="export-button" disabled={!recording && (!folderName || !activeRoute || activeRoute.points.length < 2)} onClick={exportVideo}>{recording ? '■ Finalizar y guardar' : '● Grabar vídeo'}</button></div>
           <small>{exportMessage || (folderName ? `Se guardará en «${folderName}».` : 'Selecciona una trayectoria y elige dónde guardar su vídeo MP4.')}</small>
+        </div>
+        <div className="audio-card">
+          <strong>Audio del vídeo</strong>
+          <input ref={audioInputRef} className="audio-file-input" type="file" accept="audio/*,.mp3,.m4a,.wav" onChange={event => setAudioFile(event.target.files?.[0] || null)} />
+          <div className="audio-file-row"><button className="audio-file-button" disabled={recording} onClick={() => audioInputRef.current?.click()}>{audioFile ? `♪ ${audioFile.name}` : '♪ Añadir pista de audio'}</button>{audioFile && <button className="audio-clear-button" disabled={recording} title="Quitar pista" onClick={() => { setAudioFile(null); if (audioInputRef.current) audioInputRef.current.value = ''; }}>×</button>}</div>
+          <label className="microphone-option"><input type="checkbox" checked={recordMicrophone} disabled={recording} onChange={event => setRecordMicrophone(event.target.checked)} /> Grabar voz con el micrófono</label>
+          <small>La pista y la voz se incluyen en el MP4. El navegador pedirá permiso para usar el micrófono.</small>
         </div>
         <div className="control-group"><div className="control-label"><span>Perspectiva de cámara</span><strong>{cameraView === 'top' ? 'Vertical' : 'A ras de suelo'}</strong></div><div className="segmented view-segmented"><button className={cameraView === 'top' ? 'on' : ''} onClick={() => setCameraView('top')}>⊙ Vertical</button><button className={cameraView === 'vehicle' ? 'on' : ''} onClick={() => setCameraView('vehicle')}>▰ A bordo</button></div><small className="view-note">Sin puntos de paso · vista baja simulada, no grabación interior real.</small></div>
         <div className="timeline"><div className="timeline-track"><div className="timeline-fill" style={{ width: `${progress * 100}%` }} /><span className="timeline-knob" style={{ left: `${progress * 100}%` }} /></div><div className="timeline-labels"><span>00:00</span><span>{Math.max(0, Math.round(totalDistance / 16 / speed))} s aprox.</span></div></div>

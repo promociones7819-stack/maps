@@ -37,6 +37,7 @@ Herramienta local para crear proyectos de recorridos aéreos sobre cartografía 
 - Reproduce cualquier trayectoria con dos puntos o más. La vista vertical empieza a 120 m, mantiene la cámara directamente encima del vehículo y permite ajustar la altura entre 50 y 500 m.
 - Elige una cámara vertical sobre el vehículo o una perspectiva baja orientada según la trayectoria. Los puntos de paso se ocultan durante la reproducción.
 - Selecciona una trayectoria y, en **Vídeo · Trayectoria**, pulsa **Elegir carpeta** y **Grabar vídeo**. Cada recorrido se guarda como `.mp4` con el nombre del proyecto y de esa trayectoria. Puedes parar antes con **Finalizar y guardar**. La grabación MP4 requiere un navegador que la admita, como Safari actualizado.
+- En **Audio del vídeo**, puedes añadir una pista de audio desde el equipo, activar el micrófono para narrar mientras se graba, o usar ambas opciones a la vez. El navegador pedirá permiso antes de usar el micrófono.
 - Si el navegador no permite elegir carpetas, el vídeo se descargará en la carpeta de descargas configurada en el navegador.
 - Las rutas se guardan en el almacenamiento local del navegador de ese equipo.
 
