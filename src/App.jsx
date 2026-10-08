@@ -88,7 +88,8 @@ export default function App() {
   });
   const [tokenInput, setTokenInput] = useState(savedToken);
   const [tokenMessage, setTokenMessage] = useState('');
-  const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || savedToken;
+  const [editingToken, setEditingToken] = useState(false);
+  const token = savedToken || import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
   const mapNode = useRef(null), mapRef = useRef(null), routesRef = useRef([]), activeRef = useRef('');
   const progressRef = useRef(0), rafRef = useRef(0), lastFrameRef = useRef(0);
   const recorderRef = useRef(null), chunksRef = useRef([]), folderRef = useRef(null), recordFrameRef = useRef(0), audioResourcesRef = useRef(null), mediaStreamRef = useRef(null), audioInputRef = useRef(null);
@@ -128,6 +129,9 @@ export default function App() {
     try { localStorage.setItem('traza-bizkaia-mapbox-token', value); } catch { /* Keep the token for this session if storage is unavailable. */ }
     setSavedToken(value);
     setTokenMessage('Token guardado en este navegador.');
+    setMapError('');
+    setMapReady(false);
+    setEditingToken(false);
   };
   const releaseAudio = async () => {
     const resources = audioResourcesRef.current;
@@ -584,8 +588,8 @@ export default function App() {
       </aside>
       <section className="map-panel">
         <div ref={mapNode} className="map-canvas" />
-        {!token && <div className="map-overlay setup-overlay"><div className="setup-card"><div className="setup-symbol">⌖</div><p className="eyebrow">CONFIGURACIÓN INICIAL</p><h2>Conecta tu mapa de Mapbox</h2><p>El token solo se guarda en este navegador. Pega aquí tu token público de Mapbox para cargar el mapa y empezar a trazar.</p><form className="token-form" onSubmit={saveMapboxToken}><label htmlFor="mapbox-token">Token público de Mapbox</label><input id="mapbox-token" type="password" autoComplete="off" placeholder="pk.…" value={tokenInput} onChange={event => setTokenInput(event.target.value)} /><button type="submit" disabled={!tokenInput.trim()}>Conectar mapa</button>{tokenMessage && <small role="status">{tokenMessage}</small>}</form><div className="token-note"><span>🔒</span> Usa un token <strong>público</strong> que empieza por pk. Nunca pegues aquí uno secreto que empieza por sk.</div></div></div>}
-        {token && mapError && !mapReady && <div className="map-overlay"><div className="map-error"><strong>No se ha podido cargar el mapa</strong><p>{mapError}</p><small>Comprueba el token y la conexión a internet.</small></div></div>}
+        {(!token || editingToken) && <div className="map-overlay setup-overlay"><div className="setup-card"><div className="setup-symbol">⌖</div><p className="eyebrow">CONFIGURACIÓN INICIAL</p><h2>Conecta tu mapa de Mapbox</h2><p>El token solo se guarda en este navegador. Pega aquí tu token público de Mapbox para cargar el mapa y empezar a trazar.</p><form className="token-form" onSubmit={saveMapboxToken}><label htmlFor="mapbox-token">Token público de Mapbox</label><input id="mapbox-token" type="password" autoComplete="off" placeholder="pk.…" value={tokenInput} onChange={event => setTokenInput(event.target.value)} /><button type="submit" disabled={!tokenInput.trim()}>Conectar mapa</button>{tokenMessage && <small role="status">{tokenMessage}</small>}</form><div className="token-note"><span>🔒</span> Usa un token <strong>público</strong> que empieza por pk. Nunca pegues aquí uno secreto que empieza por sk.</div></div></div>}
+        {token && mapError && !mapReady && !editingToken && <div className="map-overlay"><div className="map-error"><strong>No se ha podido cargar el mapa</strong><p>{mapError}</p><small>Mapbox informa que este token no es válido (401). Esto no indica que hayas agotado los usos.</small><button className="token-change-button" onClick={() => { setTokenInput(savedToken || token); setTokenMessage(''); setEditingToken(true); }}>Cambiar token</button></div></div>}
         <div className="map-top-tools"><div className="map-pill"><span className="satellite-icon">▧</span><span>SATÉLITE</span><span className="pill-divider" /><span>3D</span></div><button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button></div>
         <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>Mapa · Bizkaia</span></div>
         {mapReady && <div className="map-hint">{mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
