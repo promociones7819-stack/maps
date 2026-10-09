@@ -223,6 +223,7 @@ export default function App() {
           'euskadi-orthophoto': {
             type: 'raster',
             tiles: ['https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/{z}/{y}/{x}'],
+            maxzoom: 20,
             tileSize: 256,
             attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi',
           },
@@ -500,10 +501,10 @@ export default function App() {
       const vehicleView = cameraView === 'vehicle';
       mapRef.current.jumpTo({
         center: start.coords,
-        offset: vehicleView ? [0, mapRef.current.getContainer().clientHeight * 0.22] : [0, 0],
+        offset: vehicleView ? [0, mapRef.current.getContainer().clientHeight * 0.14] : [0, 0],
         bearing: vehicleView ? start.bearing : 0,
-        pitch: vehicleView ? 74 : 0,
-        zoom: vehicleView ? Math.max(19.3, Math.min(20.5, 21.4 - Math.log2(height / 100))) : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100))),
+        pitch: vehicleView ? 60 : 0,
+        zoom: vehicleView ? Math.max(18.8, Math.min(19.7, 20.3 - Math.log2(height / 100))) : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100))),
       });
       if (audioElement) { audioElement.currentTime = 0; await audioElement.play(); }
       recorder.start(1000);
@@ -550,13 +551,13 @@ export default function App() {
     if (follow) {
       const vehicleView = cameraView === 'vehicle';
       const zoom = vehicleView
-        ? Math.max(19.3, Math.min(20.5, 21.4 - Math.log2(height / 100)))
+        ? Math.max(18.8, Math.min(19.7, 20.3 - Math.log2(height / 100)))
         : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100)));
       map.easeTo({
         center: position.coords,
-        offset: vehicleView ? [0, map.getContainer().clientHeight * 0.22] : [0, 0],
+        offset: vehicleView ? [0, map.getContainer().clientHeight * 0.14] : [0, 0],
         bearing: vehicleView ? position.bearing : 0,
-        pitch: vehicleView ? 74 : 0,
+        pitch: vehicleView ? 60 : 0,
         zoom,
         duration: 0,
         essential: true,
@@ -582,13 +583,13 @@ export default function App() {
       : { coords: route.points[0], bearing: 0 };
     const vehicleView = cameraView === 'vehicle';
     const zoom = vehicleView
-      ? Math.max(19.3, Math.min(20.5, 21.4 - Math.log2(height / 100)))
+      ? Math.max(18.8, Math.min(19.7, 20.3 - Math.log2(height / 100)))
       : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100)));
     map.easeTo({
       center: position.coords,
-      offset: vehicleView ? [0, map.getContainer().clientHeight * 0.22] : [0, 0],
+      offset: vehicleView ? [0, map.getContainer().clientHeight * 0.14] : [0, 0],
       bearing: vehicleView && follow ? position.bearing : 0,
-      pitch: vehicleView ? 74 : 0,
+      pitch: vehicleView ? 60 : 0,
       zoom,
       duration: 700,
       essential: true,
@@ -632,7 +633,7 @@ export default function App() {
         <div className="play-card">
           <button className={`play-button ${playing ? 'is-playing' : ''}`} onClick={togglePlayback} disabled={!activeRoute || activeRoute.points.length < 2} aria-label={playing ? 'Pausar' : 'Reproducir'}>{playing ? 'Ⅱ' : '▶'}</button>
           <div className="play-copy"><strong>{playing ? 'Simulación en curso' : 'Vista previa del recorrido'}</strong><small>{activeRoute?.points.length < 2 ? 'Añade al menos dos puntos' : `Sigue ${activeRoute?.name}`}</small></div>
-          <button className="restart-button" title="Volver al inicio" onClick={() => { progressRef.current = 0; setProgress(0); if (activeRoute?.points[0]) { const vehicleView = cameraView === 'vehicle'; mapRef.current?.flyTo({ center: activeRoute.points[0], zoom: vehicleView ? Math.max(19.3, Math.min(20.5, 21.4 - Math.log2(height / 100))) : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100))), pitch: vehicleView ? 74 : 0, bearing: vehicleView ? interpolateRoute(activeRoute.points, 0).bearing : 0, duration: 700 }); } }}>↺</button>
+          <button className="restart-button" title="Volver al inicio" onClick={() => { progressRef.current = 0; setProgress(0); if (activeRoute?.points[0]) { const vehicleView = cameraView === 'vehicle'; mapRef.current?.flyTo({ center: activeRoute.points[0], zoom: vehicleView ? Math.max(18.8, Math.min(19.7, 20.3 - Math.log2(height / 100))) : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100))), pitch: vehicleView ? 60 : 0, bearing: vehicleView ? interpolateRoute(activeRoute.points, 0).bearing : 0, duration: 700 }); } }}>↺</button>
         </div>
         <div className="video-card">
           <div className="video-card-heading"><strong>Vídeo · {activeRoute?.name}</strong><span>MP4</span></div>
