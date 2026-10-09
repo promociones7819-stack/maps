@@ -35,7 +35,7 @@ La aplicación web también guarda sus archivos básicos en el navegador para vo
 ## Elegir Mapbox Satellite
 
 1. En la esquina superior izquierda del mapa, pulsa **Mapa: GeoEuskadi**.
-2. Pega tu token **público** de Mapbox (empieza por `pk.`) con los permisos públicos `styles:read` y `fonts:read` y pulsa **Comprobar y usar Mapbox**. La aplicación comprueba tanto el estilo como el acceso a las imágenes aéreas antes de cambiar el mapa. El token queda guardado solo en el almacenamiento local de ese navegador; no se incluye en el repositorio ni en la publicación de Cloudflare.
+2. Pega tu token **público** de Mapbox (empieza por `pk.`) con los permisos públicos `styles:read` y `fonts:read` y pulsa **Usar Mapbox**. El mapa usa el estilo oficial `mapbox://styles/mapbox/satellite-streets-v12`. El token queda guardado solo en el almacenamiento local de ese navegador; no se incluye en el repositorio ni en la publicación de Cloudflare.
 3. Si restringes el token por URL en Mapbox, permite el dominio de tu aplicación (`maps.promociones7819.workers.dev`) y el origen local de desarrollo (`localhost:5173`).
 4. Para volver al mapa actual, abre la misma opción y pulsa **GeoEuskadi**. **Borrar token** elimina el token guardado y vuelve a GeoEuskadi.
 
@@ -43,4 +43,4 @@ Se aceptan únicamente tokens públicos. Nunca pegues un token secreto (`sk.`). 
 
 ## Datos cartográficos
 
-La ortofoto por defecto procede del servicio WMTS oficial de geoEuskadi. Se muestra la atribución correspondiente y las teselas guardadas offline quedan almacenadas en la caché de este navegador. La opción Mapbox carga el estilo oficial `mapbox://styles/mapbox/satellite-v9` con Mapbox GL JS y requiere un token público.
+La ortofoto por defecto procede del servicio WMTS oficial de geoEuskadi. Se muestra la atribución correspondiente y las teselas guardadas offline quedan almacenadas en la caché de este navegador. La opción Mapbox carga el estilo oficial `mapbox://styles/mapbox/satellite-streets-v12` con Mapbox GL JS y requiere un token público.

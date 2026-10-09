@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Map as MapLibreMap, NavigationControl, AttributionControl, LngLatBounds, setWorkerUrl } from 'maplibre-gl';
-import { Map as MapboxGLMap, NavigationControl as MapboxNavigationControl, AttributionControl as MapboxAttributionControl } from 'mapbox-gl';
+import mapboxgl, { Map as MapboxGLMap, NavigationControl as MapboxNavigationControl, AttributionControl as MapboxAttributionControl } from 'mapbox-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
 setWorkerUrl(maplibreWorkerUrl);
@@ -108,7 +108,6 @@ export default function App() {
   const [mapTokenDraft, setMapTokenDraft] = useState(() => localStorage.getItem('traza-bizkaia-mapbox-token') || '');
   const [mapSettingsOpen, setMapSettingsOpen] = useState(false);
   const [mapboxTokenError, setMapboxTokenError] = useState('');
-  const [checkingMapboxToken, setCheckingMapboxToken] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState('');
   const [progress, setProgress] = useState(0);
@@ -123,35 +122,11 @@ export default function App() {
   const modeRef = useRef(mode);
   const dragRef = useRef(null);
 
-  const selectMapProvider = async provider => {
+  const selectMapProvider = provider => {
     if (provider === 'mapbox') {
       const token = mapTokenDraft.trim();
       if (!token.startsWith('pk.')) { setMapboxTokenError('Pega un token público completo de Mapbox que empiece por pk.'); setMapSettingsOpen(true); return; }
-      setCheckingMapboxToken(true); setMapboxTokenError('');
-      try {
-        const check = await fetch(`https://api.mapbox.com/styles/v1/mapbox/satellite-v9?access_token=${encodeURIComponent(token)}`);
-        if (!check.ok) {
-          const detail = check.status === 401
-            ? 'Mapbox devuelve 401: el token no se reconoce. Copia el token público completo desde tu cuenta y comprueba que no esté revocado.'
-            : check.status === 403
-              ? 'Mapbox devuelve 403: revisa que el token tenga el permiso público styles:read y que permita maps.promociones7819.workers.dev. Para probar en local, añade localhost.'
-            : check.status === 404
-                ? 'Mapbox no encuentra el estilo Satellite. Comprueba que la URL del estilo esté disponible en tu cuenta.'
-                : `Mapbox devuelve el error ${check.status}. Revisa tu cuenta y la configuración del token.`;
-          setMapboxTokenError(detail); setMapSettingsOpen(true); return;
-        }
-        const imageryCheck = await fetch(`https://api.mapbox.com/v4/mapbox.satellite.json?secure&access_token=${encodeURIComponent(token)}`);
-        if (!imageryCheck.ok) {
-          const detail = imageryCheck.status === 401
-            ? 'Mapbox acepta el estilo, pero rechaza el acceso a las imágenes (401). Comprueba que el token público esté activo y que hayas copiado el token completo.'
-            : imageryCheck.status === 403
-              ? 'Mapbox acepta el estilo, pero no autoriza las imágenes (403). En Mapbox revisa las restricciones de URL y habilita los permisos públicos del token para mapas.'
-              : `Mapbox acepta el estilo, pero no puede acceder a las imágenes (error ${imageryCheck.status}). Revisa la cuenta y los permisos del token.`;
-          setMapboxTokenError(detail); setMapSettingsOpen(true); return;
-        }
-      } catch {
-        setMapboxTokenError('No se pudo contactar con Mapbox. Comprueba la conexión y vuelve a intentarlo.'); setMapSettingsOpen(true); return;
-      } finally { setCheckingMapboxToken(false); }
+      setMapboxTokenError('');
       try { localStorage.setItem('traza-bizkaia-mapbox-token', token); localStorage.setItem('traza-bizkaia-map-provider', 'mapbox'); }
       catch { setMapError('No se pudo guardar la configuración del mapa en este navegador.'); return; }
       setMapToken(token);
@@ -275,11 +250,11 @@ export default function App() {
     const initialView = mapViewRef.current || { center: START, zoom: 10.1, pitch: 0, bearing: 0 };
     const isMapbox = mapProvider === 'mapbox';
     const MapConstructor = isMapbox ? MapboxGLMap : MapLibreMap;
+    if (isMapbox) mapboxgl.accessToken = mapToken;
     const map = new MapConstructor({
       container: mapNode.current,
       ...(isMapbox ? {
-        accessToken: mapToken,
-        style: 'mapbox://styles/mapbox/satellite-v9',
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',
       } : { style: {
         version: 8,
         sources: {
@@ -312,8 +287,8 @@ export default function App() {
     map.on('error', event => {
       if (!event.error?.message || (!isMapbox && event.sourceId !== 'basemap-source')) return;
       const status = event.error.status;
-      if (isMapbox && status === 401) setMapError('Mapbox ha rechazado el token al descargar las imágenes aéreas (401). La comprobación del estilo pasó, pero las teselas no: vuelve a comprobar el token público completo y que siga activo.');
-      else if (isMapbox && status === 403) setMapError('Mapbox no autoriza las imágenes aéreas (403). Revisa las restricciones de URL del token para maps.promociones7819.workers.dev y el estado de tu cuenta.');
+      if (isMapbox && status === 401) setMapError('Mapbox ha rechazado el token al cargar el mapa (401). Comprueba que sea el token público activo de esta cuenta.');
+      else if (isMapbox && status === 403) setMapError('Mapbox no autoriza esta cuenta o el token (403). Comprueba que el token público siga activo y que la cuenta tenga acceso al servicio.');
       else setMapError(event.error.message);
     });
     map.on('click', event => {
@@ -730,9 +705,9 @@ export default function App() {
       </aside>
       <section className="map-panel">
         <div ref={mapNode} className="map-canvas" />
-        {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba el token público, sus permisos y las restricciones de URL. También puedes volver a geoEuskadi.' : 'Comprueba la conexión a geoEuskadi y vuelve a intentarlo.'}</small></div></div>}
+        {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba que el token público esté activo y que la cuenta permita cargar el estilo. También puedes volver a geoEuskadi.' : 'Comprueba la conexión a geoEuskadi y vuelve a intentarlo.'}</small></div></div>}
         <div className="map-top-tools"><button className="map-pill map-source-button" onClick={() => setMapSettingsOpen(!mapSettingsOpen)} aria-expanded={mapSettingsOpen}><span className="satellite-icon">▧</span><span>MAPA: {mapProvider === 'mapbox' ? 'MAPBOX' : 'GEOEUSKADI'}</span><span className="pill-divider" /><span>⚙</span></button><button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button><button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading || mapProvider === 'mapbox'} title={mapProvider === 'mapbox' ? 'La descarga offline está disponible con geoEuskadi' : ''}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
-        {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => { setMapTokenDraft(event.target.value); setMapboxTokenError(''); }} /><small className="map-token-help">Usa un token público (pk.) con permisos styles:read y fonts:read. Se guarda en este navegador y se envía a Mapbox para cargar el mapa. No uses un token secreto (sk.). Si restringes el token, permite maps.promociones7819.workers.dev y localhost si estás en desarrollo.</small>{mapboxTokenError && <div className="mapbox-token-error" role="alert">{mapboxTokenError}</div>}<div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" disabled={checkingMapboxToken} onClick={() => selectMapProvider('mapbox')}>{checkingMapboxToken ? 'Comprobando…' : 'Comprobar y usar Mapbox'}</button></div></div>}
+        {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => { setMapTokenDraft(event.target.value); setMapboxTokenError(''); }} /><small className="map-token-help">Usa un token público (pk.) con permisos styles:read y fonts:read. Se guarda en este navegador y se envía a Mapbox para cargar el mapa. No uses un token secreto (sk.).</small>{mapboxTokenError && <div className="mapbox-token-error" role="alert">{mapboxTokenError}</div>}<div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" onClick={() => selectMapProvider('mapbox')}>Usar Mapbox</button></div></div>}
         {offlineMessage && <div className="offline-map-status" role="status">{offlineMessage}</div>}
         <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>{mapProvider === 'mapbox' ? 'Mapbox Satellite · Bizkaia' : 'Ortofoto geoEuskadi · Bizkaia'}</span></div>
         {mapReady && <div className="map-hint">{mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
