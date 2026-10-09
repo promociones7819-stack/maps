@@ -12,13 +12,13 @@ const EUSKADI_TILES = 'https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/
 const geoEuskadiSource = { type: 'raster', tiles: [EUSKADI_TILES], maxzoom: 20, tileSize: 256, attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi' };
 const nextRouteColor = routes => COLORS.find(color => !routes.some(route => route.color.toLowerCase() === color)) || COLORS[0];
 const makeInitialRoutes = () => ['A', 'B', 'C', 'D'].map((letter, index) => ({
-  id: crypto.randomUUID(), name: `Trayectoria ${letter}`, color: COLORS[index], points: [],
+  id: crypto.randomUUID(), name: `Trayectoria ${letter}`, color: COLORS[index], points: [], narration: '',
 }));
 const ensureFourRoutes = routes => {
   const expanded = [...routes];
   while (expanded.length < 4) {
     const index = expanded.length;
-    expanded.push({ id: crypto.randomUUID(), name: `Trayectoria ${String.fromCharCode(65 + index)}`, color: nextRouteColor(expanded), points: [] });
+    expanded.push({ id: crypto.randomUUID(), name: `Trayectoria ${String.fromCharCode(65 + index)}`, color: nextRouteColor(expanded), points: [], narration: '' });
   }
   return expanded;
 };
@@ -92,7 +92,7 @@ function interpolateRoute(points, fraction) {
 export default function App() {
   const mapNode = useRef(null), mapRef = useRef(null), mapViewRef = useRef(null), routesRef = useRef([]), activeRef = useRef('');
   const progressRef = useRef(0), rafRef = useRef(0), lastFrameRef = useRef(0);
-  const recorderRef = useRef(null), chunksRef = useRef([]), folderRef = useRef(null), recordFrameRef = useRef(0), audioResourcesRef = useRef(null), mediaStreamRef = useRef(null), audioInputRef = useRef(null);
+  const recorderRef = useRef(null), chunksRef = useRef([]), folderRef = useRef(null), recordFrameRef = useRef(0), audioResourcesRef = useRef(null), mediaStreamRef = useRef(null), audioInputRef = useRef(null), narrationUtteranceRef = useRef(null);
   const [projectState, setProjectState] = useState(loadProjectState);
   const currentProject = projectState.projects.find(project => project.id === projectState.activeProjectId) || projectState.projects[0];
   const [routes, setRoutes] = useState(() => loadProjectRoutes(currentProject));
@@ -115,6 +115,8 @@ export default function App() {
   const [recording, setRecording] = useState(false);
   const [audioFile, setAudioFile] = useState(null);
   const [recordMicrophone, setRecordMicrophone] = useState(false);
+  const [samanthaVoice, setSamanthaVoice] = useState(null);
+  const [narrationMessage, setNarrationMessage] = useState('');
   const [offlineDownloading, setOfflineDownloading] = useState(false);
   const [offlineMessage, setOfflineMessage] = useState('');
   const [folderName, setFolderName] = useState('');
@@ -122,6 +124,15 @@ export default function App() {
   const [nameDialog, setNameDialog] = useState(null);
   const modeRef = useRef(mode);
   const dragRef = useRef(null);
+
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) return undefined;
+    const findSamantha = () => setSamanthaVoice(synth.getVoices().find(voice => voice.name.toLowerCase().includes('samantha')) || null);
+    findSamantha();
+    synth.addEventListener?.('voiceschanged', findSamantha);
+    return () => { synth.removeEventListener?.('voiceschanged', findSamantha); synth.cancel(); };
+  }, []);
 
   const selectMapProvider = provider => {
     if (provider === 'mapbox') {
@@ -160,6 +171,33 @@ export default function App() {
     if (resources.url) URL.revokeObjectURL(resources.url);
     resources.microphone?.getTracks().forEach(track => track.stop());
     if (resources.context?.state !== 'closed') await resources.context?.close().catch(() => {});
+  };
+  const speakNarration = text => {
+    const narration = text?.trim();
+    if (!narration) return;
+    if (!window.speechSynthesis || !('SpeechSynthesisUtterance' in window)) {
+      setNarrationMessage('Este navegador no permite generar voz.');
+      return;
+    }
+    if (!samanthaVoice) {
+      setNarrationMessage('No se encuentra la voz Samantha en este dispositivo. Comprueba las voces instaladas en macOS y recarga la página.');
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(narration);
+    utterance.voice = samanthaVoice;
+    utterance.lang = samanthaVoice.lang;
+    utterance.rate = 1;
+    utterance.onstart = () => setNarrationMessage('Reproduciendo con Samantha.');
+    utterance.onend = () => { if (narrationUtteranceRef.current === utterance) { narrationUtteranceRef.current = null; setNarrationMessage('Narración terminada.'); } };
+    utterance.onerror = () => { if (narrationUtteranceRef.current === utterance) { narrationUtteranceRef.current = null; setNarrationMessage('No se pudo reproducir la voz Samantha.'); } };
+    narrationUtteranceRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+  };
+  const stopNarration = () => {
+    window.speechSynthesis?.cancel();
+    narrationUtteranceRef.current = null;
+    setNarrationMessage('Narración detenida.');
   };
   const downloadOfflineArea = async () => {
     const map = mapRef.current;
@@ -450,6 +488,7 @@ export default function App() {
   const exportVideo = async () => {
     if (recording) {
       setPlaying(false);
+      stopNarration();
       if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
       return;
     }
@@ -521,9 +560,11 @@ export default function App() {
       chunksRef.current = [];
       recorderRef.current = recorder;
       recorder.ondataavailable = event => { if (event.data.size) chunksRef.current.push(event.data); };
-      recorder.onerror = () => { cancelAnimationFrame(recordFrameRef.current); void releaseAudio(); setExportMessage('La grabación falló. Inténtalo de nuevo.'); setRecording(false); setPlaying(false); };
+      recorder.onerror = () => { cancelAnimationFrame(recordFrameRef.current); window.speechSynthesis?.cancel(); narrationUtteranceRef.current = null; void releaseAudio(); setExportMessage('La grabación falló. Inténtalo de nuevo.'); setRecording(false); setPlaying(false); };
       recorder.onstop = async () => {
         cancelAnimationFrame(recordFrameRef.current);
+        window.speechSynthesis?.cancel();
+        narrationUtteranceRef.current = null;
         await releaseAudio();
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/mp4' });
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -561,6 +602,7 @@ export default function App() {
       });
       if (audioElement) { audioElement.currentTime = 0; await audioElement.play(); }
       recorder.start(1000);
+      if (activeRoute.narration?.trim()) speakNarration(activeRoute.narration);
       setRecording(true);
       setPlaying(true);
       setExportMessage('Grabando el recorrido. Se guardará automáticamente al llegar al final.');
@@ -578,7 +620,7 @@ export default function App() {
     const bounds = route.points.reduce((b, coord) => b.extend(coord), new LngLatBounds(route.points[0], route.points[0]));
     mapRef.current.fitBounds(bounds.toArray(), { padding: 100, maxZoom: 16, duration: 800 });
   };
-  const setActive = id => { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); setPlaying(false); setProgress(0); progressRef.current = 0; setActiveId(id); setSelectedPoint(null); };
+  const setActive = id => { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); stopNarration(); setPlaying(false); setProgress(0); progressRef.current = 0; setActiveId(id); setSelectedPoint(null); };
 
   const animate = useCallback((now) => {
     const route = routesRef.current.find(r => r.id === activeRef.current);
@@ -626,6 +668,13 @@ export default function App() {
   }, [playing, animate, routes, activeId, updateSources]);
 
   useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth || !narrationUtteranceRef.current) return;
+    if (playing && synth.paused) synth.resume();
+    else if (!playing && synth.speaking && !synth.paused) synth.pause();
+  }, [playing]);
+
+  useEffect(() => {
     if (playing) return;
     const route = routes.find(item => item.id === activeId);
     const map = mapRef.current;
@@ -654,8 +703,14 @@ export default function App() {
     if (progressRef.current >= 1) progressRef.current = 0;
     const nextPlaying = !playing;
     const audio = audioResourcesRef.current?.audio;
-    if (nextPlaying) audio?.play().catch(() => {});
-    else audio?.pause();
+    if (nextPlaying) {
+      audio?.play().catch(() => {});
+      if (narrationUtteranceRef.current && window.speechSynthesis?.paused) window.speechSynthesis.resume();
+      else if (activeRoute.narration?.trim()) speakNarration(activeRoute.narration);
+    } else {
+      audio?.pause();
+      window.speechSynthesis?.pause();
+    }
     setPlaying(nextPlaying);
   };
 
@@ -695,10 +750,14 @@ export default function App() {
         </div>
         <div className="audio-card">
           <strong>Audio del vídeo</strong>
+          <label className="narration-label" htmlFor="route-narration">Narración de la trayectoria</label>
+          <textarea id="route-narration" className="narration-input" maxLength={3000} rows={3} value={activeRoute?.narration || ''} disabled={!activeRoute || recording} placeholder="Escribe aquí lo que quieres narrar…" onChange={event => { const narration = event.target.value; commitRoutes(routes.map(route => route.id === activeId ? { ...route, narration } : route)); }} />
+          <div className="narration-actions"><button className="audio-file-button" disabled={!activeRoute?.narration?.trim() || !samanthaVoice || recording} onClick={() => speakNarration(activeRoute?.narration)}>▶ Escuchar con Samantha</button><button className="audio-clear-button" disabled={!narrationUtteranceRef.current} onClick={stopNarration} title="Detener narración">■</button></div>
+          <small className="narration-status" role="status">{narrationMessage || (samanthaVoice ? `Voz disponible: ${samanthaVoice.name} · se sincroniza al reproducir la trayectoria.` : 'Buscando la voz Samantha de macOS…')}</small>
           <input ref={audioInputRef} className="audio-file-input" type="file" accept="audio/*,.mp3,.m4a,.wav" onChange={event => setAudioFile(event.target.files?.[0] || null)} />
           <div className="audio-file-row"><button className="audio-file-button" disabled={recording} onClick={() => audioInputRef.current?.click()}>{audioFile ? `♪ ${audioFile.name}` : '♪ Añadir pista de audio'}</button>{audioFile && <button className="audio-clear-button" disabled={recording} title="Quitar pista" onClick={() => { setAudioFile(null); if (audioInputRef.current) audioInputRef.current.value = ''; }}>×</button>}</div>
           <label className="microphone-option"><input type="checkbox" checked={recordMicrophone} disabled={recording} onChange={event => setRecordMicrophone(event.target.checked)} /> Grabar voz con el micrófono</label>
-          <small>La pista y la voz se incluyen en el MP4. El navegador pedirá permiso para usar el micrófono.</small>
+          <small>La pista y el micrófono se incluyen en el MP4. Samantha se reproduce sincronizada durante la grabación, pero Safari no permite incluir directamente esa voz del sistema en el archivo.</small>
         </div>
         <div className="control-group"><div className="control-label"><span>Perspectiva de cámara</span><strong>{cameraView === 'top' ? 'Vertical' : 'A ras de suelo'}</strong></div><div className="segmented view-segmented"><button className={cameraView === 'top' ? 'on' : ''} onClick={() => setCameraView('top')}>⊙ Vertical</button><button className={cameraView === 'vehicle' ? 'on' : ''} onClick={() => setCameraView('vehicle')}>▰ A bordo</button></div><small className="view-note">Sin puntos de paso · vista baja simulada, no grabación interior real.</small></div>
         <div className="timeline"><div className="timeline-track"><div className="timeline-fill" style={{ width: `${progress * 100}%` }} /><span className="timeline-knob" style={{ left: `${progress * 100}%` }} /></div><div className="timeline-labels"><span>00:00</span><span>{Math.max(0, Math.round(totalDistance / 16 / speed))} s aprox.</span></div></div>

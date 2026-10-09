@@ -30,6 +30,7 @@ La aplicación web también guarda sus archivos básicos en el navegador para vo
 - La vista vertical comienza a 120 m y mantiene la cámara directamente encima del vehículo. La altura se puede ajustar entre 50 y 500 m.
 - En **Vídeo · Trayectoria**, elige dónde guardar el MP4 y pulsa **Grabar vídeo**. Cada trayectoria genera un archivo independiente cuyo nombre incluye el proyecto y la ruta.
 - En **Audio del vídeo**, puedes añadir una pista, grabar voz con el micrófono o combinar ambas opciones. El navegador pedirá permiso antes de usar el micrófono.
+- Puedes escribir una narración por trayectoria y escucharla con la voz Samantha al previsualizar o grabar. Safari reproduce esa voz sincronizada, pero no permite incorporarla directamente al MP4; para que el archivo tenga audio, añade una pista de audio o activa el micrófono.
 - La vista “A bordo” es una simulación inclinada, no una grabación real desde el interior de un vehículo.
 
 ## Elegir Mapbox Satellite
