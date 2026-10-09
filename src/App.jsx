@@ -11,14 +11,20 @@ const START = [-2.9352, 43.2631];
 const EUSKADI_TILES = 'https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/{z}/{y}/{x}';
 const geoEuskadiSource = { type: 'raster', tiles: [EUSKADI_TILES], maxzoom: 20, tileSize: 256, attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi' };
 const nextRouteColor = routes => COLORS.find(color => !routes.some(route => route.color.toLowerCase() === color)) || COLORS[0];
+const narrationVoiceFor = (voices, language) => {
+  const prefix = language === 'eu' ? 'eu' : 'es';
+  const matching = voices.filter(voice => voice.lang?.toLowerCase().split(/[-_]/)[0] === prefix);
+  if (language === 'eu') return matching.find(voice => voice.lang?.toLowerCase() === 'eu-es') || matching[0] || null;
+  return matching.find(voice => voice.lang?.toLowerCase() === 'es-es') || matching[0] || null;
+};
 const makeInitialRoutes = () => ['A', 'B', 'C', 'D'].map((letter, index) => ({
-  id: crypto.randomUUID(), name: `Trayectoria ${letter}`, color: COLORS[index], points: [], narration: '',
+  id: crypto.randomUUID(), name: `Trayectoria ${letter}`, color: COLORS[index], points: [], narration: '', narrationLanguage: 'es',
 }));
 const ensureFourRoutes = routes => {
   const expanded = [...routes];
   while (expanded.length < 4) {
     const index = expanded.length;
-    expanded.push({ id: crypto.randomUUID(), name: `Trayectoria ${String.fromCharCode(65 + index)}`, color: nextRouteColor(expanded), points: [], narration: '' });
+    expanded.push({ id: crypto.randomUUID(), name: `Trayectoria ${String.fromCharCode(65 + index)}`, color: nextRouteColor(expanded), points: [], narration: '', narrationLanguage: 'es' });
   }
   return expanded;
 };
@@ -115,7 +121,7 @@ export default function App() {
   const [recording, setRecording] = useState(false);
   const [audioFile, setAudioFile] = useState(null);
   const [recordMicrophone, setRecordMicrophone] = useState(false);
-  const [samanthaVoice, setSamanthaVoice] = useState(null);
+  const [speechVoices, setSpeechVoices] = useState([]);
   const [narrationMessage, setNarrationMessage] = useState('');
   const [offlineDownloading, setOfflineDownloading] = useState(false);
   const [offlineMessage, setOfflineMessage] = useState('');
@@ -128,10 +134,10 @@ export default function App() {
   useEffect(() => {
     const synth = window.speechSynthesis;
     if (!synth) return undefined;
-    const findSamantha = () => setSamanthaVoice(synth.getVoices().find(voice => voice.name.toLowerCase().includes('samantha')) || null);
-    findSamantha();
-    synth.addEventListener?.('voiceschanged', findSamantha);
-    return () => { synth.removeEventListener?.('voiceschanged', findSamantha); synth.cancel(); };
+    const updateVoices = () => setSpeechVoices(synth.getVoices());
+    updateVoices();
+    synth.addEventListener?.('voiceschanged', updateVoices);
+    return () => { synth.removeEventListener?.('voiceschanged', updateVoices); synth.cancel(); };
   }, []);
 
   const selectMapProvider = provider => {
@@ -157,6 +163,8 @@ export default function App() {
   };
 
   const activeRoute = routes.find(route => route.id === activeId) || routes[0];
+  const narrationLanguage = activeRoute?.narrationLanguage || 'es';
+  const narrationVoice = narrationVoiceFor(speechVoices, narrationLanguage);
   const totalDistance = useMemo(() => activeRoute?.points.slice(1).reduce((sum, p, i) => sum + distance(activeRoute.points[i], p), 0) || 0, [activeRoute]);
 
   const releaseAudio = async () => {
@@ -179,18 +187,21 @@ export default function App() {
       setNarrationMessage('Este navegador no permite generar voz.');
       return;
     }
-    if (!samanthaVoice) {
-      setNarrationMessage('No se encuentra la voz Samantha en este dispositivo. Comprueba las voces instaladas en macOS y recarga la página.');
+    const voice = narrationVoiceFor(speechVoices, narrationLanguage);
+    if (!voice) {
+      setNarrationMessage(narrationLanguage === 'eu'
+        ? 'No hay una voz de euskera disponible en Safari/macOS. Instala una voz compatible con euskera para escuchar esta narración; no usaremos una voz en inglés.'
+        : 'No hay una voz de español disponible en Safari/macOS. Comprueba las voces instaladas y vuelve a cargar la página.');
       return;
     }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(narration);
-    utterance.voice = samanthaVoice;
-    utterance.lang = samanthaVoice.lang;
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
     utterance.rate = 1;
-    utterance.onstart = () => setNarrationMessage('Reproduciendo con Samantha.');
+    utterance.onstart = () => setNarrationMessage(`Reproduciendo en ${narrationLanguage === 'eu' ? 'euskera' : 'español'} · ${voice.name}.`);
     utterance.onend = () => { if (narrationUtteranceRef.current === utterance) { narrationUtteranceRef.current = null; setNarrationMessage('Narración terminada.'); } };
-    utterance.onerror = () => { if (narrationUtteranceRef.current === utterance) { narrationUtteranceRef.current = null; setNarrationMessage('No se pudo reproducir la voz Samantha.'); } };
+    utterance.onerror = () => { if (narrationUtteranceRef.current === utterance) { narrationUtteranceRef.current = null; setNarrationMessage('No se pudo reproducir la voz seleccionada.'); } };
     narrationUtteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
   };
@@ -752,12 +763,16 @@ export default function App() {
           <strong>Audio del vídeo</strong>
           <label className="narration-label" htmlFor="route-narration">Narración de la trayectoria</label>
           <textarea id="route-narration" className="narration-input" maxLength={3000} rows={3} value={activeRoute?.narration || ''} disabled={!activeRoute || recording} placeholder="Escribe aquí lo que quieres narrar…" onChange={event => { const narration = event.target.value; commitRoutes(routes.map(route => route.id === activeId ? { ...route, narration } : route)); }} />
-          <div className="narration-actions"><button className="audio-file-button" disabled={!activeRoute?.narration?.trim() || !samanthaVoice || recording} onClick={() => speakNarration(activeRoute?.narration)}>▶ Escuchar con Samantha</button><button className="audio-clear-button" disabled={!narrationUtteranceRef.current} onClick={stopNarration} title="Detener narración">■</button></div>
-          <small className="narration-status" role="status">{narrationMessage || (samanthaVoice ? `Voz disponible: ${samanthaVoice.name} · se sincroniza al reproducir la trayectoria.` : 'Buscando la voz Samantha de macOS…')}</small>
+          <label className="narration-label" htmlFor="narration-language">Idioma de la voz</label>
+          <select id="narration-language" className="narration-language" value={narrationLanguage} disabled={!activeRoute || recording || playing} onChange={event => { const narrationLanguage = event.target.value; commitRoutes(routes.map(route => route.id === activeId ? { ...route, narrationLanguage } : route)); setNarrationMessage(''); }}>
+            <option value="es">Español</option><option value="eu">Euskera</option>
+          </select>
+          <div className="narration-actions"><button className="audio-file-button" disabled={!activeRoute?.narration?.trim() || !narrationVoice || recording} onClick={() => speakNarration(activeRoute?.narration)}>▶ Escuchar narración</button><button className="audio-clear-button" disabled={!narrationUtteranceRef.current} onClick={stopNarration} title="Detener narración">■</button></div>
+          <small className="narration-status" role="status">{narrationMessage || (narrationVoice ? `Voz disponible: ${narrationVoice.name} · ${narrationLanguage === 'eu' ? 'euskera' : 'español'}.` : narrationLanguage === 'eu' ? 'No se ha encontrado una voz de euskera en este dispositivo. La disponibilidad depende de las voces instaladas en macOS.' : 'Buscando una voz de español en Safari/macOS…')}</small>
           <input ref={audioInputRef} className="audio-file-input" type="file" accept="audio/*,.mp3,.m4a,.wav" onChange={event => setAudioFile(event.target.files?.[0] || null)} />
           <div className="audio-file-row"><button className="audio-file-button" disabled={recording} onClick={() => audioInputRef.current?.click()}>{audioFile ? `♪ ${audioFile.name}` : '♪ Añadir pista de audio'}</button>{audioFile && <button className="audio-clear-button" disabled={recording} title="Quitar pista" onClick={() => { setAudioFile(null); if (audioInputRef.current) audioInputRef.current.value = ''; }}>×</button>}</div>
           <label className="microphone-option"><input type="checkbox" checked={recordMicrophone} disabled={recording} onChange={event => setRecordMicrophone(event.target.checked)} /> Grabar voz con el micrófono</label>
-          <small>La pista y el micrófono se incluyen en el MP4. Samantha se reproduce sincronizada durante la grabación, pero Safari no permite incluir directamente esa voz del sistema en el archivo.</small>
+          <small>La pista y el micrófono se incluyen en el MP4. La voz del sistema se reproduce sincronizada durante la grabación, pero Safari no permite incluirla directamente en el archivo.</small>
         </div>
         <div className="control-group"><div className="control-label"><span>Perspectiva de cámara</span><strong>{cameraView === 'top' ? 'Vertical' : 'A ras de suelo'}</strong></div><div className="segmented view-segmented"><button className={cameraView === 'top' ? 'on' : ''} onClick={() => setCameraView('top')}>⊙ Vertical</button><button className={cameraView === 'vehicle' ? 'on' : ''} onClick={() => setCameraView('vehicle')}>▰ A bordo</button></div><small className="view-note">Sin puntos de paso · vista baja simulada, no grabación interior real.</small></div>
         <div className="timeline"><div className="timeline-track"><div className="timeline-fill" style={{ width: `${progress * 100}%` }} /><span className="timeline-knob" style={{ left: `${progress * 100}%` }} /></div><div className="timeline-labels"><span>00:00</span><span>{Math.max(0, Math.round(totalDistance / 16 / speed))} s aprox.</span></div></div>
