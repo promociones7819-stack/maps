@@ -7,6 +7,10 @@ setWorkerUrl(maplibreWorkerUrl);
 const COLORS = ['#e36b4d', '#477bda', '#35a17e', '#a271c5', '#d2a33c'];
 const SPEEDS = [0.1, 0.2, 0.3, 0.4, 0.5, 1, 2];
 const START = [-2.9352, 43.2631];
+const EUSKADI_TILES = 'https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/{z}/{y}/{x}';
+const makeBasemapSource = (provider, token) => provider === 'mapbox'
+  ? { type: 'raster', tiles: [`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg90?access_token=${encodeURIComponent(token)}`], maxzoom: 22, tileSize: 256, attribution: '© <a href="https://www.mapbox.com/">Mapbox</a> · © <a href="https://www.maxar.com/">Maxar</a>' }
+  : { type: 'raster', tiles: [EUSKADI_TILES], maxzoom: 20, tileSize: 256, attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi' };
 const makeInitialRoutes = () => ['A', 'B', 'C', 'D'].map((letter, index) => ({
   id: crypto.randomUUID(), name: `Trayectoria ${letter}`, color: COLORS[index], points: [],
 }));
@@ -100,6 +104,10 @@ export default function App() {
   const [height, setHeight] = useState(120);
   const [follow, setFollow] = useState(true);
   const [cameraView, setCameraView] = useState('top');
+  const [mapProvider, setMapProvider] = useState(() => localStorage.getItem('traza-bizkaia-map-provider') === 'mapbox' && localStorage.getItem('traza-bizkaia-mapbox-token')?.startsWith('pk.') ? 'mapbox' : 'geoEuskadi');
+  const [mapToken, setMapToken] = useState(() => localStorage.getItem('traza-bizkaia-mapbox-token') || '');
+  const [mapTokenDraft, setMapTokenDraft] = useState(() => localStorage.getItem('traza-bizkaia-mapbox-token') || '');
+  const [mapSettingsOpen, setMapSettingsOpen] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState('');
   const [progress, setProgress] = useState(0);
@@ -113,6 +121,26 @@ export default function App() {
   const [nameDialog, setNameDialog] = useState(null);
   const modeRef = useRef(mode);
   const dragRef = useRef(null);
+
+  const selectMapProvider = provider => {
+    if (provider === 'mapbox') {
+      const token = mapTokenDraft.trim();
+      if (!token.startsWith('pk.')) { setMapError('Introduce un token público de Mapbox (empieza por pk.).'); setMapSettingsOpen(true); return; }
+      try { localStorage.setItem('traza-bizkaia-mapbox-token', token); localStorage.setItem('traza-bizkaia-map-provider', 'mapbox'); }
+      catch { setMapError('No se pudo guardar la configuración del mapa en este navegador.'); return; }
+      setMapToken(token);
+    } else {
+      localStorage.setItem('traza-bizkaia-map-provider', 'geoEuskadi');
+    }
+    setMapError('');
+    setMapProvider(provider);
+  };
+
+  const clearMapboxToken = () => {
+    localStorage.removeItem('traza-bizkaia-mapbox-token');
+    localStorage.setItem('traza-bizkaia-map-provider', 'geoEuskadi');
+    setMapToken(''); setMapTokenDraft(''); setMapProvider('geoEuskadi'); setMapError('');
+  };
 
   const activeRoute = routes.find(route => route.id === activeId) || routes[0];
   const totalDistance = useMemo(() => activeRoute?.points.slice(1).reduce((sum, p, i) => sum + distance(activeRoute.points[i], p), 0) || 0, [activeRoute]);
@@ -220,15 +248,9 @@ export default function App() {
       style: {
         version: 8,
         sources: {
-          'euskadi-orthophoto': {
-            type: 'raster',
-            tiles: ['https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/{z}/{y}/{x}'],
-            maxzoom: 20,
-            tileSize: 256,
-            attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi',
-          },
+          'basemap-source': makeBasemapSource('geoEuskadi', ''),
         },
-        layers: [{ id: 'euskadi-orthophoto-layer', type: 'raster', source: 'euskadi-orthophoto' }],
+        layers: [{ id: 'basemap-layer', type: 'raster', source: 'basemap-source' }],
       },
       center: START,
       zoom: 10.1,
@@ -250,7 +272,7 @@ export default function App() {
       map.addLayer({ id: 'vehicle-point', type: 'circle', source: 'route-points', filter: ['has', 'vehicle'], paint: { 'circle-radius': 7, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
       setMapReady(true);
     });
-    map.on('error', event => { if (event.error?.message) setMapError(event.error.message); });
+    map.on('error', event => { if (event.error?.message && event.sourceId === 'basemap-source') setMapError(event.error.message); });
     map.on('click', event => {
       if (modeRef.current !== 'add') {
         const features = map.queryRenderedFeatures(event.point, { layers: ['route-points-layer'] });
@@ -292,6 +314,20 @@ export default function App() {
     });
     return () => { cancelAnimationFrame(rafRef.current); map.remove(); mapRef.current = null; };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    if (mapProvider === 'mapbox' && !mapToken) return;
+    try {
+      if (map.getLayer('basemap-layer')) map.removeLayer('basemap-layer');
+      if (map.getSource('basemap-source')) map.removeSource('basemap-source');
+      map.addSource('basemap-source', makeBasemapSource(mapProvider, mapToken));
+      map.addLayer({ id: 'basemap-layer', type: 'raster', source: 'basemap-source', paint: { 'raster-fade-duration': 150 } }, map.getLayer('routes-outline') ? 'routes-outline' : undefined);
+      map.setMaxZoom(mapProvider === 'mapbox' ? 22 : 20);
+      setMapError('');
+    } catch (error) { setMapError(error.message || 'No se pudo cambiar el mapa.'); }
+  }, [mapReady, mapProvider, mapToken]);
 
   useEffect(() => { if (mapReady) updateSources(routes, activeId); }, [mapReady, routes, activeId, updateSources]);
   useEffect(() => {
@@ -609,7 +645,7 @@ export default function App() {
   return <main className="app-shell">
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><div className="brand-name">TRAZA<span> / BIZKAIA</span></div><div className="brand-subtitle">Estudio de recorridos aéreos</div></div></div>
-      <div className="topbar-right"><span className="map-status"><i className={mapReady ? 'status-dot ready' : 'status-dot'} />{mapReady ? 'Ortofoto geoEuskadi' : 'Cargando ortofoto'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
+      <div className="topbar-right"><span className="map-status"><i className={mapReady && !mapError ? 'status-dot ready' : 'status-dot'} />{mapProvider === 'mapbox' ? 'Mapbox Satélite' : 'Ortofoto geoEuskadi'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
     </header>
     <section className="workspace">
       <aside className="sidebar">
@@ -657,10 +693,12 @@ export default function App() {
       </aside>
       <section className="map-panel">
         <div ref={mapNode} className="map-canvas" />
-        {mapError && !mapReady && <div className="map-overlay"><div className="map-error"><strong>No se ha podido cargar la ortofoto</strong><p>{mapError}</p><small>Comprueba la conexión a geoEuskadi y vuelve a intentarlo.</small></div></div>}
-        <div className="map-top-tools"><div className="map-pill"><span className="satellite-icon">▧</span><span>ORTOFOTO</span><span className="pill-divider" /><span>3D</span></div><button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button><button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
+        {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba el token público, sus permisos y las restricciones de URL. También puedes volver a geoEuskadi.' : 'Comprueba la conexión a geoEuskadi y vuelve a intentarlo.'}</small></div></div>}
+        <div className="map-top-tools"><button className="map-pill map-source-button" onClick={() => setMapSettingsOpen(!mapSettingsOpen)} aria-expanded={mapSettingsOpen}><span className="satellite-icon">▧</span><span>MAPA: {mapProvider === 'mapbox' ? 'MAPBOX' : 'GEOEUSKADI'}</span><span className="pill-divider" /><span>⚙</span></button><button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button><button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading || mapProvider === 'mapbox'} title={mapProvider === 'mapbox' ? 'La descarga offline está disponible con geoEuskadi' : ''}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
+        {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => setMapTokenDraft(event.target.value)} /><small className="map-token-help">Usa solo un token público (pk.). Se guarda en este navegador y se envía a Mapbox al cargar sus imágenes. No uses un token secreto (sk.). Si restringes el token, permite localhost y maps.promociones7819.workers.dev. El uso está sujeto al plan y límites de Mapbox.</small><div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" onClick={() => selectMapProvider('mapbox')}>Usar Mapbox</button></div></div>}
         {offlineMessage && <div className="offline-map-status" role="status">{offlineMessage}</div>}
-        <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>Ortofoto geoEuskadi · Bizkaia</span></div>
+        {mapProvider === 'mapbox' && <a className="mapbox-logo-link" href="https://www.mapbox.com/" target="_blank" rel="noreferrer" aria-label="Mapbox"><img src="/mapbox-logo-black.svg" alt="Mapbox" /></a>}
+        <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>{mapProvider === 'mapbox' ? 'Mapbox Satellite · Bizkaia' : 'Ortofoto geoEuskadi · Bizkaia'}</span></div>
         {mapReady && <div className="map-hint">{mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
         {playing && <div className="flight-badge"><span className="pulse-dot" /> VUELO EN DIRECTO <span>·</span> {activeRoute?.name}</div>}
       </section>

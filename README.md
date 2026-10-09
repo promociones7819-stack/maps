@@ -1,6 +1,6 @@
 # Traza · Bizkaia
 
-Aplicación web para diseñar cuatro recorridos aéreos, previsualizarlos y grabar un MP4. El mapa usa ortofotografía oficial de geoEuskadi y no necesita token ni cuenta de Mapbox.
+Aplicación web para diseñar cuatro recorridos aéreos, previsualizarlos y grabar un MP4. GeoEuskadi es la fuente inicial y funciona sin token. También se puede seleccionar Mapbox Satellite.
 
 ## Puesta en marcha
 
@@ -32,6 +32,15 @@ La aplicación web también guarda sus archivos básicos en el navegador para vo
 - En **Audio del vídeo**, puedes añadir una pista, grabar voz con el micrófono o combinar ambas opciones. El navegador pedirá permiso antes de usar el micrófono.
 - La vista “A bordo” es una simulación inclinada, no una grabación real desde el interior de un vehículo.
 
+## Elegir Mapbox Satellite
+
+1. En la esquina superior izquierda del mapa, pulsa **Mapa: GeoEuskadi**.
+2. Pega tu token **público** de Mapbox (empieza por `pk.`) y pulsa **Usar Mapbox**. El token queda guardado solo en el almacenamiento local de ese navegador; no se incluye en el repositorio ni en la publicación de Cloudflare.
+3. Si restringes el token por URL en Mapbox, permite el dominio de tu aplicación (`maps.promociones7819.workers.dev`) y el origen local de desarrollo (`localhost:5173`).
+4. Para volver al mapa actual, abre la misma opción y pulsa **GeoEuskadi**. **Borrar token** elimina el token guardado y vuelve a GeoEuskadi.
+
+Se aceptan únicamente tokens públicos. Nunca pegues un token secreto (`sk.`). Al seleccionar Mapbox, el navegador envía el token a los servidores de Mapbox para solicitar las imágenes satélite. El uso depende del plan, la facturación y los límites vigentes de tu cuenta. La descarga de zonas para uso sin conexión sigue disponible con GeoEuskadi.
+
 ## Datos cartográficos
 
-La ortofoto procede del servicio WMTS oficial de geoEuskadi. Se muestra la atribución **Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi**. Al descargar una zona offline, sus teselas quedan almacenadas en la caché de este navegador.
+La ortofoto por defecto procede del servicio WMTS oficial de geoEuskadi. Se muestra la atribución correspondiente y las teselas guardadas offline quedan almacenadas en la caché de este navegador. La opción Mapbox usa el tileset satélite oficial `mapbox.satellite` y requiere un token público.
