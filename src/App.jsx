@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Map as MapLibreMap, NavigationControl, AttributionControl, LngLatBounds } from 'maplibre-gl';
+import { Map as MapLibreMap, NavigationControl, AttributionControl, LngLatBounds, setWorkerUrl } from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+
+setWorkerUrl(maplibreWorkerUrl);
 
 const COLORS = ['#e36b4d', '#477bda', '#35a17e', '#a271c5', '#d2a33c'];
 const SPEEDS = [0.1, 0.2, 0.3, 0.4, 0.5, 1, 2];
