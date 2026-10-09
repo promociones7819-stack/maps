@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Map as MapLibreMap, NavigationControl, AttributionControl, LngLatBounds, setWorkerUrl } from 'maplibre-gl';
+import { Map as MapboxGLMap, NavigationControl as MapboxNavigationControl, AttributionControl as MapboxAttributionControl } from 'mapbox-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
 setWorkerUrl(maplibreWorkerUrl);
@@ -8,9 +9,7 @@ const COLORS = ['#e36b4d', '#477bda', '#35a17e', '#a271c5', '#d2a33c'];
 const SPEEDS = [0.1, 0.2, 0.3, 0.4, 0.5, 1, 2];
 const START = [-2.9352, 43.2631];
 const EUSKADI_TILES = 'https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/{z}/{y}/{x}';
-const makeBasemapSource = (provider, token) => provider === 'mapbox'
-  ? { type: 'raster', tiles: [`https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/512/{z}/{x}/{y}.jpg?access_token=${encodeURIComponent(token)}`], maxzoom: 22, tileSize: 512, attribution: '© <a href="https://www.mapbox.com/">Mapbox</a> · © <a href="https://www.maxar.com/">Maxar</a>' }
-  : { type: 'raster', tiles: [EUSKADI_TILES], maxzoom: 20, tileSize: 256, attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi' };
+const geoEuskadiSource = { type: 'raster', tiles: [EUSKADI_TILES], maxzoom: 20, tileSize: 256, attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi' };
 const makeInitialRoutes = () => ['A', 'B', 'C', 'D'].map((letter, index) => ({
   id: crypto.randomUUID(), name: `Trayectoria ${letter}`, color: COLORS[index], points: [],
 }));
@@ -90,7 +89,7 @@ function interpolateRoute(points, fraction) {
 }
 
 export default function App() {
-  const mapNode = useRef(null), mapRef = useRef(null), routesRef = useRef([]), activeRef = useRef('');
+  const mapNode = useRef(null), mapRef = useRef(null), mapViewRef = useRef(null), routesRef = useRef([]), activeRef = useRef('');
   const progressRef = useRef(0), rafRef = useRef(0), lastFrameRef = useRef(0);
   const recorderRef = useRef(null), chunksRef = useRef([]), folderRef = useRef(null), recordFrameRef = useRef(0), audioResourcesRef = useRef(null), mediaStreamRef = useRef(null), audioInputRef = useRef(null);
   const [projectState, setProjectState] = useState(loadProjectState);
@@ -130,13 +129,15 @@ export default function App() {
       if (!token.startsWith('pk.')) { setMapboxTokenError('Pega un token público completo de Mapbox que empiece por pk.'); setMapSettingsOpen(true); return; }
       setCheckingMapboxToken(true); setMapboxTokenError('');
       try {
-        const check = await fetch(`https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/512/0/0/0.jpg?access_token=${encodeURIComponent(token)}`);
+        const check = await fetch(`https://api.mapbox.com/styles/v1/mapbox/satellite-v9?access_token=${encodeURIComponent(token)}`);
         if (!check.ok) {
           const detail = check.status === 401
             ? 'Mapbox devuelve 401: el token no se reconoce. Copia el token público completo desde tu cuenta y comprueba que no esté revocado.'
             : check.status === 403
-              ? 'Mapbox devuelve 403: revisa que el token tenga el permiso público styles:tiles y que permita maps.promociones7819.workers.dev. Para probar en local, añade localhost.'
-              : `Mapbox devuelve el error ${check.status}. Revisa tu cuenta y la configuración del token.`;
+              ? 'Mapbox devuelve 403: revisa que el token tenga el permiso público styles:read y que permita maps.promociones7819.workers.dev. Para probar en local, añade localhost.'
+            : check.status === 404
+                ? 'Mapbox no encuentra el estilo Satellite. Comprueba que la URL del estilo esté disponible en tu cuenta.'
+                : `Mapbox devuelve el error ${check.status}. Revisa tu cuenta y la configuración del token.`;
           setMapboxTokenError(detail); setMapSettingsOpen(true); return;
         }
       } catch {
@@ -259,27 +260,37 @@ export default function App() {
   }, [projectState]);
 
   useEffect(() => {
-    if (!mapNode.current || mapRef.current) return;
-    const map = new MapLibreMap({
+    if (!mapNode.current) return;
+    setMapReady(false);
+    setMapError('');
+    const initialView = mapViewRef.current || { center: START, zoom: 10.1, pitch: 0, bearing: 0 };
+    const isMapbox = mapProvider === 'mapbox';
+    const MapConstructor = isMapbox ? MapboxGLMap : MapLibreMap;
+    const map = new MapConstructor({
       container: mapNode.current,
-      style: {
+      ...(isMapbox ? {
+        accessToken: mapToken,
+        style: 'mapbox://styles/mapbox/satellite-v9',
+      } : { style: {
         version: 8,
         sources: {
-          'basemap-source': makeBasemapSource('geoEuskadi', ''),
+          'basemap-source': geoEuskadiSource,
         },
         layers: [{ id: 'basemap-layer', type: 'raster', source: 'basemap-source' }],
-      },
-      center: START,
-      zoom: 10.1,
-      pitch: 0,
+      } }),
+      center: initialView.center,
+      zoom: initialView.zoom,
+      pitch: initialView.pitch,
+      bearing: initialView.bearing,
       attributionControl: false,
       cooperativeGestures: true,
       preserveDrawingBuffer: true,
     });
     mapRef.current = map;
-    map.addControl(new NavigationControl({ showCompass: true }), 'top-right');
-    map.addControl(new AttributionControl({ compact: true }), 'bottom-right');
+    map.addControl(isMapbox ? new MapboxNavigationControl({ showCompass: true }) : new NavigationControl({ showCompass: true }), 'top-right');
+    map.addControl(isMapbox ? new MapboxAttributionControl({ compact: true }) : new AttributionControl({ compact: true }), 'bottom-right');
     map.on('load', () => {
+      if (!isMapbox) map.setMaxZoom(20);
       map.addSource('route-lines', { type: 'geojson', data: lineFeatureCollection(routesRef.current, activeRef.current) });
       map.addLayer({ id: 'routes-outline', type: 'line', source: 'route-lines', paint: { 'line-color': '#101b22', 'line-width': ['case', ['get', 'active'], 7, 5], 'line-opacity': 0.68, 'line-blur': 1.5 } });
       map.addLayer({ id: 'routes-line', type: 'line', source: 'route-lines', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': ['case', ['get', 'active'], 4, 2.5], 'line-opacity': ['case', ['get', 'active'], 1, 0.68] } });
@@ -289,7 +300,7 @@ export default function App() {
       map.addLayer({ id: 'vehicle-point', type: 'circle', source: 'route-points', filter: ['has', 'vehicle'], paint: { 'circle-radius': 7, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
       setMapReady(true);
     });
-    map.on('error', event => { if (event.error?.message && event.sourceId === 'basemap-source') setMapError(event.error.message); });
+    map.on('error', event => { if (event.error?.message && (isMapbox || event.sourceId === 'basemap-source')) setMapError(event.error.message); });
     map.on('click', event => {
       if (modeRef.current !== 'add') {
         const features = map.queryRenderedFeatures(event.point, { layers: ['route-points-layer'] });
@@ -329,22 +340,16 @@ export default function App() {
     map.on('mouseleave', () => {
       if (dragRef.current) { dragRef.current = null; map.dragPan.enable(); }
     });
-    return () => { cancelAnimationFrame(rafRef.current); map.remove(); mapRef.current = null; };
-  }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!mapReady || !map) return;
-    if (mapProvider === 'mapbox' && !mapToken) return;
-    try {
-      if (map.getLayer('basemap-layer')) map.removeLayer('basemap-layer');
-      if (map.getSource('basemap-source')) map.removeSource('basemap-source');
-      map.addSource('basemap-source', makeBasemapSource(mapProvider, mapToken));
-      map.addLayer({ id: 'basemap-layer', type: 'raster', source: 'basemap-source', paint: { 'raster-fade-duration': 150 } }, map.getLayer('routes-outline') ? 'routes-outline' : undefined);
-      map.setMaxZoom(mapProvider === 'mapbox' ? 22 : 20);
-      setMapError('');
-    } catch (error) { setMapError(error.message || 'No se pudo cambiar el mapa.'); }
-  }, [mapReady, mapProvider, mapToken]);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      if (mapRef.current === map) {
+        const center = map.getCenter();
+        mapViewRef.current = { center: [center.lng, center.lat], zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
+        map.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [mapProvider, mapToken]);
 
   useEffect(() => { if (mapReady) updateSources(routes, activeId); }, [mapReady, routes, activeId, updateSources]);
   useEffect(() => {
@@ -576,7 +581,7 @@ export default function App() {
   const focusRoute = route => {
     if (!route?.points.length || !mapRef.current) return;
     const bounds = route.points.reduce((b, coord) => b.extend(coord), new LngLatBounds(route.points[0], route.points[0]));
-    mapRef.current.fitBounds(bounds, { padding: 100, maxZoom: 16, duration: 800 });
+    mapRef.current.fitBounds(bounds.toArray(), { padding: 100, maxZoom: 16, duration: 800 });
   };
   const setActive = id => { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); setPlaying(false); setProgress(0); progressRef.current = 0; setActiveId(id); setSelectedPoint(null); };
 
@@ -712,9 +717,8 @@ export default function App() {
         <div ref={mapNode} className="map-canvas" />
         {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba el token público, sus permisos y las restricciones de URL. También puedes volver a geoEuskadi.' : 'Comprueba la conexión a geoEuskadi y vuelve a intentarlo.'}</small></div></div>}
         <div className="map-top-tools"><button className="map-pill map-source-button" onClick={() => setMapSettingsOpen(!mapSettingsOpen)} aria-expanded={mapSettingsOpen}><span className="satellite-icon">▧</span><span>MAPA: {mapProvider === 'mapbox' ? 'MAPBOX' : 'GEOEUSKADI'}</span><span className="pill-divider" /><span>⚙</span></button><button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button><button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading || mapProvider === 'mapbox'} title={mapProvider === 'mapbox' ? 'La descarga offline está disponible con geoEuskadi' : ''}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
-        {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => { setMapTokenDraft(event.target.value); setMapboxTokenError(''); }} /><small className="map-token-help">Usa un token público (pk.) con permiso styles:tiles. Se guarda en este navegador y se envía a Mapbox para cargar las imágenes. No uses un token secreto (sk.). Si restringes el token, permite maps.promociones7819.workers.dev y localhost si estás en desarrollo.</small>{mapboxTokenError && <div className="mapbox-token-error" role="alert">{mapboxTokenError}</div>}<div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" disabled={checkingMapboxToken} onClick={() => selectMapProvider('mapbox')}>{checkingMapboxToken ? 'Comprobando…' : 'Comprobar y usar Mapbox'}</button></div></div>}
+        {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => { setMapTokenDraft(event.target.value); setMapboxTokenError(''); }} /><small className="map-token-help">Usa un token público (pk.) con permiso styles:read. Se guarda en este navegador y se envía a Mapbox para cargar el mapa. No uses un token secreto (sk.). Si restringes el token, permite maps.promociones7819.workers.dev y localhost si estás en desarrollo.</small>{mapboxTokenError && <div className="mapbox-token-error" role="alert">{mapboxTokenError}</div>}<div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" disabled={checkingMapboxToken} onClick={() => selectMapProvider('mapbox')}>{checkingMapboxToken ? 'Comprobando…' : 'Comprobar y usar Mapbox'}</button></div></div>}
         {offlineMessage && <div className="offline-map-status" role="status">{offlineMessage}</div>}
-        {mapProvider === 'mapbox' && <a className="mapbox-logo-link" href="https://www.mapbox.com/" target="_blank" rel="noreferrer" aria-label="Mapbox"><img src="/mapbox-logo-black.svg" alt="Mapbox" /></a>}
         <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>{mapProvider === 'mapbox' ? 'Mapbox Satellite · Bizkaia' : 'Ortofoto geoEuskadi · Bizkaia'}</span></div>
         {mapReady && <div className="map-hint">{mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
         {playing && <div className="flight-badge"><span className="pulse-dot" /> VUELO EN DIRECTO <span>·</span> {activeRoute?.name}</div>}

@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "mapbox-gl": "^3.32.0",
     "maplibre-gl": "^6.13.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
