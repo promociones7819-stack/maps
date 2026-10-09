@@ -5,11 +5,12 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 
 setWorkerUrl(maplibreWorkerUrl);
 
-const COLORS = ['#e36b4d', '#477bda', '#35a17e', '#a271c5', '#d2a33c'];
+const COLORS = ['#e36b4d', '#477bda', '#35a17e', '#a271c5', '#d2a33c', '#e64980', '#0ea5a4', '#7c8c26', '#6b7280', '#f97316'];
 const SPEEDS = [0.1, 0.2, 0.3, 0.4, 0.5, 1, 2];
 const START = [-2.9352, 43.2631];
 const EUSKADI_TILES = 'https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/{z}/{y}/{x}';
 const geoEuskadiSource = { type: 'raster', tiles: [EUSKADI_TILES], maxzoom: 20, tileSize: 256, attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi' };
+const nextRouteColor = routes => COLORS.find(color => !routes.some(route => route.color.toLowerCase() === color)) || COLORS[0];
 const makeInitialRoutes = () => ['A', 'B', 'C', 'D'].map((letter, index) => ({
   id: crypto.randomUUID(), name: `Trayectoria ${letter}`, color: COLORS[index], points: [],
 }));
@@ -17,7 +18,7 @@ const ensureFourRoutes = routes => {
   const expanded = [...routes];
   while (expanded.length < 4) {
     const index = expanded.length;
-    expanded.push({ id: crypto.randomUUID(), name: `Trayectoria ${String.fromCharCode(65 + index)}`, color: COLORS[index % COLORS.length], points: [] });
+    expanded.push({ id: crypto.randomUUID(), name: `Trayectoria ${String.fromCharCode(65 + index)}`, color: nextRouteColor(expanded), points: [] });
   }
   return expanded;
 };
@@ -358,8 +359,12 @@ export default function App() {
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
     setPlaying(false);
     const letter = String.fromCharCode(65 + routes.length);
-    const route = { id: crypto.randomUUID(), name: `Trayectoria ${letter}`, color: COLORS[routes.length % COLORS.length], points: [] };
+    const route = { id: crypto.randomUUID(), name: `Trayectoria ${letter}`, color: nextRouteColor(routes), points: [] };
     commitRoutes([...routes, route]); setActiveId(route.id); setSelectedPoint(null); setMode('add'); setPlaying(false);
+  };
+  const setRouteColor = (id, color) => {
+    if (routes.some(route => route.id !== id && route.color.toLowerCase() === color)) return;
+    commitRoutes(routes.map(route => route.id === id ? { ...route, color } : route));
   };
   const renameRoute = id => {
     const route = routes.find(item => item.id === id);
@@ -668,7 +673,7 @@ export default function App() {
         <div className="route-list">
           {routes.map((route, index) => <article key={route.id} className={`route-card ${activeId === route.id ? 'selected' : ''}`}>
             <button className="route-main" onClick={() => setActive(route.id)}><span className="route-swatch" style={{ '--route-color': route.color }}><span /></span><span className="route-info"><strong>{route.name}</strong><small>{route.points.length} {route.points.length === 1 ? 'punto' : 'puntos'}{route.points.length > 1 ? ` · ${Math.round(route.points.slice(1).reduce((sum, p, i) => sum + distance(route.points[i], p), 0))} m` : ''}</small></span><span className="route-key">{String.fromCharCode(65 + index)}</span></button>
-            {activeId === route.id && <div className="route-actions"><button onClick={() => renameRoute(route.id)}>Renombrar</button><button onClick={() => focusRoute(route)}>Enfocar</button><button className="danger-text" onClick={() => deleteRoute(route.id)}>{routes.length === 1 ? 'Vaciar' : 'Eliminar'}</button></div>}
+            {activeId === route.id && <><div className="route-actions"><button onClick={() => renameRoute(route.id)}>Renombrar</button><button onClick={() => focusRoute(route)}>Enfocar</button><button className="danger-text" onClick={() => deleteRoute(route.id)}>{routes.length === 1 ? 'Vaciar' : 'Eliminar'}</button></div><div className="route-color-picker" aria-label={`Color de ${route.name}`}>{COLORS.map(color => { const usedByAnother = routes.some(other => other.id !== route.id && other.color.toLowerCase() === color); return <button key={color} type="button" className={`route-color-choice ${route.color.toLowerCase() === color ? 'chosen' : ''}`} style={{ '--choice-color': color }} aria-label={`Elegir color ${color}`} aria-pressed={route.color.toLowerCase() === color} title={usedByAnother ? 'Este color ya está usado por otra trayectoria' : `Cambiar a ${color}`} disabled={usedByAnother} onClick={() => setRouteColor(route.id, color)} />; })}</div></>}
           </article>)}
         </div>
         <div className="drawing-card">
