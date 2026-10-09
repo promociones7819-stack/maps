@@ -1,52 +1,37 @@
 # Traza · Bizkaia
 
-Herramienta local para crear proyectos de recorridos aéreos sobre cartografía real de Mapbox, previsualizar el vuelo y grabarlo como vídeo.
+Aplicación web para diseñar cuatro recorridos aéreos, previsualizarlos y grabar un MP4. El mapa usa ortofotografía oficial de geoEuskadi y no necesita token ni cuenta de Mapbox.
 
-## Requisitos
+## Puesta en marcha
 
-- Node.js 20 o posterior.
-- Un token **público** de Mapbox (`pk.…`). La aplicación usa el estilo satélite con etiquetas `mapbox://styles/mapbox/satellite-streets-v12`.
+Requisitos: Node.js 20 o posterior.
 
-## Puesta en marcha en macOS
+```sh
+npm install
+npm run dev
+```
 
-1. Abre la aplicación publicada y pega el token público en la pantalla de conexión. Se guardará en ese navegador para las siguientes visitas.
-2. Para desarrollo local, también puedes copiar `.env.example` como `.env.local` y sustituir el texto de ejemplo por tu token público:
+Abre la dirección local que indique Vite. En Cloudflare, abre la dirección publicada de la aplicación. Hace falta conexión a internet para abrir la web y para descargar nuevas imágenes aéreas.
 
-   ```env
-   VITE_MAPBOX_ACCESS_TOKEN=pk.tu_token_publico
-   ```
+## Guardar una zona para trabajar sin conexión
 
-   No incluyas espacios después de `=`. En la consola de Mapbox, restringe el token a los orígenes donde usarás la aplicación. No uses un token secreto con prefijo `sk.`.
+1. Desplázate y acerca el mapa hasta encuadrar la zona que vas a grabar. Puedes seleccionar una trayectoria y pulsar **Enfocar** para centrarte en ella.
+2. Pulsa **Guardar zona offline**. La aplicación guardará las imágenes aéreas de la zona visible y varios niveles de detalle en este navegador.
+3. Espera el mensaje **Zona guardada sin conexión** antes de cerrar. Después, el mapa puede volver a mostrar esa zona sin internet, siempre que uses el mismo navegador y equipo.
 
-3. En Terminal, entra en esta carpeta y ejecuta:
+La descarga está limitada a 1.800 imágenes por intento. Si la zona es demasiado grande, acércate más y descarga varias zonas por separado. Los mapas offline se guardan en el almacenamiento del navegador; borrar sus datos elimina las copias locales.
 
-   ```sh
-   npm install
-   npm run dev
-   ```
-
-4. Abre en el navegador la dirección local que indique Vite (normalmente `http://localhost:5173`). Si Safari bloquea la dirección HTTP por tener activado “Solo HTTPS”, abre la dirección en otro navegador o desactiva esa opción para la dirección local. Si cambias `.env.local`, detén y vuelve a iniciar `npm run dev`.
+La aplicación web también guarda sus archivos básicos en el navegador para volver a abrirla sin conexión después de haberla visitado mientras había internet. Los mapas no descargados necesitarán conexión.
 
 ## Uso
 
-- El mapa comienza centrado en Bizkaia. Usa rueda/pellizco para zoom, arrastra para desplazarte y los controles del mapa para girar o inclinar.
-- Pulsa **Añadir puntos en el mapa** y haz clic sobre la imagen para trazar la trayectoria activa. Pulsa el botón otra vez para volver a navegar por el mapa.
-- Crea un proyecto con **+** junto al nombre; la aplicación te pedirá un nombre. Si tienes varios proyectos, usa el selector para cambiar entre ellos. Los proyectos y sus rutas se conservan en ese navegador.
-- El proyecto incluye cuatro trayectorias independientes (A, B, C y D), cada una con su color. Selecciona una en la lista para editarla o reproducirla; las cuatro pueden verse a la vez.
-- Selecciona un punto y usa el icono de papelera para quitarlo. Arrastra un punto para recolocarlo. **Enfocar** ajusta el mapa a una trayectoria.
-- Reproduce cualquier trayectoria con dos puntos o más. La vista vertical empieza a 120 m, mantiene la cámara directamente encima del vehículo y permite ajustar la altura entre 50 y 500 m.
-- Elige una cámara vertical sobre el vehículo o una perspectiva baja orientada según la trayectoria. Los puntos de paso se ocultan durante la reproducción.
-- Selecciona una trayectoria y, en **Vídeo · Trayectoria**, pulsa **Elegir carpeta** y **Grabar vídeo**. Cada recorrido se guarda como `.mp4` con el nombre del proyecto y de esa trayectoria. Puedes parar antes con **Finalizar y guardar**. La grabación MP4 requiere un navegador que la admita, como Safari actualizado.
-- En **Audio del vídeo**, puedes añadir una pista de audio desde el equipo, activar el micrófono para narrar mientras se graba, o usar ambas opciones a la vez. El navegador pedirá permiso antes de usar el micrófono.
-- Si el navegador no permite elegir carpetas, el vídeo se descargará en la carpeta de descargas configurada en el navegador.
-- Las rutas se guardan en el almacenamiento local del navegador de ese equipo.
+- Cada proyecto empieza con cuatro trayectorias (A, B, C y D). Selecciona una para editarla, previsualizarla o grabar su vídeo.
+- Pulsa **Añadir puntos en el mapa** y haz clic en la ortofoto para trazar la trayectoria. Arrastra puntos para recolocarlos y usa la papelera para eliminarlos.
+- La vista vertical comienza a 120 m y mantiene la cámara directamente encima del vehículo. La altura se puede ajustar entre 50 y 500 m.
+- En **Vídeo · Trayectoria**, elige dónde guardar el MP4 y pulsa **Grabar vídeo**. Cada trayectoria genera un archivo independiente cuyo nombre incluye el proyecto y la ruta.
+- En **Audio del vídeo**, puedes añadir una pista, grabar voz con el micrófono o combinar ambas opciones. El navegador pedirá permiso antes de usar el micrófono.
+- La vista “A bordo” es una simulación inclinada, no una grabación real desde el interior de un vehículo.
 
-## Alcance de esta V1
+## Datos cartográficos
 
-El vídeo exportado captura la vista del mapa e incluye la atribución cartográfica. La vista baja es una simulación de cámara inclinada sobre el mapa, no vídeo ni imágenes reales desde el interior de un vehículo. La estructura de los datos separa las trayectorias y deja sitio para incorporar marcadores de incidencias (STOP, semáforo, peligro) y textos.
-
-## Estructura
-
-- `src/App.jsx`: estado del proyecto, edición cartográfica y simulación.
-- `src/styles.css`: interfaz adaptable para escritorio.
-- `.env.local`: configuración privada local (ignorada por Git).
+La ortofoto procede del servicio WMTS oficial de geoEuskadi. Se muestra la atribución **Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi**. Al descargar una zona offline, sus teselas quedan almacenadas en la caché de este navegador.

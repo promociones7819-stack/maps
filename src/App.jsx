@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
+import { Map as MapLibreMap, NavigationControl, AttributionControl, LngLatBounds } from 'maplibre-gl';
 
 const COLORS = ['#e36b4d', '#477bda', '#35a17e', '#a271c5', '#d2a33c'];
 const SPEEDS = [0.1, 0.2, 0.3, 0.4, 0.5, 1, 2];
@@ -83,13 +83,6 @@ function interpolateRoute(points, fraction) {
 }
 
 export default function App() {
-  const [savedToken, setSavedToken] = useState(() => {
-    try { return localStorage.getItem('traza-bizkaia-mapbox-token') || ''; } catch { return ''; }
-  });
-  const [tokenInput, setTokenInput] = useState(savedToken);
-  const [tokenMessage, setTokenMessage] = useState('');
-  const [editingToken, setEditingToken] = useState(false);
-  const token = savedToken || import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
   const mapNode = useRef(null), mapRef = useRef(null), routesRef = useRef([]), activeRef = useRef('');
   const progressRef = useRef(0), rafRef = useRef(0), lastFrameRef = useRef(0);
   const recorderRef = useRef(null), chunksRef = useRef([]), folderRef = useRef(null), recordFrameRef = useRef(0), audioResourcesRef = useRef(null), mediaStreamRef = useRef(null), audioInputRef = useRef(null);
@@ -110,6 +103,8 @@ export default function App() {
   const [recording, setRecording] = useState(false);
   const [audioFile, setAudioFile] = useState(null);
   const [recordMicrophone, setRecordMicrophone] = useState(false);
+  const [offlineDownloading, setOfflineDownloading] = useState(false);
+  const [offlineMessage, setOfflineMessage] = useState('');
   const [folderName, setFolderName] = useState('');
   const [exportMessage, setExportMessage] = useState('');
   const [nameDialog, setNameDialog] = useState(null);
@@ -119,20 +114,6 @@ export default function App() {
   const activeRoute = routes.find(route => route.id === activeId) || routes[0];
   const totalDistance = useMemo(() => activeRoute?.points.slice(1).reduce((sum, p, i) => sum + distance(activeRoute.points[i], p), 0) || 0, [activeRoute]);
 
-  const saveMapboxToken = event => {
-    event.preventDefault();
-    const value = tokenInput.trim();
-    if (!value.startsWith('pk.')) {
-      setTokenMessage('El token público debe empezar por pk.');
-      return;
-    }
-    try { localStorage.setItem('traza-bizkaia-mapbox-token', value); } catch { /* Keep the token for this session if storage is unavailable. */ }
-    setSavedToken(value);
-    setTokenMessage('Token guardado en este navegador.');
-    setMapError('');
-    setMapReady(false);
-    setEditingToken(false);
-  };
   const releaseAudio = async () => {
     const resources = audioResourcesRef.current;
     audioResourcesRef.current = null;
@@ -145,6 +126,58 @@ export default function App() {
     if (resources.url) URL.revokeObjectURL(resources.url);
     resources.microphone?.getTracks().forEach(track => track.stop());
     if (resources.context?.state !== 'closed') await resources.context?.close().catch(() => {});
+  };
+  const downloadOfflineArea = async () => {
+    const map = mapRef.current;
+    if (!map || offlineDownloading) return;
+    if (!('caches' in window)) {
+      setOfflineMessage('Este navegador no permite guardar mapas para usarlos sin conexión.');
+      return;
+    }
+    const zoom = map.getZoom();
+    const minZoom = Math.max(8, Math.floor(zoom) - 1);
+    const maxZoom = Math.min(18, Math.ceil(zoom) + 2);
+    const bounds = map.getBounds();
+    const tileX = (longitude, level) => Math.floor((longitude + 180) / 360 * (2 ** level));
+    const tileY = (latitude, level) => Math.floor((1 - Math.asinh(Math.tan(latitude * Math.PI / 180)) / Math.PI) / 2 * (2 ** level));
+    const tiles = [];
+    for (let level = minZoom; level <= maxZoom; level += 1) {
+      const northWest = bounds.getNorthWest(), southEast = bounds.getSouthEast();
+      const minX = tileX(northWest.lng, level), maxX = tileX(southEast.lng, level);
+      const minY = tileY(northWest.lat, level), maxY = tileY(southEast.lat, level);
+      for (let x = minX; x <= maxX; x += 1) for (let y = minY; y <= maxY; y += 1) {
+        tiles.push(`https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/${level}/${y}/${x}`);
+      }
+    }
+    if (tiles.length > 1800) {
+      setOfflineMessage(`La zona incluye ${tiles.length} imágenes. Acércate a un área menor y vuelve a intentarlo (máximo 1.800).`);
+      return;
+    }
+    setOfflineDownloading(true);
+    setOfflineMessage(`Preparando ${tiles.length} imágenes aéreas…`);
+    try {
+      const cache = await caches.open('ortofoto-euskadi-v1');
+      const missing = [];
+      for (const url of tiles) if (!await cache.match(url)) missing.push(url);
+      let cursor = 0, complete = 0, failed = 0;
+      await Promise.all(Array.from({ length: 8 }, async () => {
+        while (cursor < missing.length) {
+          const url = missing[cursor++];
+          try {
+            const response = await fetch(url, { mode: 'cors' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            await cache.put(url, response.clone());
+          } catch { failed += 1; }
+          complete += 1;
+          if (complete % 10 === 0 || complete === missing.length) setOfflineMessage(`Guardando imágenes aéreas: ${complete}/${missing.length}…`);
+        }
+      }));
+      setOfflineMessage(failed ? `Guardadas ${tiles.length - failed} imágenes; ${failed} no se pudieron descargar.` : `Zona guardada sin conexión: ${tiles.length} imágenes aéreas.`);
+    } catch {
+      setOfflineMessage('No se pudo guardar la zona. Comprueba el espacio disponible en el navegador.');
+    } finally {
+      setOfflineDownloading(false);
+    }
   };
 
   const updateSources = useCallback((nextRoutes = routesRef.current, selected = activeRef.current, vehicle = null) => {
@@ -178,11 +211,21 @@ export default function App() {
   }, [projectState]);
 
   useEffect(() => {
-    if (!token || !mapNode.current || mapRef.current) return;
-    mapboxgl.accessToken = token;
-    const map = new mapboxgl.Map({
+    if (!mapNode.current || mapRef.current) return;
+    const map = new MapLibreMap({
       container: mapNode.current,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
+      style: {
+        version: 8,
+        sources: {
+          'euskadi-orthophoto': {
+            type: 'raster',
+            tiles: ['https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/{z}/{y}/{x}'],
+            tileSize: 256,
+            attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi',
+          },
+        },
+        layers: [{ id: 'euskadi-orthophoto-layer', type: 'raster', source: 'euskadi-orthophoto' }],
+      },
       center: START,
       zoom: 10.1,
       pitch: 0,
@@ -191,8 +234,8 @@ export default function App() {
       preserveDrawingBuffer: true,
     });
     mapRef.current = map;
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right');
-    map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
+    map.addControl(new NavigationControl({ showCompass: true }), 'top-right');
+    map.addControl(new AttributionControl({ compact: true }), 'bottom-right');
     map.on('load', () => {
       map.addSource('route-lines', { type: 'geojson', data: lineFeatureCollection(routesRef.current, activeRef.current) });
       map.addLayer({ id: 'routes-outline', type: 'line', source: 'route-lines', paint: { 'line-color': '#101b22', 'line-width': ['case', ['get', 'active'], 7, 5], 'line-opacity': 0.68, 'line-blur': 1.5 } });
@@ -244,9 +287,7 @@ export default function App() {
       if (dragRef.current) { dragRef.current = null; map.dragPan.enable(); }
     });
     return () => { cancelAnimationFrame(rafRef.current); map.remove(); mapRef.current = null; };
-  // Map lifetime is tied to the token; event handlers read current state through refs below.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, []);
 
   useEffect(() => { if (mapReady) updateSources(routes, activeId); }, [mapReady, routes, activeId, updateSources]);
   useEffect(() => {
@@ -367,7 +408,7 @@ export default function App() {
       videoCanvas.height = canvas.height;
       const context = videoCanvas.getContext('2d');
       if (!context || !videoCanvas.captureStream) throw new Error('Canvas recording is unavailable');
-      const attribution = mapRef.current.getContainer().querySelector('.mapboxgl-ctrl-attrib-inner')?.innerText?.replace(/\s+/g, ' ').trim() || '© Mapbox';
+      const attribution = mapRef.current.getContainer().querySelector('.maplibregl-ctrl-attrib-inner')?.innerText?.replace(/\s+/g, ' ').trim() || '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi';
       const composeFrame = () => {
         context.drawImage(canvas, 0, 0, videoCanvas.width, videoCanvas.height);
         const fontSize = Math.max(11, Math.round(videoCanvas.width / 110));
@@ -477,7 +518,7 @@ export default function App() {
   };
   const focusRoute = route => {
     if (!route?.points.length || !mapRef.current) return;
-    const bounds = route.points.reduce((b, coord) => b.extend(coord), new mapboxgl.LngLatBounds(route.points[0], route.points[0]));
+    const bounds = route.points.reduce((b, coord) => b.extend(coord), new LngLatBounds(route.points[0], route.points[0]));
     mapRef.current.fitBounds(bounds, { padding: 100, maxZoom: 16, duration: 800 });
   };
   const setActive = id => { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); setPlaying(false); setProgress(0); progressRef.current = 0; setActiveId(id); setSelectedPoint(null); };
@@ -540,7 +581,7 @@ export default function App() {
   return <main className="app-shell">
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><div className="brand-name">TRAZA<span> / BIZKAIA</span></div><div className="brand-subtitle">Estudio de recorridos aéreos</div></div></div>
-      <div className="topbar-right"><span className="map-status"><i className={mapReady ? 'status-dot ready' : 'status-dot'} />{mapReady ? 'Mapa satélite' : token ? 'Conectando al mapa' : 'Falta configurar Mapbox'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
+      <div className="topbar-right"><span className="map-status"><i className={mapReady ? 'status-dot ready' : 'status-dot'} />{mapReady ? 'Ortofoto geoEuskadi' : 'Cargando ortofoto'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
     </header>
     <section className="workspace">
       <aside className="sidebar">
@@ -588,10 +629,10 @@ export default function App() {
       </aside>
       <section className="map-panel">
         <div ref={mapNode} className="map-canvas" />
-        {(!token || editingToken) && <div className="map-overlay setup-overlay"><div className="setup-card"><div className="setup-symbol">⌖</div><p className="eyebrow">CONFIGURACIÓN INICIAL</p><h2>Conecta tu mapa de Mapbox</h2><p>El token solo se guarda en este navegador. Pega aquí tu token público de Mapbox para cargar el mapa y empezar a trazar.</p><form className="token-form" onSubmit={saveMapboxToken}><label htmlFor="mapbox-token">Token público de Mapbox</label><input id="mapbox-token" type="password" autoComplete="off" placeholder="pk.…" value={tokenInput} onChange={event => setTokenInput(event.target.value)} /><button type="submit" disabled={!tokenInput.trim()}>Conectar mapa</button>{tokenMessage && <small role="status">{tokenMessage}</small>}</form><div className="token-note"><span>🔒</span> Usa un token <strong>público</strong> que empieza por pk. Nunca pegues aquí uno secreto que empieza por sk.</div></div></div>}
-        {token && mapError && !mapReady && !editingToken && <div className="map-overlay"><div className="map-error"><strong>No se ha podido cargar el mapa</strong><p>{mapError}</p><small>Mapbox informa que este token no es válido (401). Esto no indica que hayas agotado los usos.</small><button className="token-change-button" onClick={() => { setTokenInput(savedToken || token); setTokenMessage(''); setEditingToken(true); }}>Cambiar token</button></div></div>}
-        <div className="map-top-tools"><div className="map-pill"><span className="satellite-icon">▧</span><span>SATÉLITE</span><span className="pill-divider" /><span>3D</span></div><button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button></div>
-        <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>Mapa · Bizkaia</span></div>
+        {mapError && !mapReady && <div className="map-overlay"><div className="map-error"><strong>No se ha podido cargar la ortofoto</strong><p>{mapError}</p><small>Comprueba la conexión a geoEuskadi y vuelve a intentarlo.</small></div></div>}
+        <div className="map-top-tools"><div className="map-pill"><span className="satellite-icon">▧</span><span>ORTOFOTO</span><span className="pill-divider" /><span>3D</span></div><button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button><button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
+        {offlineMessage && <div className="offline-map-status" role="status">{offlineMessage}</div>}
+        <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>Ortofoto geoEuskadi · Bizkaia</span></div>
         {mapReady && <div className="map-hint">{mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
         {playing && <div className="flight-badge"><span className="pulse-dot" /> VUELO EN DIRECTO <span>·</span> {activeRoute?.name}</div>}
       </section>
