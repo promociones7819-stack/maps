@@ -571,6 +571,30 @@ export default function App() {
     return () => cancelAnimationFrame(rafRef.current);
   }, [playing, animate, routes, activeId, updateSources]);
 
+  useEffect(() => {
+    if (playing) return;
+    const route = routes.find(item => item.id === activeId);
+    const map = mapRef.current;
+    if (!map || !route?.points.length) return;
+    const progressAt = progressRef.current;
+    const position = route.points.length > 1
+      ? interpolateRoute(route.points, progressAt)
+      : { coords: route.points[0], bearing: 0 };
+    const vehicleView = cameraView === 'vehicle';
+    const zoom = vehicleView
+      ? Math.max(19.3, Math.min(20.5, 21.4 - Math.log2(height / 100)))
+      : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100)));
+    map.easeTo({
+      center: position.coords,
+      offset: vehicleView ? [0, map.getContainer().clientHeight * 0.22] : [0, 0],
+      bearing: vehicleView && follow ? position.bearing : 0,
+      pitch: vehicleView ? 74 : 0,
+      zoom,
+      duration: 700,
+      essential: true,
+    });
+  }, [cameraView, height, follow, activeId, playing, routes]);
+
   const togglePlayback = () => {
     if (!activeRoute || activeRoute.points.length < 2) return;
     if (progressRef.current >= 1) progressRef.current = 0;
