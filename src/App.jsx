@@ -279,6 +279,7 @@ export default function App() {
   const [gpxIncidentDraft, setGpxIncidentDraft] = useState(null);
   const [gpxMessage, setGpxMessage] = useState('');
   const gpxFileInputRef = useRef(null);
+  const libraryBackupInputRef = useRef(null);
   const gpxRef = useRef(gpxReview);
   const gpxProgressRef = useRef(0);
   const workspaceModeRef = useRef(workspaceMode);
@@ -689,8 +690,10 @@ export default function App() {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const parsed = parseGpx(await file.text());
-      const review = { ...emptyGpxReview(), name: parsed.name || file.name.replace(/\.gpx$/i, ''), points: parsed.points };
+      const contents = await file.text();
+      const parsed = parseGpx(contents);
+      const storedGpxFile = window.trazaDesktop ? await window.trazaDesktop.saveGpx(file.name, contents) : '';
+      const review = { ...emptyGpxReview(), name: parsed.name || file.name.replace(/\.gpx$/i, ''), points: parsed.points, sourceFile: file.name, storedGpxFile };
       setGpxReview(review); gpxRef.current = review; setWorkspaceMode('gpx-review');
       setGpxProgress(0); gpxProgressRef.current = 0; setProgress(0); setPlaying(false); setPlacingGpxIncident(false); setGpxMessage(`Importado «${review.name}» · ${review.points.length.toLocaleString('es-ES')} puntos${parsed.points.some(point => point.time) ? ' · contiene marcas de tiempo' : ''}.`);
       const coords = parsed.points.map(point => point.coordinates);
@@ -722,6 +725,33 @@ export default function App() {
   };
   const focusGpxIncident = incident => mapRef.current?.flyTo({ center: incident.coordinates, zoom: Math.max(17, mapRef.current.getZoom()), pitch: 0, duration: 700 });
   const deleteGpxIncident = id => setGpxReview(previous => ({ ...previous, incidents: previous.incidents.filter(incident => incident.id !== id) }));
+  const exportLibraryBackup = () => {
+    const storage = Object.fromEntries(Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+      .filter(key => key?.startsWith('traza-bizkaia-')).map(key => [key, localStorage.getItem(key)]));
+    const blob = new Blob([JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), storage }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a'); link.href = url; link.download = `Traza-Bizkaia-Biblioteca-${new Date().toISOString().slice(0, 10)}.json`; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const importLibraryBackup = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const backup = JSON.parse(await file.text());
+      const storage = backup?.storage;
+      const projectIndex = typeof storage?.['traza-bizkaia-projects'] === 'string' ? JSON.parse(storage['traza-bizkaia-projects']) : null;
+      if (backup?.version !== 1 || !projectIndex?.activeProjectId || !Array.isArray(projectIndex.projects) || !projectIndex.projects.length) throw new Error('El archivo no contiene una biblioteca válida de Traza Bizkaia.');
+      const entries = Object.entries(storage).filter(([key, value]) => key.startsWith('traza-bizkaia-') && typeof value === 'string');
+      for (const key of Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter(key => key?.startsWith('traza-bizkaia-'))) localStorage.removeItem(key);
+      entries.forEach(([key, value]) => localStorage.setItem(key, value));
+      if (window.trazaDesktop) await window.trazaDesktop.saveLibrary(Object.fromEntries(entries));
+      window.location.reload();
+    } catch (error) {
+      setGpxMessage(error?.message || 'No se pudo importar la copia de la biblioteca.');
+    } finally {
+      event.target.value = '';
+    }
+  };
   const toggleGpxPlayback = () => {
     if (gpxReview.points.length < 2) return;
     if (gpxProgressRef.current >= 1) { gpxProgressRef.current = 0; setGpxProgress(0); }
@@ -867,6 +897,12 @@ export default function App() {
   const chooseOutputFolder = async () => {
     if (recording) return;
     setExportMessage('');
+    if (window.trazaDesktop) {
+      folderRef.current = { desktop: true };
+      setFolderName('Vídeos MP4 de Traza');
+      setExportMessage('Los vídeos se guardarán en Documentos/Traza Bizkaia/Vídeos MP4.');
+      return;
+    }
     if (!window.showDirectoryPicker) {
       folderRef.current = null;
       setFolderName('Descargas del navegador');
@@ -979,7 +1015,10 @@ export default function App() {
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const fileName = `${safeFileName(currentProject.name)}-${safeFileName(videoRoute.name)}-${stamp}.mp4`;
         try {
-          if (folderRef.current) {
+          if (folderRef.current?.desktop && window.trazaDesktop) {
+            await window.trazaDesktop.saveVideo(fileName, await blob.arrayBuffer());
+            setExportMessage(`Vídeo guardado en Documentos/Traza Bizkaia/Vídeos MP4: ${fileName}`);
+          } else if (folderRef.current) {
             const file = await folderRef.current.getFileHandle(fileName, { create: true });
             const writable = await file.createWritable();
             await writable.write(blob);
@@ -1217,7 +1256,7 @@ export default function App() {
           <input ref={gpxFileInputRef} className="audio-file-input" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" onChange={importGpx} />
           <button className="gpx-import-button" onClick={() => gpxFileInputRef.current?.click()}>＋ Importar archivo GPX</button>
           {gpxReview.points.length > 1 ? <>
-            <div className="gpx-summary"><div><strong>{gpxReview.name || 'Recorrido importado'}</strong><small>{gpxReview.points.length.toLocaleString('es-ES')} posiciones · {Math.round(gpxReview.points.slice(1).reduce((sum, point, index) => sum + distance(gpxReview.points[index].coordinates, point.coordinates), 0)).toLocaleString('es-ES')} m</small><small>{gpxReview.points.some(point => point.time) ? 'El archivo incluye hora GPS' : 'El archivo no incluye hora GPS'}</small></div><div className="gpx-summary-actions"><button onClick={renameGpxReview} title="Cambiar nombre del recorrido">Renombrar</button><button onClick={clearGpxReview} title="Quitar recorrido GPX">Quitar</button></div></div>
+            <div className="gpx-summary"><div><strong>{gpxReview.name || 'Recorrido importado'}</strong><small>{gpxReview.points.length.toLocaleString('es-ES')} posiciones · {Math.round(gpxReview.points.slice(1).reduce((sum, point, index) => sum + distance(gpxReview.points[index].coordinates, point.coordinates), 0)).toLocaleString('es-ES')} m</small><small>{gpxReview.points.some(point => point.time) ? 'El archivo incluye hora GPS' : 'El archivo no incluye hora GPS'}</small>{gpxReview.storedGpxFile && <small>GPX original guardado en la carpeta de datos.</small>}</div><div className="gpx-summary-actions"><button onClick={renameGpxReview} title="Cambiar nombre del recorrido">Renombrar</button><button onClick={clearGpxReview} title="Quitar recorrido GPX">Quitar</button></div></div>
             <div className="section-title conflict-section-title"><div><span className="eyebrow">ERRORES Y NOTAS</span><span className="count-badge">{gpxReview.incidents.length}</span></div><button className="add-route" onClick={startGpxIncidentPlacement} disabled={placingGpxIncident} aria-label="Añadir incidencia">+</button></div>
             <button className={`draw-toggle gpx-place-button ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}>{placingGpxIncident ? 'Haz clic en el mapa…' : '+  Marcar un error en el mapa'}</button>
             <div className="conflict-list gpx-incident-list">{gpxReview.incidents.map((incident, index) => <article key={incident.id} className="conflict-card"><button className="conflict-card-main" onClick={() => focusGpxIncident(incident)}><span className="gpx-incident-number">{index + 1}</span><span className="conflict-card-copy"><strong>{incident.title}</strong><small>{incident.note}</small>{incident.time && <small>Hora GPS: {new Date(incident.time).toLocaleTimeString('es-ES')}</small>}</span></button><div className="conflict-card-actions"><button onClick={() => setGpxIncidentDraft({ ...incident })}>Editar nota</button><button onClick={() => deleteGpxIncident(incident.id)}>Eliminar</button></div></article>)}{!gpxReview.incidents.length && <div className="conflict-empty">Al marcar un error, escribe qué ocurrió y cómo corregirlo.</div>}</div>
@@ -1229,7 +1268,8 @@ export default function App() {
           </> : <div className="conflict-empty gpx-empty-state">Todavía no hay un GPX en este proyecto. Pulsa <strong>Importar archivo GPX</strong> para abrir el recorrido del vehículo de la autoescuela.</div>}
           {gpxMessage && <small className="gpx-message" role="status">{gpxMessage}</small>}
         </div>}
-        <div className="sidebar-footer"><span>TRAZA 01</span><span>GUARDADO EN ESTE NAVEGADOR</span></div>
+        <div className="library-tools"><div className="library-tools-title"><strong>Biblioteca y copias</strong><small>{window.trazaDesktop ? 'Guardado automático en el Mac.' : 'Los datos de esta web se guardan en este navegador.'}</small></div><input ref={libraryBackupInputRef} className="audio-file-input" type="file" accept=".json,application/json" onChange={importLibraryBackup} /><div className="library-tool-actions">{window.trazaDesktop ? <button onClick={() => window.trazaDesktop.openDataFolder()}>Abrir carpeta de datos</button> : <button onClick={exportLibraryBackup}>Descargar copia</button>}<button onClick={() => libraryBackupInputRef.current?.click()}>Importar copia</button></div><small>La copia conserva proyectos, trayectorias, notas y GPX. Los vídeos y GPX originales se guardan como archivos en sus carpetas.</small></div>
+        <div className="sidebar-footer"><span>TRAZA 01</span>{window.trazaDesktop ? <span title={window.trazaDesktop.dataDirectory}>DATOS EN ESTE MAC</span> : <span>GUARDADO EN ESTE NAVEGADOR</span>}</div>
       </aside>
       <section className="map-panel">
         <div ref={mapNode} className="map-canvas" />

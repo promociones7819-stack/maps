@@ -13,6 +13,20 @@ npm run dev
 
 Abre la dirección local que indique Vite. En Cloudflare, abre la dirección publicada de la aplicación. Hace falta conexión a internet para abrir la web y para descargar nuevas imágenes aéreas.
 
+## Instalar en Mac
+
+Descarga `Traza-Bizkaia-0.1.0-arm64.dmg`, ábrelo y arrastra **Traza Bizkaia** a **Aplicaciones**. Está preparado para Mac con Apple Silicon, incluido M5. La primera vez, si macOS bloquea la app porque no está firmada por un desarrollador registrado, haz clic derecho sobre ella en Aplicaciones, elige **Abrir** y confirma.
+
+La aplicación de escritorio guarda la biblioteca automáticamente en `Documentos/Traza Bizkaia/`:
+
+- `Biblioteca de recorridos.json`: proyectos, trayectorias, señales, notas, preferencias y recorridos GPX editados.
+- `Archivos GPX/`: copias de los archivos GPX originales que importes.
+- `Vídeos MP4/`: vídeos grabados desde la aplicación.
+
+Pulsa **Abrir carpeta de datos** en **Biblioteca y copias** para ver esos archivos. Haz copias de esa carpeta para conservar o trasladar todo el trabajo. Los MP4 y GPX originales se guardan como archivos separados para que la biblioteca siga siendo ligera.
+
+Para llevar los proyectos de la versión web al Mac, abre la web en el mismo navegador donde los guardaste, pulsa **Descargar copia** en **Biblioteca y copias**, abre la app de escritorio e importa ese archivo con **Importar copia**. La copia transfiere los proyectos y sus datos; los MP4 descargados anteriormente y los GPX originales deben copiarse manualmente a sus respectivas carpetas dentro de `Documentos/Traza Bizkaia/`.
+
 ## Guardar una zona para trabajar sin conexión
 
 1. Desplázate y acerca el mapa hasta encuadrar la zona que vas a grabar. Puedes seleccionar una trayectoria y pulsar **Enfocar** para centrarte en ella.
