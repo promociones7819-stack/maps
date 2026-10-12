@@ -26,6 +26,9 @@ La aplicación web también guarda sus archivos básicos en el navegador para vo
 ## Uso
 
 - Cada proyecto empieza con cuatro trayectorias (A, B, C y D). Selecciona una para editarla, previsualizarla o grabar su vídeo.
+- El selector **Trayectorias / Revisar recorrido GPX** separa la planificación de rutas de la revisión de una clase real. En **Revisar recorrido GPX**, importa el archivo grabado durante la conducción; la línea y las notas se guardan por proyecto sin modificar las cuatro trayectorias.
+- Pulsa **Marcar un error en el mapa**, elige el lugar del recorrido y escribe un título y una nota correctiva. Puedes editar o eliminar cada incidencia. Las marcas de tiempo del GPX, si existen y el punto marcado está cerca de la traza, se conservan como referencia.
+- Reproduce la revisión con la cámara siguiendo el GPS, ajusta la velocidad y desplaza la posición con la barra. **Grabar revisión** crea un MP4 de la vista cartográfica y muestra cada nota al llegar a su punto; el GPX aporta posiciones, no imágenes de una cámara del vehículo.
 - Pulsa **Añadir puntos en el mapa** y haz clic en la ortofoto para trazar la trayectoria. Arrastra puntos para recolocarlos y usa la papelera para eliminarlos.
 - En **Puntos conflictivos**, añade una señal del catálogo a la trayectoria activa y colócala con un clic en el mapa. La primera selección incluye preseñalización de destinos (S-220a), salida inmediata (S-350), STOP, ceda el paso, señales de advertencia, paso peatonal, velocidad máxima y semáforo. En las señales de dirección puedes cambiar los destinos, sus flechas y la distancia; añade también una explicación para el alumnado.
 - Los puntos conflictivos se guardan con el proyecto y la trayectoria. Puedes editarlos, reubicarlos o eliminarlos. Si está activada la opción **Mostrar durante el vídeo**, la señal y la explicación aparecen en el MP4 cuando la cámara pasa cerca del punto.

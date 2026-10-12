@@ -78,6 +78,28 @@ const loadProjectMarkers = project => {
     return Array.isArray(saved) ? saved.filter(marker => marker?.id && marker?.routeId && Array.isArray(marker.coordinates) && marker.coordinates.length === 2) : [];
   } catch { return []; }
 };
+const emptyGpxReview = () => ({ name: '', points: [], incidents: [] });
+const loadProjectGpxReview = project => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(`traza-bizkaia-project-${project?.id}-gpx-review`) || 'null');
+    if (Array.isArray(saved?.points) && Array.isArray(saved?.incidents)) return saved;
+  } catch { /* An unreadable review starts empty without affecting planning routes. */ }
+  return emptyGpxReview();
+};
+const parseGpx = text => {
+  const xml = new DOMParser().parseFromString(text, 'application/xml');
+  if (xml.querySelector('parsererror')) throw new Error('El archivo GPX no tiene un formato válido.');
+  const points = [...xml.querySelectorAll('trkpt, rtept')].map(point => {
+    const lng = Number(point.getAttribute('lon')), lat = Number(point.getAttribute('lat'));
+    const timeText = point.querySelector('time')?.textContent;
+    const time = timeText ? Date.parse(timeText) : null;
+    return Number.isFinite(lng) && Number.isFinite(lat) && Math.abs(lng) <= 180 && Math.abs(lat) <= 90
+      ? { coordinates: [lng, lat], time: Number.isFinite(time) ? time : null }
+      : null;
+  }).filter(Boolean);
+  if (points.length < 2) throw new Error('El GPX debe contener al menos dos puntos de recorrido.');
+  return { name: xml.querySelector('trk name, rte name, metadata name')?.textContent?.trim() || '', points };
+};
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const markerFaceHtml = marker => {
   const config = signalDefinition(marker.signalCode);
@@ -177,6 +199,20 @@ function drawTeachingCard(context, marker, width) {
   context.restore();
 }
 
+function drawGpxIncidentCard(context, incident, index, width) {
+  const scale = Math.max(0.8, Math.min(1.45, width / 1500));
+  const x = 22 * scale, y = 22 * scale, w = 390 * scale, h = 126 * scale, pad = 17 * scale;
+  context.save(); context.shadowColor = 'rgba(16,31,23,.22)'; context.shadowBlur = 18 * scale; context.shadowOffsetY = 5 * scale;
+  context.fillStyle = 'rgba(255,255,255,.97)'; context.beginPath(); context.roundRect(x, y, w, h, 13 * scale); context.fill(); context.shadowColor = 'transparent';
+  context.fillStyle = '#bb4338'; context.font = `700 ${9 * scale}px sans-serif`; context.fillText(`REVISIÓN DEL RECORRIDO · INCIDENCIA ${index + 1}`, x + pad, y + 22 * scale);
+  context.fillStyle = '#29382f'; context.font = `700 ${15 * scale}px sans-serif`; context.fillText(incident.title, x + pad, y + 51 * scale, w - pad * 2);
+  context.fillStyle = '#637168'; context.font = `500 ${12 * scale}px sans-serif`;
+  const words = incident.note.split(/\s+/); let line = '', lineNo = 0;
+  for (const word of words) { const next = line ? `${line} ${word}` : word; if (context.measureText(next).width > w - pad * 2 && line) { context.fillText(line, x + pad, y + (76 + lineNo * 17) * scale); line = word; lineNo += 1; if (lineNo === 2) break; } else line = next; }
+  if (lineNo < 2 && line) context.fillText(line, x + pad, y + (76 + lineNo * 17) * scale);
+  context.restore();
+}
+
 function pointFeatureCollection(routes, activeId, current) {
   const features = [];
   routes.forEach(route => route.points.forEach((coords, index) => features.push({
@@ -194,6 +230,16 @@ function lineFeatureCollection(routes, activeId) {
   })) };
 }
 
+const gpxLineFeature = review => ({ type: 'FeatureCollection', features: review?.points?.length > 1 ? [{
+  type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: review.points.map(point => point.coordinates) },
+}] : [] });
+const gpxVehicleFeature = (review, coords = null) => ({ type: 'FeatureCollection', features: coords && review?.points?.length ? [{
+  type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: coords },
+}] : [] });
+const gpxIncidentFeatures = review => ({ type: 'FeatureCollection', features: (review?.incidents || []).map((incident, index) => ({
+  type: 'Feature', properties: { id: incident.id, index: index + 1 }, geometry: { type: 'Point', coordinates: incident.coordinates },
+})) });
+
 function distance(a, b) {
   const rad = x => x * Math.PI / 180;
   const dLat = rad(b[1] - a[1]), dLon = rad(b[0] - a[0]);
@@ -207,6 +253,7 @@ function interpolateRoute(points, fraction) {
   if (!total) return { coords: points[0], bearing: 0 };
   let target = total * fraction;
   for (let i = 0; i < lengths.length; i += 1) {
+    if (lengths[i] <= 0.01) continue;
     if (target <= lengths[i] || i === lengths.length - 1) {
       const t = Math.min(1, target / lengths[i]);
       const a = points[i], b = points[i + 1];
@@ -226,6 +273,17 @@ export default function App() {
   const [projectState, setProjectState] = useState(loadProjectState);
   const currentProject = projectState.projects.find(project => project.id === projectState.activeProjectId) || projectState.projects[0];
   const [routes, setRoutes] = useState(() => loadProjectRoutes(currentProject));
+  const [workspaceMode, setWorkspaceMode] = useState('routes');
+  const [gpxReview, setGpxReview] = useState(() => loadProjectGpxReview(currentProject));
+  const [gpxProgress, setGpxProgress] = useState(0);
+  const [gpxIncidentDraft, setGpxIncidentDraft] = useState(null);
+  const [gpxMessage, setGpxMessage] = useState('');
+  const gpxFileInputRef = useRef(null);
+  const gpxRef = useRef(gpxReview);
+  const gpxProgressRef = useRef(0);
+  const workspaceModeRef = useRef(workspaceMode);
+  const placingGpxIncidentRef = useRef(false);
+  const [placingGpxIncident, setPlacingGpxIncident] = useState(false);
   const [activeId, setActiveId] = useState(() => routes[0].id);
   const [conflictMarkers, setConflictMarkers] = useState(() => loadProjectMarkers(currentProject));
   const [markerDialog, setMarkerDialog] = useState(null);
@@ -293,6 +351,8 @@ export default function App() {
   };
 
   const activeRoute = routes.find(route => route.id === activeId) || routes[0];
+  const currentGpxIncidentIndex = gpxReview.incidents.findIndex(incident => Math.abs((incident.fraction ?? 0) - gpxProgress) < 0.018);
+  const currentGpxIncident = currentGpxIncidentIndex >= 0 ? gpxReview.incidents[currentGpxIncidentIndex] : null;
   const activeConflictMarkers = conflictMarkers.filter(marker => marker.routeId === activeId);
   const currentConflictMarker = activeConflictMarkers.find(marker => marker.id === currentMarkerId) || null;
   const narrationLanguage = activeRoute?.narrationLanguage || 'es';
@@ -421,6 +481,14 @@ export default function App() {
   }, [conflictMarkers, currentProject.id]);
 
   useEffect(() => {
+    gpxRef.current = gpxReview;
+    workspaceModeRef.current = workspaceMode;
+    try { localStorage.setItem(`traza-bizkaia-project-${currentProject.id}-gpx-review`, JSON.stringify(gpxReview)); } catch { setGpxMessage('El recorrido es demasiado grande para guardarse en este navegador. El GPX puede seguir abierto hasta cerrar la página.'); }
+  }, [gpxReview, currentProject.id, workspaceMode]);
+
+  useEffect(() => { placingGpxIncidentRef.current = placingGpxIncident; }, [placingGpxIncident]);
+
+  useEffect(() => {
     try {
       localStorage.setItem('traza-bizkaia-projects', JSON.stringify({
         activeProjectId: projectState.activeProjectId,
@@ -468,6 +536,13 @@ export default function App() {
       map.addLayer({ id: 'route-points-layer', type: 'circle', source: 'route-points', filter: ['!', ['has', 'vehicle']], paint: { 'circle-radius': ['case', ['get', 'active'], 7, 5], 'circle-color': ['get', 'color'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
       map.addLayer({ id: 'vehicle-halo', type: 'circle', source: 'route-points', filter: ['has', 'vehicle'], paint: { 'circle-radius': 12, 'circle-color': '#fff', 'circle-opacity': 0.35 } });
       map.addLayer({ id: 'vehicle-point', type: 'circle', source: 'route-points', filter: ['has', 'vehicle'], paint: { 'circle-radius': 7, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+      map.addSource('gpx-track', { type: 'geojson', data: gpxLineFeature(gpxRef.current) });
+      map.addLayer({ id: 'gpx-track-outline', type: 'line', source: 'gpx-track', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#fff', 'line-width': 8, 'line-opacity': 0.9 } });
+      map.addLayer({ id: 'gpx-track-line', type: 'line', source: 'gpx-track', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ef7c32', 'line-width': 5 } });
+      map.addSource('gpx-incidents', { type: 'geojson', data: gpxIncidentFeatures(gpxRef.current) });
+      map.addLayer({ id: 'gpx-incidents-layer', type: 'circle', source: 'gpx-incidents', paint: { 'circle-radius': 11, 'circle-color': '#c93d35', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 } });
+      map.addSource('gpx-vehicle', { type: 'geojson', data: gpxVehicleFeature(gpxRef.current) });
+      map.addLayer({ id: 'gpx-vehicle-point', type: 'circle', source: 'gpx-vehicle', paint: { 'circle-radius': 8, 'circle-color': '#ef7c32', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 } });
       setMapReady(true);
     });
     map.on('error', event => {
@@ -478,6 +553,20 @@ export default function App() {
       else setMapError(event.error.message);
     });
     map.on('click', event => {
+      if (workspaceModeRef.current === 'gpx-review' && placingGpxIncidentRef.current) {
+        const coordinates = [event.lngLat.lng, event.lngLat.lat];
+        const closest = gpxRef.current.points.reduce((best, point, index) => {
+          const gap = distance(coordinates, point.coordinates);
+          return gap < best.gap ? { gap, index, time: point.time } : best;
+        }, { gap: Infinity, index: 0, time: null });
+        const path = gpxRef.current.points.map(point => point.coordinates);
+        const length = path.slice(1).reduce((sum, point, index) => sum + distance(path[index], point), 0);
+        const traveled = path.slice(1, closest.index + 1).reduce((sum, point, index) => sum + distance(path[index], point), 0);
+        const fraction = length ? traveled / length : 0;
+        setGpxIncidentDraft({ id: crypto.randomUUID(), coordinates, time: closest.gap < 100 ? closest.time : null, fraction, title: '', note: '' });
+        setPlacingGpxIncident(false);
+        return;
+      }
       if (markerPlacementRef.current) {
         const draft = markerPlacementRef.current;
         const marker = { ...draft, id: draft.id || crypto.randomUUID(), coordinates: [event.lngLat.lng, event.lngLat.lat] };
@@ -487,7 +576,7 @@ export default function App() {
         setPlacingMarker(false);
         return;
       }
-      if (modeRef.current !== 'add') {
+      if (workspaceModeRef.current !== 'routes' || modeRef.current !== 'add') {
         const features = map.queryRenderedFeatures(event.point, { layers: ['route-points-layer'] });
         if (features[0]) setSelectedPoint({ routeId: features[0].properties.routeId, index: Number(features[0].properties.index) });
         else { setSelectedPoint(null); setSelectedMarkerId(null); }
@@ -539,6 +628,31 @@ export default function App() {
   useEffect(() => { if (mapReady) updateSources(routes, activeId); }, [mapReady, routes, activeId, updateSources]);
   useEffect(() => {
     const map = mapRef.current;
+    if (!mapReady || !map) return;
+    map.getSource('gpx-track')?.setData(gpxLineFeature(gpxReview));
+    map.getSource('gpx-incidents')?.setData(gpxIncidentFeatures(gpxReview));
+    const visible = workspaceMode === 'gpx-review' ? 'visible' : 'none';
+    ['gpx-track-outline', 'gpx-track-line', 'gpx-incidents-layer', 'gpx-vehicle-point'].forEach(id => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', visible));
+    ['routes-outline', 'routes-line', 'route-points-layer', 'vehicle-halo', 'vehicle-point'].forEach(id => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', workspaceMode === 'routes' ? 'visible' : 'none'));
+  }, [mapReady, gpxReview, workspaceMode]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || workspaceMode !== 'gpx-review') return undefined;
+    const MarkerConstructor = mapProvider === 'mapbox' ? MapboxMarker : MapLibreMarker;
+    const instances = gpxReview.incidents.map((incident, index) => {
+      const element = document.createElement('button');
+      element.type = 'button'; element.className = 'gpx-map-incident'; element.textContent = String(index + 1);
+      element.setAttribute('aria-label', `Incidencia ${index + 1}: ${incident.title}`);
+      element.addEventListener('click', event => { event.stopPropagation(); setGpxIncidentDraft({ ...incident }); });
+      return new MarkerConstructor({ element, anchor: 'center' }).setLngLat(incident.coordinates).addTo(map);
+    });
+    return () => instances.forEach(instance => instance.remove());
+  }, [mapReady, mapProvider, workspaceMode, gpxReview.incidents]);
+  useEffect(() => {
+    if (mapReady && mapRef.current?.getSource('gpx-vehicle')) mapRef.current.getSource('gpx-vehicle').setData(gpxVehicleFeature(gpxReview, workspaceMode === 'gpx-review' && playing ? interpolateRoute(gpxReview.points.map(point => point.coordinates), gpxProgress).coords : null));
+  }, [mapReady, gpxReview, gpxProgress, playing, workspaceMode]);
+  useEffect(() => {
+    const map = mapRef.current;
     if (!mapReady || !map) return undefined;
     const MarkerConstructor = mapProvider === 'mapbox' ? MapboxMarker : MapLibreMarker;
     const instances = activeConflictMarkers.map(marker => {
@@ -565,11 +679,63 @@ export default function App() {
     if (pointLayer) mapRef.current.setLayoutProperty('route-points-layer', 'visibility', playing || recording ? 'none' : 'visible');
   }, [mapReady, playing, recording]);
   useEffect(() => {
-    if (mapReady && mapRef.current) mapRef.current.getCanvas().style.cursor = mode === 'add' || placingMarker ? 'crosshair' : '';
-  }, [mapReady, mode, placingMarker]);
+    if (mapReady && mapRef.current) mapRef.current.getCanvas().style.cursor = mode === 'add' || placingMarker || placingGpxIncident ? 'crosshair' : '';
+  }, [mapReady, mode, placingMarker, placingGpxIncident]);
 
   // Keep map click handlers current without rebuilding the map.
   useEffect(() => { routesRef.current = routes; activeRef.current = activeId; }, [routes, activeId]);
+
+  const importGpx = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = parseGpx(await file.text());
+      const review = { ...emptyGpxReview(), name: parsed.name || file.name.replace(/\.gpx$/i, ''), points: parsed.points };
+      setGpxReview(review); gpxRef.current = review; setWorkspaceMode('gpx-review');
+      setGpxProgress(0); gpxProgressRef.current = 0; setProgress(0); setPlaying(false); setPlacingGpxIncident(false); setGpxMessage(`Importado «${review.name}» · ${review.points.length.toLocaleString('es-ES')} puntos${parsed.points.some(point => point.time) ? ' · contiene marcas de tiempo' : ''}.`);
+      const coords = parsed.points.map(point => point.coordinates);
+      const bounds = coords.reduce((box, coord) => box.extend(coord), new LngLatBounds(coords[0], coords[0]));
+      mapRef.current?.fitBounds(bounds.toArray(), { padding: 90, maxZoom: 17, duration: 900 });
+    } catch (error) {
+      setGpxMessage(error?.message || 'No se pudo abrir el GPX.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+  const clearGpxReview = () => {
+    setPlaying(false); setPlacingGpxIncident(false); setGpxReview(emptyGpxReview());
+    setGpxProgress(0); gpxProgressRef.current = 0; setGpxMessage('');
+  };
+  const startGpxIncidentPlacement = () => {
+    if (gpxReview.points.length < 2) return;
+    setPlaying(false); setPlacingGpxIncident(true);
+    setGpxMessage('Haz clic sobre el mapa en el lugar donde ocurrió el error.');
+  };
+  const saveGpxIncident = event => {
+    event.preventDefault();
+    if (!gpxIncidentDraft?.note.trim()) return;
+    setGpxReview(previous => {
+      const incident = { ...gpxIncidentDraft, title: gpxIncidentDraft.title.trim() || `Incidencia ${previous.incidents.length + 1}`, note: gpxIncidentDraft.note.trim() };
+      return { ...previous, incidents: previous.incidents.some(item => item.id === incident.id) ? previous.incidents.map(item => item.id === incident.id ? incident : item) : [...previous.incidents, incident] };
+    });
+    setGpxMessage('Incidencia guardada en este proyecto.'); setGpxIncidentDraft(null);
+  };
+  const focusGpxIncident = incident => mapRef.current?.flyTo({ center: incident.coordinates, zoom: Math.max(17, mapRef.current.getZoom()), pitch: 0, duration: 700 });
+  const deleteGpxIncident = id => setGpxReview(previous => ({ ...previous, incidents: previous.incidents.filter(incident => incident.id !== id) }));
+  const toggleGpxPlayback = () => {
+    if (gpxReview.points.length < 2) return;
+    if (gpxProgressRef.current >= 1) { gpxProgressRef.current = 0; setGpxProgress(0); }
+    setPlaying(value => !value);
+  };
+  const setWorkspace = next => {
+    if (recording) return;
+    setPlaying(false); setWorkspaceMode(next); setMode('select'); setPlacingMarker(false); markerPlacementRef.current = null; setPlacingGpxIncident(false);
+    if (next === 'gpx-review' && gpxReview.points.length > 1) {
+      const coords = gpxReview.points.map(point => point.coordinates);
+      const bounds = coords.reduce((box, coord) => box.extend(coord), new LngLatBounds(coords[0], coords[0]));
+      mapRef.current?.fitBounds(bounds.toArray(), { padding: 90, maxZoom: 17, duration: 700 });
+    }
+  };
 
   const addRoute = () => {
     if (routes.length >= 4) return;
@@ -654,6 +820,7 @@ export default function App() {
     }));
     setRoutes(newRoutes);
     setConflictMarkers([]);
+    setGpxReview(emptyGpxReview()); setWorkspaceMode('routes'); setGpxProgress(0); gpxProgressRef.current = 0;
     setActiveId(newRoutes[0].id);
     setSelectedPoint(null);
     setSelectedMarkerId(null); setCurrentMarkerId(null); setPlacingMarker(false); markerPlacementRef.current = null;
@@ -672,6 +839,7 @@ export default function App() {
     setProjectState(previous => ({ ...previous, activeProjectId: id }));
     setRoutes(nextRoutes);
     setConflictMarkers(nextMarkers);
+    setGpxReview(loadProjectGpxReview(project)); setWorkspaceMode('routes'); setGpxProgress(0); gpxProgressRef.current = 0;
     setActiveId(nextRoutes[0].id);
     setSelectedPoint(null);
     setSelectedMarkerId(null); setCurrentMarkerId(null); setPlacingMarker(false); markerPlacementRef.current = null;
@@ -719,7 +887,11 @@ export default function App() {
       if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
       return;
     }
-    if (!activeRoute || activeRoute.points.length < 2 || !mapRef.current || !folderName) return;
+    const isGpxReview = workspaceMode === 'gpx-review';
+    const videoRoute = isGpxReview
+      ? { name: gpxReview.name || 'Recorrido GPX', points: gpxReview.points.map(point => point.coordinates), narration: '' }
+      : activeRoute;
+    if (!videoRoute || videoRoute.points.length < 2 || !mapRef.current || !folderName) return;
     const canvas = mapRef.current.getCanvas();
     if (!canvas.captureStream || !window.MediaRecorder) {
       setExportMessage('Este navegador no admite grabar el mapa. Prueba con Google Chrome actualizado.');
@@ -742,13 +914,18 @@ export default function App() {
         context.fillRect(12, videoCanvas.height - fontSize - pad * 2 - 12, textWidth + pad * 2, fontSize + pad * 2);
         context.fillStyle = '#37433b';
         context.fillText(attribution, 12 + pad, videoCanvas.height - pad - 12);
-        const framePosition = interpolateRoute(activeRoute.points, progressRef.current).coords;
-        const teachingMarker = distanceToMarker(framePosition, conflictMarkers, activeRoute.id);
-        if (teachingMarker) drawTeachingCard(context, teachingMarker, videoCanvas.width);
+        const framePosition = interpolateRoute(videoRoute.points, isGpxReview ? gpxProgressRef.current : progressRef.current).coords;
+        if (isGpxReview) {
+          const incidentIndex = gpxReview.incidents.findIndex(incident => Math.abs((incident.fraction ?? 0) - gpxProgressRef.current) < 0.018);
+          if (incidentIndex >= 0) drawGpxIncidentCard(context, gpxReview.incidents[incidentIndex], incidentIndex, videoCanvas.width);
+        } else {
+          const teachingMarker = distanceToMarker(framePosition, conflictMarkers, videoRoute.id);
+          if (teachingMarker) drawTeachingCard(context, teachingMarker, videoCanvas.width);
+        }
         recordFrameRef.current = requestAnimationFrame(composeFrame);
       };
       composeFrame();
-      mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'none');
+      if (mapRef.current.getLayer('route-points-layer')) mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'none');
       const stream = videoCanvas.captureStream(30);
       mediaStreamRef.current = stream;
       let audioElement = null;
@@ -782,7 +959,7 @@ export default function App() {
       if (!mimeType) {
         cancelAnimationFrame(recordFrameRef.current);
         await releaseAudio();
-        mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'visible');
+        if (workspaceModeRef.current === 'routes' && mapRef.current.getLayer('route-points-layer')) mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'visible');
         setExportMessage('Este navegador no puede grabar en MP4. Usa Safari actualizado para exportar el vídeo.');
         return;
       }
@@ -798,7 +975,7 @@ export default function App() {
         await releaseAudio();
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/mp4' });
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const fileName = `${safeFileName(currentProject.name)}-${safeFileName(activeRoute.name)}-${stamp}.mp4`;
+        const fileName = `${safeFileName(currentProject.name)}-${safeFileName(videoRoute.name)}-${stamp}.mp4`;
         try {
           if (folderRef.current) {
             const file = await folderRef.current.getFileHandle(fileName, { create: true });
@@ -819,9 +996,9 @@ export default function App() {
         setRecording(false);
         recorderRef.current = null;
       };
-      progressRef.current = 0;
-      setProgress(0);
-      const start = interpolateRoute(activeRoute.points, 0);
+      progressRef.current = 0; gpxProgressRef.current = 0;
+      setProgress(0); setGpxProgress(0);
+      const start = interpolateRoute(videoRoute.points, 0);
       const vehicleView = cameraView === 'vehicle';
       mapRef.current.jumpTo({
         center: start.coords,
@@ -832,7 +1009,7 @@ export default function App() {
       });
       if (audioElement) { audioElement.currentTime = 0; await audioElement.play(); }
       recorder.start(1000);
-      if (activeRoute.narration?.trim()) speakNarration(activeRoute.narration);
+      if (!isGpxReview && activeRoute.narration?.trim()) speakNarration(activeRoute.narration);
       setRecording(true);
       setPlaying(true);
       setExportMessage('Grabando el recorrido. Se guardará automáticamente al llegar al final.');
@@ -841,7 +1018,7 @@ export default function App() {
       await releaseAudio();
       setRecording(false);
       setPlaying(false);
-      if (mapRef.current?.getLayer('route-points-layer')) mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'visible');
+      if (workspaceModeRef.current === 'routes' && mapRef.current?.getLayer('route-points-layer')) mapRef.current.setLayoutProperty('route-points-layer', 'visibility', 'visible');
       setExportMessage('No se pudo iniciar la grabación MP4. Comprueba que Safari esté actualizado e inténtalo de nuevo.');
     }
   };
@@ -853,6 +1030,27 @@ export default function App() {
   const setActive = id => { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); stopNarration(); setPlaying(false); setProgress(0); progressRef.current = 0; setActiveId(id); setSelectedPoint(null); setSelectedMarkerId(null); setCurrentMarkerId(null); };
 
   const animate = useCallback((now) => {
+    if (workspaceModeRef.current === 'gpx-review') {
+      const review = gpxRef.current;
+      const points = review.points.map(point => point.coordinates);
+      const map = mapRef.current;
+      if (points.length < 2 || !map) { setPlaying(false); return; }
+      if (!lastFrameRef.current) lastFrameRef.current = now;
+      const dt = Math.min(60, now - lastFrameRef.current); lastFrameRef.current = now;
+      const length = points.slice(1).reduce((sum, point, index) => sum + distance(points[index], point), 0);
+      const duration = Math.max(5000, (length / 16) * 1000) / speed;
+      gpxProgressRef.current = Math.min(1, gpxProgressRef.current + dt / duration);
+      const position = interpolateRoute(points, gpxProgressRef.current);
+      setGpxProgress(gpxProgressRef.current);
+      map.getSource('gpx-vehicle')?.setData(gpxVehicleFeature(review, position.coords));
+      if (follow) map.easeTo({ center: position.coords, bearing: cameraView === 'vehicle' ? position.bearing : 0, pitch: cameraView === 'vehicle' ? 60 : 0, zoom: cameraView === 'vehicle' ? Math.max(18.8, Math.min(19.7, 20.3 - Math.log2(height / 100))) : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100))), duration: 0, essential: true });
+      if (gpxProgressRef.current >= 1) {
+        if (recorderRef.current?.state === 'recording') { setPlaying(false); recorderRef.current.stop(); return; }
+        setPlaying(false); return;
+      }
+      rafRef.current = requestAnimationFrame(animate);
+      return;
+    }
     const route = routesRef.current.find(r => r.id === activeRef.current);
     const map = mapRef.current;
     if (!route || route.points.length < 2 || !map) { setPlaying(false); return; }
@@ -956,6 +1154,8 @@ export default function App() {
         <div className="panel-heading"><div><p className="eyebrow">PROYECTO</p><h1 title={currentProject.name}>{currentProject.name}</h1></div><div className="project-actions"><button className="add-route" title="Crear proyecto" onClick={createProject}>+</button><button className="more-button" title="Cambiar nombre" onClick={renameProject}>···</button></div></div>
         {projectState.projects.length > 1 && <div className="project-switcher"><span className="eyebrow">CAMBIAR PROYECTO</span><select aria-label="Seleccionar proyecto" value={currentProject.id} onChange={event => switchProject(event.target.value)}>{projectState.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>}
         <div className="location-chip"><span className="pin-icon">⌖</span><div><strong>Bizkaia, Euskadi</strong><small>Vista inicial · mapa real</small></div><span className="chip-live">LIVE</span></div>
+        <div className="workspace-switch" role="tablist" aria-label="Modo de trabajo"><button role="tab" aria-selected={workspaceMode === 'routes'} className={workspaceMode === 'routes' ? 'on' : ''} onClick={() => setWorkspace('routes')}>Trayectorias</button><button role="tab" aria-selected={workspaceMode === 'gpx-review'} className={workspaceMode === 'gpx-review' ? 'on' : ''} onClick={() => setWorkspace('gpx-review')}>Revisar recorrido GPX</button></div>
+        {workspaceMode === 'routes' ? <>
         <div className="section-title"><div><span className="eyebrow">CAPAS DE RECORRIDO</span><span className="count-badge">{routes.length}/4</span></div><button className="add-route" onClick={addRoute} disabled={routes.length >= 4} aria-label="Crear trayectoria" title={routes.length >= 4 ? 'Ya tienes las cuatro trayectorias' : 'Crear trayectoria'}>+</button></div>
         <div className="route-list">
           {routes.map((route, index) => <article key={route.id} className={`route-card ${activeId === route.id ? 'selected' : ''}`}>
@@ -1009,19 +1209,45 @@ export default function App() {
         <div className="control-group"><div className="control-label"><span>Altura de cámara</span><strong>{height} m</strong></div><input type="range" min="50" max="500" step="10" value={height} onChange={event => setHeight(Number(event.target.value))} /></div>
         <div className="control-group orientation-row"><div><strong>Orientación dinámica</strong><small>La cámara gira con la trayectoria</small></div><button className={`switch ${follow ? 'on' : ''}`} onClick={() => setFollow(!follow)} aria-label="Alternar orientación"><span /></button></div>
         <div className="future-card"><span>✦</span><p><strong>Señales del catálogo</strong><br />Personaliza el tipo, destinos y explicación.</p><span className="soon-tag">EN PRUEBA</span></div>
+        </> : <div className="gpx-review-panel">
+          <p className="eyebrow">REVISIÓN DE CONDUCCIÓN</p><h2>Recorrido real del alumno</h2>
+          <p className="gpx-intro">Importa el GPX grabado durante la clase. Después, marca en el mapa los errores y añade una explicación para revisarlos con el alumno.</p>
+          <input ref={gpxFileInputRef} className="audio-file-input" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" onChange={importGpx} />
+          <button className="gpx-import-button" onClick={() => gpxFileInputRef.current?.click()}>＋ Importar archivo GPX</button>
+          {gpxReview.points.length > 1 ? <>
+            <div className="gpx-summary"><div><strong>{gpxReview.name || 'Recorrido importado'}</strong><small>{gpxReview.points.length.toLocaleString('es-ES')} posiciones · {Math.round(gpxReview.points.slice(1).reduce((sum, point, index) => sum + distance(gpxReview.points[index].coordinates, point.coordinates), 0)).toLocaleString('es-ES')} m</small><small>{gpxReview.points.some(point => point.time) ? 'El archivo incluye hora GPS' : 'El archivo no incluye hora GPS'}</small></div><button onClick={clearGpxReview} title="Quitar recorrido GPX">Quitar</button></div>
+            <div className="section-title conflict-section-title"><div><span className="eyebrow">ERRORES Y NOTAS</span><span className="count-badge">{gpxReview.incidents.length}</span></div><button className="add-route" onClick={startGpxIncidentPlacement} disabled={placingGpxIncident} aria-label="Añadir incidencia">+</button></div>
+            <button className={`draw-toggle gpx-place-button ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}>{placingGpxIncident ? 'Haz clic en el mapa…' : '+  Marcar un error en el mapa'}</button>
+            <div className="conflict-list gpx-incident-list">{gpxReview.incidents.map((incident, index) => <article key={incident.id} className="conflict-card"><button className="conflict-card-main" onClick={() => focusGpxIncident(incident)}><span className="gpx-incident-number">{index + 1}</span><span className="conflict-card-copy"><strong>{incident.title}</strong><small>{incident.note}</small>{incident.time && <small>Hora GPS: {new Date(incident.time).toLocaleTimeString('es-ES')}</small>}</span></button><div className="conflict-card-actions"><button onClick={() => setGpxIncidentDraft({ ...incident })}>Editar nota</button><button onClick={() => deleteGpxIncident(incident.id)}>Eliminar</button></div></article>)}{!gpxReview.incidents.length && <div className="conflict-empty">Al marcar un error, escribe qué ocurrió y cómo corregirlo.</div>}</div>
+            <div className="divider" /><div className="section-title playback-title"><div><span className="eyebrow">REPRODUCIR RECORRIDO</span></div><span className="preview-label">VISTA DE REVISIÓN</span></div>
+            <div className="play-card"><button className={`play-button ${playing && workspaceMode === 'gpx-review' ? 'is-playing' : ''}`} onClick={toggleGpxPlayback} aria-label={playing ? 'Pausar' : 'Reproducir'}>{playing ? 'Ⅱ' : '▶'}</button><div className="play-copy"><strong>{playing ? 'Reproduciendo GPX' : 'Revisar con el alumno'}</strong><small>La cámara sigue la posición registrada</small></div><button className="restart-button" title="Volver al inicio" onClick={() => { gpxProgressRef.current = 0; setGpxProgress(0); mapRef.current?.flyTo({ center: gpxReview.points[0].coordinates, zoom: 16, pitch: 0, duration: 600 }); }}>↺</button></div>
+            <input className="gpx-timeline" type="range" min="0" max="1000" value={Math.round(gpxProgress * 1000)} onChange={event => { gpxProgressRef.current = Number(event.target.value) / 1000; setGpxProgress(gpxProgressRef.current); const position = interpolateRoute(gpxReview.points.map(point => point.coordinates), gpxProgressRef.current); mapRef.current?.flyTo({ center: position.coords, zoom: 16, pitch: 0, duration: 300 }); }} aria-label="Posición del recorrido" />
+            <div className="control-group"><div className="control-label"><span>Velocidad de reproducción</span><strong>{speed.toLocaleString('es-ES', { maximumFractionDigits: 1 })}×</strong></div><div className="segmented speed-segmented">{SPEEDS.map(value => <button key={value} className={speed === value ? 'on' : ''} onClick={() => setSpeed(value)}>{value.toLocaleString('es-ES', { minimumFractionDigits: value < 1 ? 1 : 0, maximumFractionDigits: 1 })}×</button>)}</div></div>
+            <div className="video-card gpx-video-card"><div className="video-card-heading"><strong>Vídeo de revisión · GPX</strong><span>MP4</span></div><div className="video-actions"><button className="folder-button" onClick={chooseOutputFolder}>▰ {folderName || 'Elegir carpeta…'}</button><button className="export-button" disabled={!folderName || recording} onClick={exportVideo}>{recording ? '■ Finalizar' : '● Grabar revisión'}</button></div><small>{exportMessage || (folderName ? `Incluye el recorrido y las notas al llegar a cada incidencia.` : 'Graba el recorrido con las notas y guárdalo como MP4.')}</small></div>
+          </> : <div className="conflict-empty gpx-empty-state">Todavía no hay un GPX en este proyecto. Pulsa <strong>Importar archivo GPX</strong> para abrir el recorrido del vehículo de la autoescuela.</div>}
+          {gpxMessage && <small className="gpx-message" role="status">{gpxMessage}</small>}
+        </div>}
         <div className="sidebar-footer"><span>TRAZA 01</span><span>GUARDADO EN ESTE NAVEGADOR</span></div>
       </aside>
       <section className="map-panel">
         <div ref={mapNode} className="map-canvas" />
+        {workspaceMode === 'gpx-review' && playing && currentGpxIncident && <div className="gpx-live-note"><span>INCIDENCIA {currentGpxIncidentIndex + 1} · REVISIÓN</span><strong>{currentGpxIncident.title}</strong><p>{currentGpxIncident.note}</p></div>}
         {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba que el token público esté activo y que la cuenta permita cargar el estilo. También puedes volver a geoEuskadi.' : 'Comprueba la conexión a geoEuskadi y vuelve a intentarlo.'}</small></div></div>}
-        <div className="map-top-tools"><button className="map-pill map-source-button" onClick={() => setMapSettingsOpen(!mapSettingsOpen)} aria-expanded={mapSettingsOpen}><span className="satellite-icon">▧</span><span>MAPA: {mapProvider === 'mapbox' ? 'MAPBOX' : 'GEOEUSKADI'}</span><span className="pill-divider" /><span>⚙</span></button><button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button><button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading || mapProvider === 'mapbox'} title={mapProvider === 'mapbox' ? 'La descarga offline está disponible con geoEuskadi' : ''}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
+        <div className="map-top-tools"><button className="map-pill map-source-button" onClick={() => setMapSettingsOpen(!mapSettingsOpen)} aria-expanded={mapSettingsOpen}><span className="satellite-icon">▧</span><span>MAPA: {mapProvider === 'mapbox' ? 'MAPBOX' : 'GEOEUSKADI'}</span><span className="pill-divider" /><span>⚙</span></button>{workspaceMode === 'routes' ? <button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button> : <button className={`map-tool ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}><span>＋</span> Marcar error</button>}<button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading || mapProvider === 'mapbox'} title={mapProvider === 'mapbox' ? 'La descarga offline está disponible con geoEuskadi' : ''}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
         {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => { setMapTokenDraft(event.target.value); setMapboxTokenError(''); }} /><small className="map-token-help">Usa un token público (pk.) con permisos styles:read y fonts:read. Se guarda en este navegador y se envía a Mapbox para cargar el mapa. No uses un token secreto (sk.).</small>{mapboxTokenError && <div className="mapbox-token-error" role="alert">{mapboxTokenError}</div>}<div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" onClick={() => selectMapProvider('mapbox')}>Usar Mapbox</button></div></div>}
         {offlineMessage && <div className="offline-map-status" role="status">{offlineMessage}</div>}
         <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>{mapProvider === 'mapbox' ? 'Mapbox Satellite · Bizkaia' : 'Ortofoto geoEuskadi · Bizkaia'}</span></div>
-        {mapReady && <div className="map-hint">{placingMarker ? <><b>＋</b> Haz clic en el mapa para colocar la señal <button onClick={cancelMarkerPlacement}>Cancelar</button></> : mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
-        {playing && <div className="flight-badge"><span className="pulse-dot" /> VUELO EN DIRECTO <span>·</span> {activeRoute?.name}</div>}
+        {mapReady && <div className="map-hint">{placingGpxIncident ? <><b>＋</b> Haz clic donde ocurrió el error</> : placingMarker ? <><b>＋</b> Haz clic en el mapa para colocar la señal <button onClick={cancelMarkerPlacement}>Cancelar</button></> : workspaceMode === 'gpx-review' ? <><b>●</b> {gpxReview.points.length ? 'Recorrido GPX · marca los errores para revisarlos' : 'Importa un GPX para comenzar la revisión'}</> : mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
+        {playing && <div className="flight-badge"><span className="pulse-dot" /> {workspaceMode === 'gpx-review' ? 'REVISIÓN EN DIRECTO' : 'VUELO EN DIRECTO'} <span>·</span> {workspaceMode === 'gpx-review' ? gpxReview.name : activeRoute?.name}</div>}
       </section>
     </section>
+    {gpxIncidentDraft && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setGpxIncidentDraft(null); }}><form className="marker-dialog gpx-incident-dialog" onSubmit={saveGpxIncident}>
+      <div className="marker-dialog-heading"><div><p className="eyebrow">REVISIÓN DEL ALUMNO</p><h2>{gpxReview.incidents.some(item => item.id === gpxIncidentDraft.id) ? 'Editar incidencia' : 'Anotar error'}</h2></div><button type="button" className="marker-dialog-close" onClick={() => setGpxIncidentDraft(null)} aria-label="Cerrar">×</button></div>
+      <p className="gpx-dialog-location">Punto guardado en el recorrido{gpxIncidentDraft.time ? ` · ${new Date(gpxIncidentDraft.time).toLocaleTimeString('es-ES')}` : ''}. Puedes explicar qué ocurrió y cómo corregirlo.</p>
+      <label className="marker-field-label">Título breve <input autoFocus className="marker-dialog-input" maxLength={60} value={gpxIncidentDraft.title} onChange={event => setGpxIncidentDraft(previous => ({ ...previous, title: event.target.value }))} placeholder="Ej.: No cede el paso" /></label>
+      <label className="marker-field-label">Nota para revisar con el alumno <textarea className="marker-dialog-input marker-description-input" maxLength={500} rows={4} required value={gpxIncidentDraft.note} onChange={event => setGpxIncidentDraft(previous => ({ ...previous, note: event.target.value }))} placeholder="Describe el error y cómo debería haber actuado…" /></label>
+      <div className="marker-dialog-actions"><button type="button" onClick={() => setGpxIncidentDraft(null)}>Cancelar</button><button type="submit" className="marker-primary-button">Guardar nota</button></div>
+    </form></div>}
     {markerDialog && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setMarkerDialog(null); }}><form className="marker-dialog" onSubmit={event => { event.preventDefault(); markerDialog.editingId ? saveMarkerChanges() : beginMarkerPlacement(); }}>
       <div className="marker-dialog-heading"><div><p className="eyebrow">NUEVO MARCADOR · {activeRoute?.name}</p><h2>{markerDialog.editingId ? 'Editar punto conflictivo' : 'Añadir punto conflictivo'}</h2></div><button type="button" className="marker-dialog-close" onClick={() => setMarkerDialog(null)} aria-label="Cerrar">×</button></div>
       <label htmlFor="marker-signal-type">Señal del catálogo</label>
