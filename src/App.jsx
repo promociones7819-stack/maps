@@ -1,12 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Map as MapLibreMap, NavigationControl, AttributionControl, LngLatBounds, setWorkerUrl } from 'maplibre-gl';
-import mapboxgl, { Map as MapboxGLMap, NavigationControl as MapboxNavigationControl, AttributionControl as MapboxAttributionControl } from 'mapbox-gl';
+import mapboxgl, { Map as MapboxGLMap, Marker as MapboxMarker, NavigationControl as MapboxNavigationControl, AttributionControl as MapboxAttributionControl } from 'mapbox-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import { Marker as MapLibreMarker } from 'maplibre-gl';
 
 setWorkerUrl(maplibreWorkerUrl);
 
 const COLORS = ['#e36b4d', '#477bda', '#35a17e', '#a271c5', '#d2a33c', '#e64980', '#0ea5a4', '#7c8c26', '#6b7280', '#f97316'];
 const SPEEDS = [0.1, 0.2, 0.3, 0.4, 0.5, 1, 2];
+const SIGNAL_CATALOG = [
+  { code: 'S-220a', name: 'Preseñalización con destinos', kind: 'direction' },
+  { code: 'S-350', name: 'Señalización de salida inmediata', kind: 'direction' },
+  { code: 'R-2', name: 'Detención obligatoria · STOP', kind: 'stop' },
+  { code: 'R-1', name: 'Ceda el paso', kind: 'yield' },
+  { code: 'P-1', name: 'Intersección con prioridad de la derecha', kind: 'warning' },
+  { code: 'P-21a', name: 'Proximidad de niños o escuela', kind: 'warning' },
+  { code: 'P-22a', name: 'Paso para ciclistas', kind: 'warning' },
+  { code: 'S-13', name: 'Situación de paso para peatones', kind: 'pedestrian' },
+  { code: 'R-301', name: 'Velocidad máxima', kind: 'speed' },
+  { code: 'SEMÁFORO', name: 'Semáforo', kind: 'traffic-light' },
+];
+const ARROWS = [{ value: 'right', label: 'Derecha', icon: '→' }, { value: 'straight', label: 'Recto', icon: '↑' }, { value: 'left', label: 'Izquierda', icon: '←' }, { value: 'up-right', label: 'Diagonal derecha', icon: '↗' }, { value: 'down-right', label: 'Salida derecha', icon: '↘' }];
 const START = [-2.9352, 43.2631];
 const EUSKADI_TILES = 'https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/{z}/{y}/{x}';
 const geoEuskadiSource = { type: 'raster', tiles: [EUSKADI_TILES], maxzoom: 20, tileSize: 256, attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi' };
@@ -52,6 +66,116 @@ const loadProjectRoutes = project => {
   return makeInitialRoutes();
 };
 const safeFileName = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/^-|-$/g, '').slice(0, 70) || 'recorrido';
+const signalDefinition = code => SIGNAL_CATALOG.find(signal => signal.code === code) || SIGNAL_CATALOG[0];
+const defaultMarkerDraft = routeId => ({
+  id: '', routeId, signalCode: 'S-220a', coordinates: null, title: '', description: '', distance: '500 m',
+  destinations: [{ text: 'Bilbao', arrow: 'right' }, { text: 'Barakaldo', arrow: 'right' }, { text: 'Santander', arrow: 'right' }],
+  showInVideo: true,
+});
+const loadProjectMarkers = project => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(`traza-bizkaia-project-${project?.id}-markers`) || '[]');
+    return Array.isArray(saved) ? saved.filter(marker => marker?.id && marker?.routeId && Array.isArray(marker.coordinates) && marker.coordinates.length === 2) : [];
+  } catch { return []; }
+};
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const markerFaceHtml = marker => {
+  const config = signalDefinition(marker.signalCode);
+  if (config.kind === 'direction') {
+    const destinations = (marker.destinations || []).filter(item => item.text?.trim());
+    return `<div class="signal-face signal-face-direction">${marker.signalCode === 'S-220a' && marker.distance ? `<div class="signal-distance">${escapeHtml(marker.distance)}</div>` : ''}<div class="signal-board">${destinations.map(item => `<div class="signal-destination"><span>${escapeHtml(item.text)}</span><b>${ARROWS.find(arrow => arrow.value === item.arrow)?.icon || '→'}</b></div>`).join('') || '<div class="signal-destination"><span>Escribe un destino</span><b>→</b></div>'}</div></div>`;
+  }
+  if (config.kind === 'stop') return '<div class="signal-face signal-stop"><span>STOP</span></div>';
+  if (config.kind === 'yield') return '<div class="signal-face signal-yield"><span>▼</span></div>';
+  if (config.kind === 'traffic-light') return '<div class="signal-face signal-traffic-light"><i></i><i></i><i></i></div>';
+  if (config.kind === 'speed') return `<div class="signal-face signal-speed"><span>${escapeHtml(marker.speed || '30')}</span></div>`;
+  if (config.kind === 'pedestrian') return '<div class="signal-face signal-pedestrian"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="26" cy="8" r="3.5" fill="#fff"/><path d="m24 13-6 11 8 4 4 9m-12-13-7 8m13-8 7-6 6 4m-12 6-8 11m8-11 9 10" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
+  const symbol = marker.signalCode === 'P-21a'
+    ? '<svg viewBox="0 0 48 40" aria-hidden="true"><circle cx="17" cy="8" r="3.5" fill="#111"/><circle cx="31" cy="9" r="3" fill="#111"/><path d="M17 13v11m0-7-6 7m6-7 6 6m-6 1-5 9m5-9 6 9M31 14v10m0-6-5 6m5-5 5 5m-5 0-4 8m4-8 5 8" fill="none" stroke="#111" stroke-width="2.6" stroke-linecap="round"/></svg>'
+    : marker.signalCode === 'P-22a'
+      ? '<svg viewBox="0 0 48 40" aria-hidden="true"><circle cx="12" cy="29" r="6" fill="none" stroke="#111" stroke-width="2.5"/><circle cx="36" cy="29" r="6" fill="none" stroke="#111" stroke-width="2.5"/><circle cx="27" cy="8" r="3.2" fill="#111"/><path d="m26 13-6 8 8 2 6 6m-14-8-7 8m13-6-5-8h9l6 8" fill="none" stroke="#111" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '<svg viewBox="0 0 48 40" aria-hidden="true"><path d="M24 4v30M8 19h32M13 10l22 20m0-20L13 30" stroke="#111" stroke-width="4" stroke-linecap="round"/></svg>';
+  return `<div class="signal-face signal-warning"><span>${symbol}</span></div>`;
+};
+
+function SignalFace({ marker, compact = false }) {
+  return <div className={`signal-face-wrap ${compact ? 'compact' : ''}`} dangerouslySetInnerHTML={{ __html: markerFaceHtml(marker) }} />;
+}
+
+function distanceToMarker(coords, markers, routeId) {
+  return markers.filter(marker => marker.routeId === routeId && marker.showInVideo !== false && marker.coordinates)
+    .map(marker => ({ marker, distance: distance(coords, marker.coordinates) }))
+    .filter(item => item.distance < 85)
+    .sort((a, b) => a.distance - b.distance)[0]?.marker || null;
+}
+
+function drawTeachingCard(context, marker, width) {
+  const scale = Math.max(0.8, Math.min(1.45, width / 1500));
+  const cardW = 365 * scale, cardH = 186 * scale, pad = 17 * scale;
+  const x = width - cardW - 22 * scale, y = 22 * scale;
+  const radius = 13 * scale;
+  context.save();
+  context.shadowColor = 'rgba(16, 31, 23, .22)'; context.shadowBlur = 18 * scale; context.shadowOffsetY = 5 * scale;
+  context.fillStyle = 'rgba(255,255,255,.97)'; context.beginPath(); context.roundRect(x, y, cardW, cardH, radius); context.fill();
+  context.shadowColor = 'transparent';
+  context.fillStyle = '#819087'; context.font = `700 ${9 * scale}px sans-serif`;
+  context.fillText(`${marker.signalCode} · ${signalDefinition(marker.signalCode).name.toUpperCase()}`.slice(0, 49), x + pad, y + 21 * scale);
+  const boardX = x + pad, boardY = y + 32 * scale, boardW = cardW - pad * 2, boardH = 83 * scale;
+  context.fillStyle = '#fff'; context.strokeStyle = '#1b201c'; context.lineWidth = 2.2 * scale;
+  context.beginPath(); context.roundRect(boardX, boardY, boardW, boardH, 8 * scale); context.fill(); context.stroke();
+  const config = signalDefinition(marker.signalCode);
+  if (config.kind === 'direction') {
+    const destinations = (marker.destinations || []).filter(item => item.text?.trim()).slice(0, 3);
+    context.fillStyle = '#111'; context.textBaseline = 'middle';
+    const fontSize = Math.min(13 * scale, (boardW - 60 * scale) / Math.max(10, ...destinations.map(item => item.text.length)) * 1.55);
+    context.font = `700 ${fontSize}px sans-serif`;
+    destinations.forEach((destination, index) => {
+      const lineY = boardY + (destinations.length === 1 ? boardH / 2 : (index + 0.5) * boardH / destinations.length);
+      context.fillText(destination.text, boardX + 12 * scale, lineY, boardW - 57 * scale);
+      context.font = `700 ${20 * scale}px sans-serif`; context.textAlign = 'center';
+      context.fillText(ARROWS.find(arrow => arrow.value === destination.arrow)?.icon || '→', boardX + boardW - 22 * scale, lineY + 1 * scale);
+      context.textAlign = 'left'; context.font = `700 ${fontSize}px sans-serif`;
+    });
+    if (marker.signalCode === 'S-220a' && marker.distance) {
+      context.font = `700 ${10 * scale}px sans-serif`; const distanceW = context.measureText(marker.distance).width + 16 * scale;
+      context.fillStyle = '#fff'; context.strokeStyle = '#1b201c'; context.lineWidth = 1.5 * scale;
+      context.beginPath(); context.roundRect(boardX + boardW - distanceW - 5 * scale, boardY - 8 * scale, distanceW, 18 * scale, 9 * scale); context.fill(); context.stroke();
+      context.fillStyle = '#111'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(marker.distance, boardX + boardW - distanceW / 2 - 5 * scale, boardY + 1 * scale); context.textAlign = 'left';
+    }
+  } else {
+    const iconX = boardX + 11 * scale, iconY = boardY + 7 * scale, iconSize = 48 * scale;
+    if (config.kind === 'stop') {
+      context.beginPath(); for (let i = 0; i < 8; i += 1) { const angle = Math.PI / 8 + i * Math.PI / 4, px = iconX + iconSize / 2 + Math.cos(angle) * iconSize / 2, py = iconY + iconSize / 2 + Math.sin(angle) * iconSize / 2; if (i === 0) context.moveTo(px, py); else context.lineTo(px, py); } context.closePath(); context.fillStyle = '#d71920'; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = 2 * scale; context.stroke();
+      context.fillStyle = '#fff'; context.font = `700 ${9 * scale}px sans-serif`; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText('STOP', iconX + iconSize / 2, iconY + iconSize / 2); context.textAlign = 'left';
+    } else if (config.kind === 'yield' || config.kind === 'warning') {
+      context.beginPath(); if (config.kind === 'yield') { context.moveTo(iconX + 4 * scale, iconY + 2 * scale); context.lineTo(iconX + iconSize - 4 * scale, iconY + 2 * scale); context.lineTo(iconX + iconSize / 2, iconY + iconSize - 2 * scale); } else { context.moveTo(iconX + iconSize / 2, iconY + 2 * scale); context.lineTo(iconX + iconSize - 2 * scale, iconY + iconSize - 2 * scale); context.lineTo(iconX + 2 * scale, iconY + iconSize - 2 * scale); } context.closePath(); context.fillStyle = '#fff'; context.fill(); context.strokeStyle = '#d71920'; context.lineWidth = 5 * scale; context.stroke();
+      context.fillStyle = '#111'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      if (config.kind === 'yield') {
+        context.font = `700 ${18 * scale}px sans-serif`; context.fillText('▼', iconX + iconSize / 2, iconY + iconSize / 2 + 2 * scale);
+      } else if (marker.signalCode === 'P-21a') {
+        [iconX + 17 * scale, iconX + 31 * scale].forEach((figureX, index) => { const figureY = iconY + (index ? 12 : 11) * scale; context.beginPath(); context.arc(figureX, figureY, 3 * scale, 0, Math.PI * 2); context.fill(); context.strokeStyle = '#111'; context.lineWidth = 2 * scale; context.beginPath(); context.moveTo(figureX, figureY + 3 * scale); context.lineTo(figureX, figureY + 15 * scale); context.moveTo(figureX, figureY + 7 * scale); context.lineTo(figureX - 6 * scale, figureY + 13 * scale); context.moveTo(figureX, figureY + 7 * scale); context.lineTo(figureX + 6 * scale, figureY + 12 * scale); context.moveTo(figureX, figureY + 15 * scale); context.lineTo(figureX - 5 * scale, figureY + 23 * scale); context.moveTo(figureX, figureY + 15 * scale); context.lineTo(figureX + 5 * scale, figureY + 23 * scale); context.stroke(); });
+      } else if (marker.signalCode === 'P-22a') {
+        context.strokeStyle = '#111'; context.lineWidth = 2.5 * scale; context.beginPath(); context.arc(iconX + 12 * scale, iconY + 34 * scale, 7 * scale, 0, Math.PI * 2); context.arc(iconX + 36 * scale, iconY + 34 * scale, 7 * scale, 0, Math.PI * 2); context.moveTo(iconX + 12 * scale, iconY + 34 * scale); context.lineTo(iconX + 22 * scale, iconY + 21 * scale); context.lineTo(iconX + 31 * scale, iconY + 34 * scale); context.lineTo(iconX + 12 * scale, iconY + 34 * scale); context.lineTo(iconX + 27 * scale, iconY + 34 * scale); context.lineTo(iconX + 36 * scale, iconY + 34 * scale); context.moveTo(iconX + 22 * scale, iconY + 21 * scale); context.lineTo(iconX + 33 * scale, iconY + 21 * scale); context.lineTo(iconX + 36 * scale, iconY + 34 * scale); context.moveTo(iconX + 26 * scale, iconY + 12 * scale); context.lineTo(iconX + 22 * scale, iconY + 20 * scale); context.stroke(); context.fillStyle = '#111'; context.beginPath(); context.arc(iconX + 28 * scale, iconY + 9 * scale, 3 * scale, 0, Math.PI * 2); context.fill();
+      } else {
+        context.strokeStyle = '#111'; context.lineWidth = 4 * scale; context.beginPath(); context.moveTo(iconX + iconSize / 2, iconY + 9 * scale); context.lineTo(iconX + iconSize / 2, iconY + 39 * scale); context.moveTo(iconX + 8 * scale, iconY + iconSize / 2); context.lineTo(iconX + 40 * scale, iconY + iconSize / 2); context.stroke();
+      }
+      context.textAlign = 'left';
+    } else if (config.kind === 'traffic-light') {
+      context.fillStyle = '#262b28'; context.beginPath(); context.roundRect(iconX + 8 * scale, iconY, 32 * scale, 63 * scale, 7 * scale); context.fill();
+      ['#d71920', '#edb600', '#338b52'].forEach((color, index) => { context.fillStyle = color; context.beginPath(); context.arc(iconX + 24 * scale, iconY + (12 + index * 20) * scale, 6 * scale, 0, Math.PI * 2); context.fill(); });
+    } else {
+      context.fillStyle = '#176eb2'; context.beginPath(); context.roundRect(iconX, iconY, iconSize, iconSize, 3 * scale); context.fill(); context.fillStyle = '#fff'; context.font = `700 ${19 * scale}px sans-serif`; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(config.kind === 'speed' ? marker.speed || '30' : 'P', iconX + iconSize / 2, iconY + iconSize / 2); context.textAlign = 'left';
+    }
+    context.fillStyle = '#151815'; context.font = `700 ${13 * scale}px sans-serif`; context.textBaseline = 'middle'; context.fillText(marker.title || config.name, iconX + iconSize + 14 * scale, boardY + boardH / 2, boardW - iconSize - 40 * scale);
+  }
+  if (marker.description) {
+    context.fillStyle = '#33443a'; context.font = `500 ${11 * scale}px sans-serif`; context.textBaseline = 'top';
+    const words = marker.description.split(/\s+/); let line = '', lineNo = 0;
+    for (const word of words) { const test = line ? `${line} ${word}` : word; if (context.measureText(test).width > boardW && line) { context.fillText(line, boardX, boardY + boardH + 12 * scale + lineNo * 14 * scale); line = word; lineNo += 1; if (lineNo === 2) break; } else line = test; }
+    if (lineNo < 2 && line) context.fillText(line, boardX, boardY + boardH + 12 * scale + lineNo * 14 * scale);
+  }
+  context.restore();
+}
 
 function pointFeatureCollection(routes, activeId, current) {
   const features = [];
@@ -103,6 +227,11 @@ export default function App() {
   const currentProject = projectState.projects.find(project => project.id === projectState.activeProjectId) || projectState.projects[0];
   const [routes, setRoutes] = useState(() => loadProjectRoutes(currentProject));
   const [activeId, setActiveId] = useState(() => routes[0].id);
+  const [conflictMarkers, setConflictMarkers] = useState(() => loadProjectMarkers(currentProject));
+  const [markerDialog, setMarkerDialog] = useState(null);
+  const [placingMarker, setPlacingMarker] = useState(false);
+  const [selectedMarkerId, setSelectedMarkerId] = useState(null);
+  const [currentMarkerId, setCurrentMarkerId] = useState(null);
   const [mode, setMode] = useState('select');
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [playing, setPlaying] = useState(false);
@@ -130,6 +259,7 @@ export default function App() {
   const [nameDialog, setNameDialog] = useState(null);
   const modeRef = useRef(mode);
   const dragRef = useRef(null);
+  const markerPlacementRef = useRef(null);
 
   useEffect(() => {
     const synth = window.speechSynthesis;
@@ -163,6 +293,8 @@ export default function App() {
   };
 
   const activeRoute = routes.find(route => route.id === activeId) || routes[0];
+  const activeConflictMarkers = conflictMarkers.filter(marker => marker.routeId === activeId);
+  const currentConflictMarker = activeConflictMarkers.find(marker => marker.id === currentMarkerId) || null;
   const narrationLanguage = activeRoute?.narrationLanguage || 'es';
   const narrationVoice = narrationVoiceFor(speechVoices, narrationLanguage);
   const totalDistance = useMemo(() => activeRoute?.points.slice(1).reduce((sum, p, i) => sum + distance(activeRoute.points[i], p), 0) || 0, [activeRoute]);
@@ -285,6 +417,10 @@ export default function App() {
   }, [routes, activeId, mode, updateSources, currentProject.id]);
 
   useEffect(() => {
+    try { localStorage.setItem(`traza-bizkaia-project-${currentProject.id}-markers`, JSON.stringify(conflictMarkers)); } catch { /* Browser storage may be unavailable. */ }
+  }, [conflictMarkers, currentProject.id]);
+
+  useEffect(() => {
     try {
       localStorage.setItem('traza-bizkaia-projects', JSON.stringify({
         activeProjectId: projectState.activeProjectId,
@@ -342,10 +478,19 @@ export default function App() {
       else setMapError(event.error.message);
     });
     map.on('click', event => {
+      if (markerPlacementRef.current) {
+        const draft = markerPlacementRef.current;
+        const marker = { ...draft, id: draft.id || crypto.randomUUID(), coordinates: [event.lngLat.lng, event.lngLat.lat] };
+        setConflictMarkers(previous => draft.id ? previous.map(item => item.id === draft.id ? marker : item) : [...previous, marker]);
+        setSelectedMarkerId(marker.id);
+        markerPlacementRef.current = null;
+        setPlacingMarker(false);
+        return;
+      }
       if (modeRef.current !== 'add') {
         const features = map.queryRenderedFeatures(event.point, { layers: ['route-points-layer'] });
         if (features[0]) setSelectedPoint({ routeId: features[0].properties.routeId, index: Number(features[0].properties.index) });
-        else setSelectedPoint(null);
+        else { setSelectedPoint(null); setSelectedMarkerId(null); }
         return;
       }
       const target = routesRef.current.find(r => r.id === activeRef.current);
@@ -393,12 +538,35 @@ export default function App() {
 
   useEffect(() => { if (mapReady) updateSources(routes, activeId); }, [mapReady, routes, activeId, updateSources]);
   useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return undefined;
+    const MarkerConstructor = mapProvider === 'mapbox' ? MapboxMarker : MapLibreMarker;
+    const instances = activeConflictMarkers.map(marker => {
+      const element = document.createElement('div');
+      const expanded = marker.id === selectedMarkerId || marker.id === currentMarkerId;
+      element.className = `map-signal-marker ${expanded ? 'expanded' : ''}`;
+      element.setAttribute('role', 'button');
+      element.setAttribute('tabindex', '0');
+      element.setAttribute('aria-label', `${marker.signalCode}: ${marker.title || signalDefinition(marker.signalCode).name}`);
+      element.innerHTML = `<div class="map-signal-pin signal-pin-${signalDefinition(marker.signalCode).kind}"><span>${escapeHtml(marker.signalCode === 'SEMÁFORO' ? '●' : marker.signalCode)}</span></div>${expanded ? `<div class="map-signal-card"><div class="map-signal-card-code">${escapeHtml(marker.signalCode)} · ${escapeHtml(signalDefinition(marker.signalCode).name)}</div>${markerFaceHtml(marker)}<strong>${escapeHtml(marker.title || signalDefinition(marker.signalCode).name)}</strong>${marker.description ? `<small>${escapeHtml(marker.description)}</small>` : ''}<button type="button" data-edit-marker="${escapeHtml(marker.id)}">Editar señal</button></div>` : ''}`;
+      element.addEventListener('click', event => { event.stopPropagation(); setSelectedMarkerId(marker.id); });
+      element.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedMarkerId(marker.id); } });
+      element.querySelector('[data-edit-marker]')?.addEventListener('click', event => {
+        event.stopPropagation();
+        setMarkerDialog({ editingId: marker.id, draft: { ...marker, destinations: marker.destinations?.length ? marker.destinations.map(item => ({ ...item })) : [{ text: '', arrow: 'right' }] } });
+        setSelectedMarkerId(marker.id);
+      });
+      return new MarkerConstructor({ element, anchor: 'bottom' }).setLngLat(marker.coordinates).addTo(map);
+    });
+    return () => instances.forEach(instance => instance.remove());
+  }, [mapReady, mapProvider, activeConflictMarkers, selectedMarkerId, currentMarkerId]);
+  useEffect(() => {
     const pointLayer = mapRef.current?.getLayer('route-points-layer');
     if (pointLayer) mapRef.current.setLayoutProperty('route-points-layer', 'visibility', playing || recording ? 'none' : 'visible');
   }, [mapReady, playing, recording]);
   useEffect(() => {
-    if (mapReady && mapRef.current) mapRef.current.getCanvas().style.cursor = mode === 'add' ? 'crosshair' : '';
-  }, [mapReady, mode]);
+    if (mapReady && mapRef.current) mapRef.current.getCanvas().style.cursor = mode === 'add' || placingMarker ? 'crosshair' : '';
+  }, [mapReady, mode, placingMarker]);
 
   // Keep map click handlers current without rebuilding the map.
   useEffect(() => { routesRef.current = routes; activeRef.current = activeId; }, [routes, activeId]);
@@ -422,7 +590,9 @@ export default function App() {
   const deleteRoute = id => {
     if (routes.length === 1) { commitRoutes(routes.map(r => r.id === id ? { ...r, points: [] } : r)); setSelectedPoint(null); return; }
     const rest = routes.filter(route => route.id !== id); commitRoutes(rest);
+    setConflictMarkers(previous => previous.filter(marker => marker.routeId !== id));
     if (id === activeId) setActiveId(rest[0].id);
+    setSelectedMarkerId(null); setCurrentMarkerId(null);
     setSelectedPoint(null);
   };
   const removeSelectedPoint = () => {
@@ -431,19 +601,62 @@ export default function App() {
     commitRoutes(routes.map(route => route.id === routeId ? { ...route, points: route.points.filter((_, i) => i !== index) } : route));
     setSelectedPoint(null);
   };
+  const openNewMarkerDialog = () => {
+    if (!activeRoute) return;
+    setMarkerDialog({ draft: defaultMarkerDraft(activeId) });
+    setSelectedMarkerId(null);
+  };
+  const updateMarkerDraft = (key, value) => setMarkerDialog(previous => previous ? { ...previous, draft: { ...previous.draft, [key]: value } } : previous);
+  const editMarker = marker => setMarkerDialog({ editingId: marker.id, draft: { ...marker, destinations: marker.destinations?.length ? marker.destinations.map(item => ({ ...item })) : [{ text: '', arrow: 'right' }] } });
+  const saveMarkerChanges = () => {
+    if (!markerDialog?.editingId) return;
+    const draft = markerDialog.draft;
+    const marker = { ...draft, title: draft.title?.trim() || signalDefinition(draft.signalCode).name, description: draft.description?.trim() || '', destinations: (draft.destinations || []).filter(item => item.text?.trim()).map(item => ({ ...item, text: item.text.trim() })) };
+    setConflictMarkers(previous => previous.map(item => item.id === markerDialog.editingId ? marker : item));
+    setMarkerDialog(null);
+  };
+  const beginMarkerPlacement = () => {
+    if (!markerDialog) return;
+    const draft = markerDialog.draft;
+    markerPlacementRef.current = {
+      ...draft,
+      id: markerDialog.editingId || draft.id || '',
+      title: draft.title?.trim() || signalDefinition(draft.signalCode).name,
+      description: draft.description?.trim() || '',
+      destinations: (draft.destinations || []).filter(item => item.text?.trim()).map(item => ({ ...item, text: item.text.trim() })),
+    };
+    setMarkerDialog(null);
+    setMode('select');
+    setPlaying(false);
+    setPlacingMarker(true);
+    setSelectedMarkerId(markerDialog.editingId || null);
+  };
+  const cancelMarkerPlacement = () => { markerPlacementRef.current = null; setPlacingMarker(false); setSelectedMarkerId(null); };
+  const deleteMarker = id => {
+    setConflictMarkers(previous => previous.filter(marker => marker.id !== id));
+    if (selectedMarkerId === id) setSelectedMarkerId(null);
+    if (currentMarkerId === id) setCurrentMarkerId(null);
+  };
+  const focusMarker = marker => {
+    setSelectedMarkerId(marker.id);
+    mapRef.current?.flyTo({ center: marker.coordinates, zoom: Math.max(16, mapRef.current.getZoom()), pitch: 0, duration: 700 });
+  };
   const createProject = () => setNameDialog({ kind: 'project-new', value: '' });
   const createNamedProject = name => {
     const id = crypto.randomUUID();
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
     const newRoutes = makeInitialRoutes();
     try { localStorage.setItem(`traza-bizkaia-project-${id}`, JSON.stringify(newRoutes)); } catch { /* Browser storage may be unavailable. */ }
+    try { localStorage.setItem(`traza-bizkaia-project-${id}-markers`, '[]'); } catch { /* Browser storage may be unavailable. */ }
     setProjectState(previous => ({
       activeProjectId: id,
       projects: [...previous.projects.map(({ id: oldId, name: oldName }) => ({ id: oldId, name: oldName })), { id, name }],
     }));
     setRoutes(newRoutes);
+    setConflictMarkers([]);
     setActiveId(newRoutes[0].id);
     setSelectedPoint(null);
+    setSelectedMarkerId(null); setCurrentMarkerId(null); setPlacingMarker(false); markerPlacementRef.current = null;
     setPlaying(false);
     setProgress(0);
     progressRef.current = 0;
@@ -454,11 +667,14 @@ export default function App() {
     const project = projectState.projects.find(item => item.id === id);
     if (!project || project.id === currentProject.id) return;
     const nextRoutes = loadProjectRoutes(project);
+    const nextMarkers = loadProjectMarkers(project);
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
     setProjectState(previous => ({ ...previous, activeProjectId: id }));
     setRoutes(nextRoutes);
+    setConflictMarkers(nextMarkers);
     setActiveId(nextRoutes[0].id);
     setSelectedPoint(null);
+    setSelectedMarkerId(null); setCurrentMarkerId(null); setPlacingMarker(false); markerPlacementRef.current = null;
     setPlaying(false);
     setProgress(0);
     progressRef.current = 0;
@@ -526,6 +742,9 @@ export default function App() {
         context.fillRect(12, videoCanvas.height - fontSize - pad * 2 - 12, textWidth + pad * 2, fontSize + pad * 2);
         context.fillStyle = '#37433b';
         context.fillText(attribution, 12 + pad, videoCanvas.height - pad - 12);
+        const framePosition = interpolateRoute(activeRoute.points, progressRef.current).coords;
+        const teachingMarker = distanceToMarker(framePosition, conflictMarkers, activeRoute.id);
+        if (teachingMarker) drawTeachingCard(context, teachingMarker, videoCanvas.width);
         recordFrameRef.current = requestAnimationFrame(composeFrame);
       };
       composeFrame();
@@ -631,7 +850,7 @@ export default function App() {
     const bounds = route.points.reduce((b, coord) => b.extend(coord), new LngLatBounds(route.points[0], route.points[0]));
     mapRef.current.fitBounds(bounds.toArray(), { padding: 100, maxZoom: 16, duration: 800 });
   };
-  const setActive = id => { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); stopNarration(); setPlaying(false); setProgress(0); progressRef.current = 0; setActiveId(id); setSelectedPoint(null); };
+  const setActive = id => { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); stopNarration(); setPlaying(false); setProgress(0); progressRef.current = 0; setActiveId(id); setSelectedPoint(null); setSelectedMarkerId(null); setCurrentMarkerId(null); };
 
   const animate = useCallback((now) => {
     const route = routesRef.current.find(r => r.id === activeRef.current);
@@ -653,6 +872,8 @@ export default function App() {
     }
     const position = interpolateRoute(route.points, progressRef.current);
     setProgress(progressRef.current);
+    const nearbyMarker = distanceToMarker(position.coords, conflictMarkers, route.id);
+    setCurrentMarkerId(previous => previous === nearbyMarker?.id ? previous : nearbyMarker?.id || null);
     updateSources(routesRef.current, activeRef.current, position.coords);
     if (follow) {
       const vehicleView = cameraView === 'vehicle';
@@ -670,11 +891,11 @@ export default function App() {
       });
     }
     rafRef.current = requestAnimationFrame(animate);
-  }, [speed, height, follow, cameraView, updateSources]);
+  }, [speed, height, follow, cameraView, conflictMarkers, updateSources]);
 
   useEffect(() => {
     if (playing) { lastFrameRef.current = 0; rafRef.current = requestAnimationFrame(animate); }
-    else { cancelAnimationFrame(rafRef.current); updateSources(routes, activeId); }
+    else { cancelAnimationFrame(rafRef.current); setCurrentMarkerId(null); updateSources(routes, activeId); }
     return () => cancelAnimationFrame(rafRef.current);
   }, [playing, animate, routes, activeId, updateSources]);
 
@@ -742,6 +963,14 @@ export default function App() {
             {activeId === route.id && <><div className="route-actions"><button onClick={() => renameRoute(route.id)}>Renombrar</button><button onClick={() => focusRoute(route)}>Enfocar</button><button className="danger-text" onClick={() => deleteRoute(route.id)}>{routes.length === 1 ? 'Vaciar' : 'Eliminar'}</button></div><div className="route-color-picker" aria-label={`Color de ${route.name}`}>{COLORS.map(color => { const usedByAnother = routes.some(other => other.id !== route.id && other.color.toLowerCase() === color); return <button key={color} type="button" className={`route-color-choice ${route.color.toLowerCase() === color ? 'chosen' : ''}`} style={{ '--choice-color': color }} aria-label={`Elegir color ${color}`} aria-pressed={route.color.toLowerCase() === color} title={usedByAnother ? 'Este color ya está usado por otra trayectoria' : `Cambiar a ${color}`} disabled={usedByAnother} onClick={() => setRouteColor(route.id, color)} />; })}</div></>}
           </article>)}
         </div>
+        <div className="section-title conflict-section-title"><div><span className="eyebrow">PUNTOS CONFLICTIVOS</span><span className="count-badge">{activeConflictMarkers.length}</span></div><button className="add-route" onClick={openNewMarkerDialog} disabled={recording} aria-label="Añadir señal o punto conflictivo" title="Añadir señal o punto conflictivo">+</button></div>
+        <div className="conflict-list">
+          {activeConflictMarkers.map(marker => <article key={marker.id} className={`conflict-card ${selectedMarkerId === marker.id ? 'selected' : ''}`}>
+            <button className="conflict-card-main" onClick={() => focusMarker(marker)}><span className={`conflict-card-icon signal-pin-${signalDefinition(marker.signalCode).kind}`}><span>{marker.signalCode === 'SEMÁFORO' ? '●' : marker.signalCode}</span></span><span className="conflict-card-copy"><strong>{marker.title || signalDefinition(marker.signalCode).name}</strong><small>{marker.signalCode}{signalDefinition(marker.signalCode).kind === 'direction' ? ` · ${(marker.destinations || []).map(item => item.text).filter(Boolean).join(' · ')}` : ''}</small></span></button>
+            <div className="conflict-card-actions"><button onClick={() => editMarker(marker)} disabled={recording}>Editar</button><button onClick={() => deleteMarker(marker.id)} disabled={recording}>Eliminar</button><span className="conflict-video-state">{marker.showInVideo === false ? 'Solo mapa' : 'Vídeo'}</span></div>
+          </article>)}
+          {!activeConflictMarkers.length && <div className="conflict-empty">Añade señales o situaciones de riesgo asociadas a esta trayectoria.</div>}
+        </div>
         <div className="drawing-card">
           <div className="drawing-heading"><span className="draw-icon">✳</span><div><strong>Edición de trazado</strong><small>{mode === 'add' ? 'Haz clic en el mapa para añadir puntos' : 'Selecciona una ruta para editarla'}</small></div></div>
           <button className={`draw-toggle ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}>{mode === 'add' ? '✓  Añadiendo puntos' : '+  Añadir puntos en el mapa'}</button>
@@ -779,7 +1008,7 @@ export default function App() {
         <div className="control-group"><div className="control-label"><span>Velocidad</span><strong>{speed.toLocaleString('es-ES', { minimumFractionDigits: speed < 1 ? 1 : 0, maximumFractionDigits: 1 })}×</strong></div><div className="segmented speed-segmented">{SPEEDS.map(value => <button key={value} className={speed === value ? 'on' : ''} onClick={() => setSpeed(value)}>{value.toLocaleString('es-ES', { minimumFractionDigits: value < 1 ? 1 : 0, maximumFractionDigits: 1 })}×</button>)}</div></div>
         <div className="control-group"><div className="control-label"><span>Altura de cámara</span><strong>{height} m</strong></div><input type="range" min="50" max="500" step="10" value={height} onChange={event => setHeight(Number(event.target.value))} /></div>
         <div className="control-group orientation-row"><div><strong>Orientación dinámica</strong><small>La cámara gira con la trayectoria</small></div><button className={`switch ${follow ? 'on' : ''}`} onClick={() => setFollow(!follow)} aria-label="Alternar orientación"><span /></button></div>
-        <div className="future-card"><span>✦</span><p><strong>Siguiente paso</strong><br />Marcadores de incidencias y notas.</p><span className="soon-tag">PRÓXIMAMENTE</span></div>
+        <div className="future-card"><span>✦</span><p><strong>Señales del catálogo</strong><br />Personaliza el tipo, destinos y explicación.</p><span className="soon-tag">EN PRUEBA</span></div>
         <div className="sidebar-footer"><span>TRAZA 01</span><span>GUARDADO EN ESTE NAVEGADOR</span></div>
       </aside>
       <section className="map-panel">
@@ -789,10 +1018,31 @@ export default function App() {
         {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => { setMapTokenDraft(event.target.value); setMapboxTokenError(''); }} /><small className="map-token-help">Usa un token público (pk.) con permisos styles:read y fonts:read. Se guarda en este navegador y se envía a Mapbox para cargar el mapa. No uses un token secreto (sk.).</small>{mapboxTokenError && <div className="mapbox-token-error" role="alert">{mapboxTokenError}</div>}<div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" onClick={() => selectMapProvider('mapbox')}>Usar Mapbox</button></div></div>}
         {offlineMessage && <div className="offline-map-status" role="status">{offlineMessage}</div>}
         <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>{mapProvider === 'mapbox' ? 'Mapbox Satellite · Bizkaia' : 'Ortofoto geoEuskadi · Bizkaia'}</span></div>
-        {mapReady && <div className="map-hint">{mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
+        {mapReady && <div className="map-hint">{placingMarker ? <><b>＋</b> Haz clic en el mapa para colocar la señal <button onClick={cancelMarkerPlacement}>Cancelar</button></> : mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
         {playing && <div className="flight-badge"><span className="pulse-dot" /> VUELO EN DIRECTO <span>·</span> {activeRoute?.name}</div>}
       </section>
     </section>
+    {markerDialog && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setMarkerDialog(null); }}><form className="marker-dialog" onSubmit={event => { event.preventDefault(); markerDialog.editingId ? saveMarkerChanges() : beginMarkerPlacement(); }}>
+      <div className="marker-dialog-heading"><div><p className="eyebrow">NUEVO MARCADOR · {activeRoute?.name}</p><h2>{markerDialog.editingId ? 'Editar punto conflictivo' : 'Añadir punto conflictivo'}</h2></div><button type="button" className="marker-dialog-close" onClick={() => setMarkerDialog(null)} aria-label="Cerrar">×</button></div>
+      <label htmlFor="marker-signal-type">Señal del catálogo</label>
+      <select id="marker-signal-type" className="marker-dialog-input" value={markerDialog.draft.signalCode} onChange={event => { const signalCode = event.target.value; const selectedSignal = signalDefinition(signalCode); setMarkerDialog(previous => ({ ...previous, draft: { ...previous.draft, signalCode, title: selectedSignal.name, destinations: selectedSignal.kind === 'direction' ? (previous.draft.destinations?.length ? previous.draft.destinations : defaultMarkerDraft(activeId).destinations) : previous.draft.destinations } })); }}>
+        <optgroup label="Señales de dirección">{SIGNAL_CATALOG.filter(signal => signal.kind === 'direction').map(signal => <option key={signal.code} value={signal.code}>{signal.code} · {signal.name}</option>)}</optgroup>
+        <optgroup label="Regulación, peligro e indicación">{SIGNAL_CATALOG.filter(signal => signal.kind !== 'direction').map(signal => <option key={signal.code} value={signal.code}>{signal.code} · {signal.name}</option>)}</optgroup>
+      </select>
+      <div className="marker-preview"><div className="marker-preview-copy"><span>VISTA PREVIA</span><strong>{markerDialog.draft.signalCode} · {signalDefinition(markerDialog.draft.signalCode).name}</strong></div><SignalFace marker={markerDialog.draft} /></div>
+      {signalDefinition(markerDialog.draft.signalCode).kind === 'direction' && <>
+        <div className="marker-form-section-title"><strong>Texto de la señal</strong><small>El formato se adapta al modelo seleccionado.</small></div>
+        {markerDialog.draft.signalCode === 'S-220a' && <label className="marker-field-label">Distancia <input className="marker-dialog-input" maxLength={20} value={markerDialog.draft.distance || ''} onChange={event => updateMarkerDraft('distance', event.target.value)} placeholder="500 m" /></label>}
+        <div className="marker-destination-fields">{(markerDialog.draft.destinations || []).map((destination, index) => <div className="marker-destination-field" key={index}><input className="marker-dialog-input" maxLength={32} value={destination.text} onChange={event => { const destinations = markerDialog.draft.destinations.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item); updateMarkerDraft('destinations', destinations); }} placeholder={`Destino ${index + 1}`} aria-label={`Texto del destino ${index + 1}`} /><select className="marker-dialog-input marker-arrow-select" value={destination.arrow} onChange={event => { const destinations = markerDialog.draft.destinations.map((item, itemIndex) => itemIndex === index ? { ...item, arrow: event.target.value } : item); updateMarkerDraft('destinations', destinations); }} aria-label={`Dirección del destino ${index + 1}`}>{ARROWS.map(arrow => <option key={arrow.value} value={arrow.value}>{arrow.icon} {arrow.label}</option>)}</select><button type="button" onClick={() => updateMarkerDraft('destinations', markerDialog.draft.destinations.filter((_, itemIndex) => itemIndex !== index))} disabled={markerDialog.draft.destinations.length <= 1} aria-label={`Quitar destino ${index + 1}`}>×</button></div>)}</div>
+        <button type="button" className="add-destination-button" onClick={() => updateMarkerDraft('destinations', [...(markerDialog.draft.destinations || []), { text: '', arrow: 'right' }])}>＋ Añadir destino</button>
+      </>}
+      {signalDefinition(markerDialog.draft.signalCode).kind === 'speed' && <label className="marker-field-label">Velocidad máxima <input className="marker-dialog-input" type="number" min="10" max="120" step="10" value={markerDialog.draft.speed || '30'} onChange={event => updateMarkerDraft('speed', event.target.value)} /></label>}
+      <label className="marker-field-label">Nombre para identificar el marcador <input className="marker-dialog-input" maxLength={50} value={markerDialog.draft.title || ''} onChange={event => updateMarkerDraft('title', event.target.value)} placeholder={signalDefinition(markerDialog.draft.signalCode).name} /></label>
+      <label className="marker-field-label">Explicación para el alumnado <textarea className="marker-dialog-input marker-description-input" maxLength={180} rows={3} value={markerDialog.draft.description || ''} onChange={event => updateMarkerDraft('description', event.target.value)} placeholder="¿Qué deben observar los alumnos en este punto?" /></label>
+      <label className="marker-field-label">Asociar a trayectoria <select className="marker-dialog-input" value={markerDialog.draft.routeId} onChange={event => updateMarkerDraft('routeId', event.target.value)}>{routes.map(route => <option key={route.id} value={route.id}>{route.name}</option>)}</select></label>
+      <label className="marker-video-toggle"><input type="checkbox" checked={markerDialog.draft.showInVideo !== false} onChange={event => updateMarkerDraft('showInVideo', event.target.checked)} /><span><strong>Mostrar durante el vídeo</strong><small>La señal y la explicación aparecen al llegar a este punto.</small></span></label>
+      <div className="marker-dialog-actions"><button type="button" onClick={() => setMarkerDialog(null)}>Cancelar</button>{markerDialog.editingId && <button type="button" className="marker-reposition-button" onClick={beginMarkerPlacement}>Reubicar</button>}<button type="submit" className="marker-primary-button">{markerDialog.editingId ? 'Guardar cambios' : 'Colocar en el mapa'}</button></div>
+    </form></div>}
     {nameDialog && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setNameDialog(null); }}><form className="name-dialog" onSubmit={saveNameDialog}>
       <p className="eyebrow">{nameDialog.kind === 'route' ? 'TRAYECTORIA' : 'PROYECTO'}</p>
       <h2>{nameDialog.kind === 'project-new' ? 'Crear proyecto' : 'Cambiar nombre'}</h2>

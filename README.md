@@ -27,6 +27,8 @@ La aplicación web también guarda sus archivos básicos en el navegador para vo
 
 - Cada proyecto empieza con cuatro trayectorias (A, B, C y D). Selecciona una para editarla, previsualizarla o grabar su vídeo.
 - Pulsa **Añadir puntos en el mapa** y haz clic en la ortofoto para trazar la trayectoria. Arrastra puntos para recolocarlos y usa la papelera para eliminarlos.
+- En **Puntos conflictivos**, añade una señal del catálogo a la trayectoria activa y colócala con un clic en el mapa. La primera selección incluye preseñalización de destinos (S-220a), salida inmediata (S-350), STOP, ceda el paso, señales de advertencia, paso peatonal, velocidad máxima y semáforo. En las señales de dirección puedes cambiar los destinos, sus flechas y la distancia; añade también una explicación para el alumnado.
+- Los puntos conflictivos se guardan con el proyecto y la trayectoria. Puedes editarlos, reubicarlos o eliminarlos. Si está activada la opción **Mostrar durante el vídeo**, la señal y la explicación aparecen en el MP4 cuando la cámara pasa cerca del punto.
 - La vista vertical comienza a 120 m y mantiene la cámara directamente encima del vehículo. La altura se puede ajustar entre 50 y 500 m.
 - En **Vídeo · Trayectoria**, elige dónde guardar el MP4 y pulsa **Grabar vídeo**. Cada trayectoria genera un archivo independiente cuyo nombre incluye el proyecto y la ruta.
 - En **Audio del vídeo**, puedes añadir una pista, grabar voz con el micrófono o combinar ambas opciones. El navegador pedirá permiso antes de usar el micrófono.
