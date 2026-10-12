@@ -852,6 +852,7 @@ export default function App() {
   const renameProject = () => {
     setNameDialog({ kind: 'project-rename', target: currentProject.id, value: currentProject.name });
   };
+  const renameGpxReview = () => setNameDialog({ kind: 'gpx-review', value: gpxReview.name || 'Recorrido GPX' });
   const saveNameDialog = event => {
     event.preventDefault();
     const dialog = nameDialog;
@@ -859,6 +860,7 @@ export default function App() {
     if (!dialog || !name) return;
     if (dialog.kind === 'route') commitRoutes(routes.map(route => route.id === dialog.target ? { ...route, name } : route));
     if (dialog.kind === 'project-rename') setProjectState(previous => ({ ...previous, projects: previous.projects.map(project => project.id === dialog.target ? { ...project, name } : project) }));
+    if (dialog.kind === 'gpx-review') { setGpxReview(previous => ({ ...previous, name })); setGpxMessage(`Nombre guardado: «${name}».`); }
     if (dialog.kind === 'project-new') createNamedProject(name);
     setNameDialog(null);
   };
@@ -1215,7 +1217,7 @@ export default function App() {
           <input ref={gpxFileInputRef} className="audio-file-input" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" onChange={importGpx} />
           <button className="gpx-import-button" onClick={() => gpxFileInputRef.current?.click()}>＋ Importar archivo GPX</button>
           {gpxReview.points.length > 1 ? <>
-            <div className="gpx-summary"><div><strong>{gpxReview.name || 'Recorrido importado'}</strong><small>{gpxReview.points.length.toLocaleString('es-ES')} posiciones · {Math.round(gpxReview.points.slice(1).reduce((sum, point, index) => sum + distance(gpxReview.points[index].coordinates, point.coordinates), 0)).toLocaleString('es-ES')} m</small><small>{gpxReview.points.some(point => point.time) ? 'El archivo incluye hora GPS' : 'El archivo no incluye hora GPS'}</small></div><button onClick={clearGpxReview} title="Quitar recorrido GPX">Quitar</button></div>
+            <div className="gpx-summary"><div><strong>{gpxReview.name || 'Recorrido importado'}</strong><small>{gpxReview.points.length.toLocaleString('es-ES')} posiciones · {Math.round(gpxReview.points.slice(1).reduce((sum, point, index) => sum + distance(gpxReview.points[index].coordinates, point.coordinates), 0)).toLocaleString('es-ES')} m</small><small>{gpxReview.points.some(point => point.time) ? 'El archivo incluye hora GPS' : 'El archivo no incluye hora GPS'}</small></div><div className="gpx-summary-actions"><button onClick={renameGpxReview} title="Cambiar nombre del recorrido">Renombrar</button><button onClick={clearGpxReview} title="Quitar recorrido GPX">Quitar</button></div></div>
             <div className="section-title conflict-section-title"><div><span className="eyebrow">ERRORES Y NOTAS</span><span className="count-badge">{gpxReview.incidents.length}</span></div><button className="add-route" onClick={startGpxIncidentPlacement} disabled={placingGpxIncident} aria-label="Añadir incidencia">+</button></div>
             <button className={`draw-toggle gpx-place-button ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}>{placingGpxIncident ? 'Haz clic en el mapa…' : '+  Marcar un error en el mapa'}</button>
             <div className="conflict-list gpx-incident-list">{gpxReview.incidents.map((incident, index) => <article key={incident.id} className="conflict-card"><button className="conflict-card-main" onClick={() => focusGpxIncident(incident)}><span className="gpx-incident-number">{index + 1}</span><span className="conflict-card-copy"><strong>{incident.title}</strong><small>{incident.note}</small>{incident.time && <small>Hora GPS: {new Date(incident.time).toLocaleTimeString('es-ES')}</small>}</span></button><div className="conflict-card-actions"><button onClick={() => setGpxIncidentDraft({ ...incident })}>Editar nota</button><button onClick={() => deleteGpxIncident(incident.id)}>Eliminar</button></div></article>)}{!gpxReview.incidents.length && <div className="conflict-empty">Al marcar un error, escribe qué ocurrió y cómo corregirlo.</div>}</div>
@@ -1270,8 +1272,8 @@ export default function App() {
       <div className="marker-dialog-actions"><button type="button" onClick={() => setMarkerDialog(null)}>Cancelar</button>{markerDialog.editingId && <button type="button" className="marker-reposition-button" onClick={beginMarkerPlacement}>Reubicar</button>}<button type="submit" className="marker-primary-button">{markerDialog.editingId ? 'Guardar cambios' : 'Colocar en el mapa'}</button></div>
     </form></div>}
     {nameDialog && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setNameDialog(null); }}><form className="name-dialog" onSubmit={saveNameDialog}>
-      <p className="eyebrow">{nameDialog.kind === 'route' ? 'TRAYECTORIA' : 'PROYECTO'}</p>
-      <h2>{nameDialog.kind === 'project-new' ? 'Crear proyecto' : 'Cambiar nombre'}</h2>
+      <p className="eyebrow">{nameDialog.kind === 'route' ? 'TRAYECTORIA' : nameDialog.kind === 'gpx-review' ? 'RECORRIDO GPX' : 'PROYECTO'}</p>
+      <h2>{nameDialog.kind === 'project-new' ? 'Crear proyecto' : nameDialog.kind === 'gpx-review' ? 'Nombrar recorrido GPX' : 'Cambiar nombre'}</h2>
       <label htmlFor="name-dialog-input">Nombre</label>
       <input id="name-dialog-input" autoFocus maxLength={60} value={nameDialog.value} onChange={event => setNameDialog(previous => ({ ...previous, value: event.target.value }))} placeholder="Escribe un nombre" />
       <div className="dialog-actions"><button type="button" onClick={() => setNameDialog(null)}>Cancelar</button><button type="submit" disabled={!nameDialog.value.trim()}>Guardar</button></div>
