@@ -5,3 +5,7 @@ build/*
 !build/icon.icns
 .env.local
 .DS_Store
+
+tests/*.png
+
+.wrangler/

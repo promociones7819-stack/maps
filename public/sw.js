@@ -1,4 +1,4 @@
-const APP_CACHE = 'traza-bizkaia-shell-v1';
+const APP_CACHE = 'traza-bizkaia-shell-v2';
 const ORTHO_CACHE = 'ortofoto-euskadi-v1';
 const ORTHO_PATH = '/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/';
 

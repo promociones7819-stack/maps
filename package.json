@@ -10,15 +10,25 @@
     "preview": "vite preview",
     "desktop:dev": "node scripts/electron-dev.cjs",
     "icon:mac": "node scripts/make-icon.cjs",
-    "package:mac": "npm run icon:mac && npm run build && electron-builder --mac dmg --arm64 --publish never"
+    "package:mac": "npm run icon:mac && npm run build && electron-builder --mac dmg --arm64 --publish never",
+    "ios:sync": "npm run build && cap sync ios",
+    "test:racebox": "node tests/racebox.mjs && node tests/lessons-ui.mjs",
+    "test:studio": "node tests/review-time.mjs && node tests/studio-ui.mjs"
   },
   "dependencies": {
+    "@capacitor-community/bluetooth-le": "^8.3.0",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/share": "^8.0.3",
     "mapbox-gl": "^3.32.0",
     "maplibre-gl": "^6.13.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@vitejs/plugin-react": "^4.7.0",
     "electron": "^44.7.0",
     "electron-builder": "^26.15.3",
@@ -31,23 +41,46 @@
     "appId": "com.traza.bizkaia",
     "productName": "Traza Bizkaia",
     "asar": true,
-    "directories": { "output": "release", "buildResources": "build" },
-    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["arm64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
       "category": "public.app-category.education",
       "icon": "build/icon.icns",
       "identity": null,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Traza Bizkaia usa el micrófono si eliges grabar voz para las clases."
+        "NSMicrophoneUsageDescription": "Traza Bizkaia usa el micr\u00f3fono si eliges grabar voz para las clases."
       }
     },
     "dmg": {
       "title": "Traza Bizkaia",
       "artifactName": "Traza-Bizkaia-${version}-${arch}.dmg",
       "contents": [
-        { "x": 140, "y": 170, "type": "file" },
-        { "x": 420, "y": 170, "type": "link", "path": "/Applications" }
+        {
+          "x": 140,
+          "y": 170,
+          "type": "file"
+        },
+        {
+          "x": 420,
+          "y": 170,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     }
   }

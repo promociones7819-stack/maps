@@ -64,3 +64,15 @@ Se aceptan únicamente tokens públicos. Nunca pegues un token secreto (`sk.`). 
 ## Datos cartográficos
 
 La ortofoto por defecto procede del servicio WMTS oficial de geoEuskadi. Se muestra la atribución correspondiente y las teselas guardadas offline quedan almacenadas en la caché de este navegador. La opción Mapbox carga el estilo oficial `mapbox://styles/mapbox/satellite-streets-v12` con Mapbox GL JS y requiere un token público.
+
+
+## RaceBox Mini e iPad
+
+Integración BLE real, sesiones por alumno, IndexedDB, GPX y proyecto iPad: [RACEBOX.md](RACEBOX.md).
+Compilación nativa preparada con `npm run ios:sync`; requiere Xcode completo y prueba con Mini físico.
+
+## Publicación
+
+Web: https://maps.promociones7819.workers.dev/
+
+Para actualizarla: `npm run build` y `npx wrangler deploy --keep-vars`. La configuración está en `wrangler.jsonc`. Las capacidades y limitaciones de RaceBox Mini y vídeo están documentadas en [RACEBOX.md](RACEBOX.md).

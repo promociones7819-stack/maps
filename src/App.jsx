@@ -1,3 +1,6 @@
+import ReviewStudio from './ReviewStudio.jsx';
+import {pointAt,pointFraction,timeline} from './reviewTime.js';
+import RaceBoxPanel from './RaceBoxPanel.jsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Map as MapLibreMap, NavigationControl, AttributionControl, LngLatBounds, setWorkerUrl } from 'maplibre-gl';
 import mapboxgl, { Map as MapboxGLMap, Marker as MapboxMarker, NavigationControl as MapboxNavigationControl, AttributionControl as MapboxAttributionControl } from 'mapbox-gl';
@@ -230,9 +233,10 @@ function lineFeatureCollection(routes, activeId) {
   })) };
 }
 
-const gpxLineFeature = review => ({ type: 'FeatureCollection', features: review?.points?.length > 1 ? [{
-  type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: review.points.map(point => point.coordinates) },
-}] : [] });
+const gpxLineFeature = review => {
+ const segments=[];for(const point of review?.points||[]){if(!segments.length||point.segment!==segments.at(-1).segment)segments.push({segment:point.segment,points:[]});segments.at(-1).points.push(point.coordinates);}
+ return {type:'FeatureCollection',features:segments.filter(s=>s.points.length>1).map(s=>({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:s.points}}))};
+};
 const gpxVehicleFeature = (review, coords = null) => ({ type: 'FeatureCollection', features: coords && review?.points?.length ? [{
   type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: coords },
 }] : [] });
@@ -267,6 +271,12 @@ function interpolateRoute(points, fraction) {
 }
 
 export default function App() {
+  const [language,setLanguage]=useState(()=>localStorage.getItem('traza-bizkaia-language')==='es'?'es':'eu');
+  const t=(eu,es)=>language==='eu'?eu:es;
+  const [liveLesson,setLiveLesson]=useState(false);
+  const liveLessonRef=useRef(false);liveLessonRef.current=liveLesson;
+  useEffect(()=>{document.documentElement.lang=language;try{localStorage.setItem('traza-bizkaia-language',language);}catch{}},[language]);
+
   const mapNode = useRef(null), mapRef = useRef(null), mapViewRef = useRef(null), routesRef = useRef([]), activeRef = useRef('');
   const progressRef = useRef(0), rafRef = useRef(0), lastFrameRef = useRef(0);
   const recorderRef = useRef(null), chunksRef = useRef([]), folderRef = useRef(null), recordFrameRef = useRef(0), audioResourcesRef = useRef(null), mediaStreamRef = useRef(null), audioInputRef = useRef(null), narrationUtteranceRef = useRef(null);
@@ -352,7 +362,10 @@ export default function App() {
   };
 
   const activeRoute = routes.find(route => route.id === activeId) || routes[0];
-  const currentGpxIncidentIndex = gpxReview.incidents.findIndex(incident => Math.abs((incident.fraction ?? 0) - gpxProgress) < 0.018);
+  const reviewClock=useMemo(()=>timeline(gpxReview.points),[gpxReview.points]);
+  const reviewPosition=pointAt(gpxReview.points,gpxProgress,reviewClock);
+  const currentGpxIncidentIndex = gpxReview.incidents.findIndex(incident => incident.time!=null&&reviewPosition.time!=null?Math.abs(incident.time-reviewPosition.time)<2000:Math.abs((incident.fraction ?? 0)-gpxProgress)<.018);
+  const seekGpx=f=>{gpxProgressRef.current=f;setGpxProgress(f);};
   const currentGpxIncident = currentGpxIncidentIndex >= 0 ? gpxReview.incidents[currentGpxIncidentIndex] : null;
   const activeConflictMarkers = conflictMarkers.filter(marker => marker.routeId === activeId);
   const currentConflictMarker = activeConflictMarkers.find(marker => marker.id === currentMarkerId) || null;
@@ -484,6 +497,7 @@ export default function App() {
   useEffect(() => {
     gpxRef.current = gpxReview;
     workspaceModeRef.current = workspaceMode;
+    if(gpxReview.source==='racebox-mini')return;
     try { localStorage.setItem(`traza-bizkaia-project-${currentProject.id}-gpx-review`, JSON.stringify(gpxReview)); } catch { setGpxMessage('El recorrido es demasiado grande para guardarse en este navegador. El GPX puede seguir abierto hasta cerrar la página.'); }
   }, [gpxReview, currentProject.id, workspaceMode]);
 
@@ -554,7 +568,7 @@ export default function App() {
       else setMapError(event.error.message);
     });
     map.on('click', event => {
-      if (workspaceModeRef.current === 'gpx-review' && placingGpxIncidentRef.current) {
+      if (!liveLessonRef.current && workspaceModeRef.current === 'gpx-review' && placingGpxIncidentRef.current) {
         const coordinates = [event.lngLat.lng, event.lngLat.lat];
         const closest = gpxRef.current.points.reduce((best, point, index) => {
           const gap = distance(coordinates, point.coordinates);
@@ -563,8 +577,8 @@ export default function App() {
         const path = gpxRef.current.points.map(point => point.coordinates);
         const length = path.slice(1).reduce((sum, point, index) => sum + distance(path[index], point), 0);
         const traveled = path.slice(1, closest.index + 1).reduce((sum, point, index) => sum + distance(path[index], point), 0);
-        const fraction = length ? traveled / length : 0;
-        setGpxIncidentDraft({ id: crypto.randomUUID(), coordinates, time: closest.gap < 100 ? closest.time : null, fraction, title: '', note: '' });
+        const fraction = pointFraction(gpxRef.current.points,closest.index);
+        setGpxIncidentDraft({ id: crypto.randomUUID(), coordinates, pointIndex:closest.index, time: closest.gap < 100 ? closest.time : null, fraction, title: '', note: '' });
         setPlacingGpxIncident(false);
         return;
       }
@@ -649,9 +663,11 @@ export default function App() {
     });
     return () => instances.forEach(instance => instance.remove());
   }, [mapReady, mapProvider, workspaceMode, gpxReview.incidents]);
+  useEffect(()=>{if(!mapReady||workspaceMode!=='gpx-review'||liveLesson||gpxReview.points.length<2)return;const coords=gpxReview.points.map(p=>p.coordinates);const bounds=coords.reduce((b,c)=>b.extend(c),new LngLatBounds(coords[0],coords[0]));mapRef.current?.fitBounds(bounds.toArray(),{padding:70,maxZoom:17,duration:0});},[mapReady,workspaceMode,gpxReview.sessionId,gpxReview.name,currentProject.id]);
+  useEffect(()=>{const p=pointAt(gpxReview.points,gpxProgress).point;if(workspaceMode==='gpx-review'&&p&&mapReady&&((playing&&follow)||liveLesson))mapRef.current?.easeTo({center:p.coordinates,zoom:Math.max(16,mapRef.current.getZoom()),duration:0});},[gpxProgress,gpxReview,workspaceMode,mapReady,playing,liveLesson,follow]);
   useEffect(() => {
-    if (mapReady && mapRef.current?.getSource('gpx-vehicle')) mapRef.current.getSource('gpx-vehicle').setData(gpxVehicleFeature(gpxReview, workspaceMode === 'gpx-review' && playing ? interpolateRoute(gpxReview.points.map(point => point.coordinates), gpxProgress).coords : null));
-  }, [mapReady, gpxReview, gpxProgress, playing, workspaceMode]);
+    if (mapReady && mapRef.current?.getSource('gpx-vehicle')) mapRef.current.getSource('gpx-vehicle').setData(gpxVehicleFeature(gpxReview, workspaceMode === 'gpx-review' && liveLesson ? gpxReview.points.at(-1)?.coordinates : workspaceMode === 'gpx-review' ? (reviewPosition.gap?null:reviewPosition.point?.coordinates) : null));
+  }, [mapReady, gpxReview, gpxProgress, playing, workspaceMode,liveLesson]);
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map) return undefined;
@@ -734,6 +750,7 @@ export default function App() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const importLibraryBackup = async event => {
+    if(liveLesson)return;
     const file = event.target.files?.[0];
     if (!file) return;
     try {
@@ -758,6 +775,7 @@ export default function App() {
     setPlaying(value => !value);
   };
   const setWorkspace = next => {
+    if(liveLesson)return;
     if (recording) return;
     setPlaying(false); setWorkspaceMode(next); setMode('select'); setPlacingMarker(false); markerPlacementRef.current = null; setPlacingGpxIncident(false);
     if (next === 'gpx-review' && gpxReview.points.length > 1) {
@@ -837,7 +855,7 @@ export default function App() {
     setSelectedMarkerId(marker.id);
     mapRef.current?.flyTo({ center: marker.coordinates, zoom: Math.max(16, mapRef.current.getZoom()), pitch: 0, duration: 700 });
   };
-  const createProject = () => setNameDialog({ kind: 'project-new', value: '' });
+  const createProject = () => !liveLesson && setNameDialog({ kind: 'project-new', value: '' });
   const createNamedProject = name => {
     const id = crypto.randomUUID();
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
@@ -861,6 +879,7 @@ export default function App() {
     mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 700 });
   };
   const switchProject = id => {
+    if(liveLesson)return;
     const project = projectState.projects.find(item => item.id === id);
     if (!project || project.id === currentProject.id) return;
     const nextRoutes = loadProjectRoutes(project);
@@ -952,7 +971,7 @@ export default function App() {
         context.fillRect(12, videoCanvas.height - fontSize - pad * 2 - 12, textWidth + pad * 2, fontSize + pad * 2);
         context.fillStyle = '#37433b';
         context.fillText(attribution, 12 + pad, videoCanvas.height - pad - 12);
-        const framePosition = interpolateRoute(videoRoute.points, isGpxReview ? gpxProgressRef.current : progressRef.current).coords;
+        const framePosition = isGpxReview?pointAt(gpxReview.points,gpxProgressRef.current).point?.coordinates:interpolateRoute(videoRoute.points,progressRef.current).coords;
         if (isGpxReview) {
           const incidentIndex = gpxReview.incidents.findIndex(incident => Math.abs((incident.fraction ?? 0) - gpxProgressRef.current) < 0.018);
           if (incidentIndex >= 0) drawGpxIncidentCard(context, gpxReview.incidents[incidentIndex], incidentIndex, videoCanvas.width);
@@ -1071,27 +1090,7 @@ export default function App() {
   const setActive = id => { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); stopNarration(); setPlaying(false); setProgress(0); progressRef.current = 0; setActiveId(id); setSelectedPoint(null); setSelectedMarkerId(null); setCurrentMarkerId(null); };
 
   const animate = useCallback((now) => {
-    if (workspaceModeRef.current === 'gpx-review') {
-      const review = gpxRef.current;
-      const points = review.points.map(point => point.coordinates);
-      const map = mapRef.current;
-      if (points.length < 2 || !map) { setPlaying(false); return; }
-      if (!lastFrameRef.current) lastFrameRef.current = now;
-      const dt = Math.min(60, now - lastFrameRef.current); lastFrameRef.current = now;
-      const length = points.slice(1).reduce((sum, point, index) => sum + distance(points[index], point), 0);
-      const duration = Math.max(5000, (length / 16) * 1000) / speed;
-      gpxProgressRef.current = Math.min(1, gpxProgressRef.current + dt / duration);
-      const position = interpolateRoute(points, gpxProgressRef.current);
-      setGpxProgress(gpxProgressRef.current);
-      map.getSource('gpx-vehicle')?.setData(gpxVehicleFeature(review, position.coords));
-      if (follow) map.easeTo({ center: position.coords, bearing: cameraView === 'vehicle' ? position.bearing : 0, pitch: cameraView === 'vehicle' ? 60 : 0, zoom: cameraView === 'vehicle' ? Math.max(18.8, Math.min(19.7, 20.3 - Math.log2(height / 100))) : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100))), duration: 0, essential: true });
-      if (gpxProgressRef.current >= 1) {
-        if (recorderRef.current?.state === 'recording') { setPlaying(false); recorderRef.current.stop(); return; }
-        setPlaying(false); return;
-      }
-      rafRef.current = requestAnimationFrame(animate);
-      return;
-    }
+    if(workspaceModeRef.current==='gpx-review')return;
     const route = routesRef.current.find(r => r.id === activeRef.current);
     const map = mapRef.current;
     if (!route || route.points.length < 2 || !map) { setPlaying(false); return; }
@@ -1133,10 +1132,10 @@ export default function App() {
   }, [speed, height, follow, cameraView, conflictMarkers, updateSources]);
 
   useEffect(() => {
-    if (playing) { lastFrameRef.current = 0; rafRef.current = requestAnimationFrame(animate); }
+    if (playing && workspaceMode==='routes') { lastFrameRef.current = 0; rafRef.current = requestAnimationFrame(animate); }
     else { cancelAnimationFrame(rafRef.current); setCurrentMarkerId(null); updateSources(routes, activeId); }
     return () => cancelAnimationFrame(rafRef.current);
-  }, [playing, animate, routes, activeId, updateSources]);
+  }, [playing, animate, routes, activeId, updateSources,workspaceMode]);
 
   useEffect(() => {
     const synth = window.speechSynthesis;
@@ -1192,23 +1191,23 @@ export default function App() {
     </header>
     <section className="workspace">
       <aside className="sidebar">
-        <div className="panel-heading"><div><p className="eyebrow">PROYECTO</p><h1 title={currentProject.name}>{currentProject.name}</h1></div><div className="project-actions"><button className="add-route" title="Crear proyecto" onClick={createProject}>+</button><button className="more-button" title="Cambiar nombre" onClick={renameProject}>···</button></div></div>
-        {projectState.projects.length > 1 && <div className="project-switcher"><span className="eyebrow">CAMBIAR PROYECTO</span><select aria-label="Seleccionar proyecto" value={currentProject.id} onChange={event => switchProject(event.target.value)}>{projectState.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>}
+        <label className="app-language">Hizkuntza / Idioma<select aria-label="Hizkuntza / Idioma" value={language} onChange={e=>setLanguage(e.target.value)}><option value="eu">Euskara</option><option value="es">Castellano</option></select></label><div className="panel-heading"><div><p className="eyebrow">{t("PROIEKTUA","PROYECTO")}</p><h1 title={currentProject.name}>{currentProject.name}</h1></div><div className="project-actions"><button className="add-route" title="Crear proyecto" onClick={createProject}>+</button><button className="more-button" title="Cambiar nombre" onClick={renameProject}>···</button></div></div>
+        {projectState.projects.length > 1 && <div className="project-switcher"><span className="eyebrow">{t("PROIEKTUA ALDATU","CAMBIAR PROYECTO")}</span><select aria-label="Seleccionar proyecto" value={currentProject.id} onChange={event => switchProject(event.target.value)}>{projectState.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>}
         <div className="location-chip"><span className="pin-icon">⌖</span><div><strong>Bizkaia, Euskadi</strong><small>Vista inicial · mapa real</small></div><span className="chip-live">LIVE</span></div>
-        <div className="workspace-switch" role="tablist" aria-label="Modo de trabajo"><button role="tab" aria-selected={workspaceMode === 'routes'} className={workspaceMode === 'routes' ? 'on' : ''} onClick={() => setWorkspace('routes')}>Trayectorias</button><button role="tab" aria-selected={workspaceMode === 'gpx-review'} className={workspaceMode === 'gpx-review' ? 'on' : ''} onClick={() => setWorkspace('gpx-review')}>Revisar recorrido GPX</button></div>
+        <div className="workspace-switch" role="tablist" aria-label="Modo de trabajo"><button role="tab" aria-selected={workspaceMode === 'routes'} className={workspaceMode === 'routes' ? 'on' : ''} onClick={() => setWorkspace('routes')}>{t("Ibilbideak","Trayectorias")}</button><button role="tab" aria-selected={workspaceMode === 'gpx-review'} className={workspaceMode === 'gpx-review' ? 'on' : ''} onClick={() => setWorkspace('gpx-review')}>{t("GPX / Saioak","Revisar recorrido GPX")}</button></div>
         {workspaceMode === 'routes' ? <>
         <div className="section-title"><div><span className="eyebrow">CAPAS DE RECORRIDO</span><span className="count-badge">{routes.length}/4</span></div><button className="add-route" onClick={addRoute} disabled={routes.length >= 4} aria-label="Crear trayectoria" title={routes.length >= 4 ? 'Ya tienes las cuatro trayectorias' : 'Crear trayectoria'}>+</button></div>
         <div className="route-list">
           {routes.map((route, index) => <article key={route.id} className={`route-card ${activeId === route.id ? 'selected' : ''}`}>
             <button className="route-main" onClick={() => setActive(route.id)}><span className="route-swatch" style={{ '--route-color': route.color }}><span /></span><span className="route-info"><strong>{route.name}</strong><small>{route.points.length} {route.points.length === 1 ? 'punto' : 'puntos'}{route.points.length > 1 ? ` · ${Math.round(route.points.slice(1).reduce((sum, p, i) => sum + distance(route.points[i], p), 0))} m` : ''}</small></span><span className="route-key">{String.fromCharCode(65 + index)}</span></button>
-            {activeId === route.id && <><div className="route-actions"><button onClick={() => renameRoute(route.id)}>Renombrar</button><button onClick={() => focusRoute(route)}>Enfocar</button><button className="danger-text" onClick={() => deleteRoute(route.id)}>{routes.length === 1 ? 'Vaciar' : 'Eliminar'}</button></div><div className="route-color-picker" aria-label={`Color de ${route.name}`}>{COLORS.map(color => { const usedByAnother = routes.some(other => other.id !== route.id && other.color.toLowerCase() === color); return <button key={color} type="button" className={`route-color-choice ${route.color.toLowerCase() === color ? 'chosen' : ''}`} style={{ '--choice-color': color }} aria-label={`Elegir color ${color}`} aria-pressed={route.color.toLowerCase() === color} title={usedByAnother ? 'Este color ya está usado por otra trayectoria' : `Cambiar a ${color}`} disabled={usedByAnother} onClick={() => setRouteColor(route.id, color)} />; })}</div></>}
+            {activeId === route.id && <><div className="route-actions"><button onClick={() => renameRoute(route.id)}>{t("Izena aldatu","Renombrar")}</button><button onClick={() => focusRoute(route)}>Enfocar</button><button className="danger-text" onClick={() => deleteRoute(route.id)}>{routes.length === 1 ? 'Vaciar' : 'Eliminar'}</button></div><div className="route-color-picker" aria-label={`Color de ${route.name}`}>{COLORS.map(color => { const usedByAnother = routes.some(other => other.id !== route.id && other.color.toLowerCase() === color); return <button key={color} type="button" className={`route-color-choice ${route.color.toLowerCase() === color ? 'chosen' : ''}`} style={{ '--choice-color': color }} aria-label={`Elegir color ${color}`} aria-pressed={route.color.toLowerCase() === color} title={usedByAnother ? 'Este color ya está usado por otra trayectoria' : `Cambiar a ${color}`} disabled={usedByAnother} onClick={() => setRouteColor(route.id, color)} />; })}</div></>}
           </article>)}
         </div>
         <div className="section-title conflict-section-title"><div><span className="eyebrow">PUNTOS CONFLICTIVOS</span><span className="count-badge">{activeConflictMarkers.length}</span></div><button className="add-route" onClick={openNewMarkerDialog} disabled={recording} aria-label="Añadir señal o punto conflictivo" title="Añadir señal o punto conflictivo">+</button></div>
         <div className="conflict-list">
           {activeConflictMarkers.map(marker => <article key={marker.id} className={`conflict-card ${selectedMarkerId === marker.id ? 'selected' : ''}`}>
             <button className="conflict-card-main" onClick={() => focusMarker(marker)}><span className={`conflict-card-icon signal-pin-${signalDefinition(marker.signalCode).kind}`}><span>{marker.signalCode === 'SEMÁFORO' ? '●' : marker.signalCode}</span></span><span className="conflict-card-copy"><strong>{marker.title || signalDefinition(marker.signalCode).name}</strong><small>{marker.signalCode}{signalDefinition(marker.signalCode).kind === 'direction' ? ` · ${(marker.destinations || []).map(item => item.text).filter(Boolean).join(' · ')}` : ''}</small></span></button>
-            <div className="conflict-card-actions"><button onClick={() => editMarker(marker)} disabled={recording}>Editar</button><button onClick={() => deleteMarker(marker.id)} disabled={recording}>Eliminar</button><span className="conflict-video-state">{marker.showInVideo === false ? 'Solo mapa' : 'Vídeo'}</span></div>
+            <div className="conflict-card-actions"><button onClick={() => editMarker(marker)} disabled={recording}>Editar</button><button onClick={() => deleteMarker(marker.id)} disabled={recording}>{t("Ezabatu","Eliminar")}</button><span className="conflict-video-state">{marker.showInVideo === false ? 'Solo mapa' : 'Vídeo'}</span></div>
           </article>)}
           {!activeConflictMarkers.length && <div className="conflict-empty">Añade señales o situaciones de riesgo asociadas a esta trayectoria.</div>}
         </div>
@@ -1251,27 +1250,29 @@ export default function App() {
         <div className="control-group orientation-row"><div><strong>Orientación dinámica</strong><small>La cámara gira con la trayectoria</small></div><button className={`switch ${follow ? 'on' : ''}`} onClick={() => setFollow(!follow)} aria-label="Alternar orientación"><span /></button></div>
         <div className="future-card"><span>✦</span><p><strong>Señales del catálogo</strong><br />Personaliza el tipo, destinos y explicación.</p><span className="soon-tag">EN PRUEBA</span></div>
         </> : <div className="gpx-review-panel">
-          <p className="eyebrow">REVISIÓN DE CONDUCCIÓN</p><h2>Recorrido real del alumno</h2>
-          <p className="gpx-intro">Importa el GPX grabado durante la clase. Después, marca en el mapa los errores y añade una explicación para revisarlos con el alumno.</p>
+          <RaceBoxPanel language={language} review={gpxReview} projectId={currentProject.id} onActive={setLiveLesson} onReview={r=>{setGpxReview(r);gpxRef.current=r;setPlaying(false);setPlacingGpxIncident(false);}}/><fieldset className="review-controls" disabled={liveLesson}><p className="eyebrow">{t("GIDATZEAREN BERRIKUSPENA","REVISIÓN DE CONDUCCIÓN")}</p><h2>{t("Ikaslearen benetako ibilbidea","Recorrido real del alumno")}</h2>
+          <p className="gpx-intro">{t("Inportatu saioan grabatutako GPXa. Ondoren, markatu akatsak mapan eta gehitu azalpena ikaslearekin berrikusteko.","Importa el GPX grabado durante la clase. Después, marca en el mapa los errores y añade una explicación para revisarlos con el alumno.")}</p>
           <input ref={gpxFileInputRef} className="audio-file-input" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" onChange={importGpx} />
-          <button className="gpx-import-button" onClick={() => gpxFileInputRef.current?.click()}>＋ Importar archivo GPX</button>
+          <button className="gpx-import-button" onClick={() => gpxFileInputRef.current?.click()}>{t("＋ GPX fitxategia inportatu","＋ Importar archivo GPX")}</button>
           {gpxReview.points.length > 1 ? <>
-            <div className="gpx-summary"><div><strong>{gpxReview.name || 'Recorrido importado'}</strong><small>{gpxReview.points.length.toLocaleString('es-ES')} posiciones · {Math.round(gpxReview.points.slice(1).reduce((sum, point, index) => sum + distance(gpxReview.points[index].coordinates, point.coordinates), 0)).toLocaleString('es-ES')} m</small><small>{gpxReview.points.some(point => point.time) ? 'El archivo incluye hora GPS' : 'El archivo no incluye hora GPS'}</small>{gpxReview.storedGpxFile && <small>GPX original guardado en la carpeta de datos.</small>}</div><div className="gpx-summary-actions"><button onClick={renameGpxReview} title="Cambiar nombre del recorrido">Renombrar</button><button onClick={clearGpxReview} title="Quitar recorrido GPX">Quitar</button></div></div>
-            <div className="section-title conflict-section-title"><div><span className="eyebrow">ERRORES Y NOTAS</span><span className="count-badge">{gpxReview.incidents.length}</span></div><button className="add-route" onClick={startGpxIncidentPlacement} disabled={placingGpxIncident} aria-label="Añadir incidencia">+</button></div>
-            <button className={`draw-toggle gpx-place-button ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}>{placingGpxIncident ? 'Haz clic en el mapa…' : '+  Marcar un error en el mapa'}</button>
-            <div className="conflict-list gpx-incident-list">{gpxReview.incidents.map((incident, index) => <article key={incident.id} className="conflict-card"><button className="conflict-card-main" onClick={() => focusGpxIncident(incident)}><span className="gpx-incident-number">{index + 1}</span><span className="conflict-card-copy"><strong>{incident.title}</strong><small>{incident.note}</small>{incident.time && <small>Hora GPS: {new Date(incident.time).toLocaleTimeString('es-ES')}</small>}</span></button><div className="conflict-card-actions"><button onClick={() => setGpxIncidentDraft({ ...incident })}>Editar nota</button><button onClick={() => deleteGpxIncident(incident.id)}>Eliminar</button></div></article>)}{!gpxReview.incidents.length && <div className="conflict-empty">Al marcar un error, escribe qué ocurrió y cómo corregirlo.</div>}</div>
-            <div className="divider" /><div className="section-title playback-title"><div><span className="eyebrow">REPRODUCIR RECORRIDO</span></div><span className="preview-label">VISTA DE REVISIÓN</span></div>
-            <div className="play-card"><button className={`play-button ${playing && workspaceMode === 'gpx-review' ? 'is-playing' : ''}`} onClick={toggleGpxPlayback} aria-label={playing ? 'Pausar' : 'Reproducir'}>{playing ? 'Ⅱ' : '▶'}</button><div className="play-copy"><strong>{playing ? 'Reproduciendo GPX' : 'Revisar con el alumno'}</strong><small>La cámara sigue la posición registrada</small></div><button className="restart-button" title="Volver al inicio" onClick={() => { gpxProgressRef.current = 0; setGpxProgress(0); mapRef.current?.flyTo({ center: gpxReview.points[0].coordinates, zoom: 16, pitch: 0, duration: 600 }); }}>↺</button></div>
-            <input className="gpx-timeline" type="range" min="0" max="1000" value={Math.round(gpxProgress * 1000)} onChange={event => { gpxProgressRef.current = Number(event.target.value) / 1000; setGpxProgress(gpxProgressRef.current); const position = interpolateRoute(gpxReview.points.map(point => point.coordinates), gpxProgressRef.current); mapRef.current?.flyTo({ center: position.coords, zoom: 16, pitch: 0, duration: 300 }); }} aria-label="Posición del recorrido" />
-            <div className="control-group"><div className="control-label"><span>Velocidad de reproducción</span><strong>{speed.toLocaleString('es-ES', { maximumFractionDigits: 1 })}×</strong></div><div className="segmented speed-segmented">{SPEEDS.map(value => <button key={value} className={speed === value ? 'on' : ''} onClick={() => setSpeed(value)}>{value.toLocaleString('es-ES', { minimumFractionDigits: value < 1 ? 1 : 0, maximumFractionDigits: 1 })}×</button>)}</div></div>
-            <div className="video-card gpx-video-card"><div className="video-card-heading"><strong>Vídeo de revisión · GPX</strong><span>MP4</span></div><div className="video-actions"><button className="folder-button" onClick={chooseOutputFolder}>▰ {folderName || 'Elegir carpeta…'}</button><button className="export-button" disabled={!folderName || recording} onClick={exportVideo}>{recording ? '■ Finalizar' : '● Grabar revisión'}</button></div><small>{exportMessage || (folderName ? `Incluye el recorrido y las notas al llegar a cada incidencia.` : 'Graba el recorrido con las notas y guárdalo como MP4.')}</small></div>
-          </> : <div className="conflict-empty gpx-empty-state">Todavía no hay un GPX en este proyecto. Pulsa <strong>Importar archivo GPX</strong> para abrir el recorrido del vehículo de la autoescuela.</div>}
-          {gpxMessage && <small className="gpx-message" role="status">{gpxMessage}</small>}
+            <div className="gpx-summary"><div><strong>{gpxReview.name || 'Recorrido importado'}</strong><small>{gpxReview.points.length.toLocaleString('es-ES')} posiciones · {Math.round(gpxReview.points.slice(1).reduce((sum, point, index) => sum + distance(gpxReview.points[index].coordinates, point.coordinates), 0)).toLocaleString('es-ES')} m</small><small>{gpxReview.points.some(point => point.time) ? t("Fitxategiak GPS ordua dauka","El archivo incluye hora GPS") : t("Fitxategiak ez dauka GPS ordurik","El archivo no incluye hora GPS")}</small>{gpxReview.storedGpxFile && <small>GPX original guardado en la carpeta de datos.</small>}</div><div className="gpx-summary-actions"><button onClick={renameGpxReview} title="Cambiar nombre del recorrido">{t("Izena aldatu","Renombrar")}</button><button onClick={clearGpxReview} title="Quitar recorrido GPX">{t("Kendu","Quitar")}</button></div></div>
+            <div className="section-title conflict-section-title"><div><span className="eyebrow">{t("AKATSAK ETA OHARRAK","ERRORES Y NOTAS")}</span><span className="count-badge">{gpxReview.incidents.length}</span></div><button className="add-route" onClick={startGpxIncidentPlacement} disabled={placingGpxIncident} aria-label="Añadir incidencia">+</button></div>
+            <button className={`draw-toggle gpx-place-button ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}>{placingGpxIncident ? t("Sakatu mapan…","Haz clic en el mapa…") : t("+  Akatsa mapan markatu","+  Marcar un error en el mapa")}</button>
+            <div className="conflict-list gpx-incident-list">{gpxReview.incidents.map((incident, index) => <article key={incident.id} className="conflict-card"><button className="conflict-card-main" onClick={() => focusGpxIncident(incident)}><span className="gpx-incident-number">{index + 1}</span><span className="conflict-card-copy"><strong>{incident.title}</strong><small>{incident.note}</small>{incident.time && <small>Hora GPS: {new Date(incident.time).toLocaleTimeString('es-ES')}</small>}</span></button><div className="conflict-card-actions"><button onClick={() => setGpxIncidentDraft({ ...incident })}>{t("Oharra editatu","Editar nota")}</button><button onClick={() => deleteGpxIncident(incident.id)}>{t("Ezabatu","Eliminar")}</button></div></article>)}{!gpxReview.incidents.length && <div className="conflict-empty">{t("Akatsa markatzean, azaldu zer gertatu den eta nola zuzendu.","Al marcar un error, escribe qué ocurrió y cómo corregirlo.")}</div>}</div>
+            <div className="divider" /><div className="section-title playback-title"><div><span className="eyebrow">{t("IBILBIDEA ERREPRODUZITU","REPRODUCIR RECORRIDO")}</span></div><span className="preview-label">{t("BERRIKUSPENA","VISTA DE REVISIÓN")}</span></div>
+            <div className="play-card"><button className={`play-button ${playing && workspaceMode === 'gpx-review' ? 'is-playing' : ''}`} onClick={toggleGpxPlayback} aria-label={playing ? 'Pausar' : 'Reproducir'}>{playing ? 'Ⅱ' : '▶'}</button><div className="play-copy"><strong>{playing ? t("GPXa erreproduzitzen","Reproduciendo GPX") : t("Ikaslearekin berrikusi","Revisar con el alumno")}</strong><small>{t("Kamerak erregistratutako posizioari jarraitzen dio","La cámara sigue la posición registrada")}</small></div><button className="restart-button" title="Volver al inicio" onClick={() => { gpxProgressRef.current = 0; setGpxProgress(0); mapRef.current?.flyTo({ center: gpxReview.points[0].coordinates, zoom: 16, pitch: 0, duration: 600 }); }}>↺</button></div>
+            <input className="gpx-timeline" type="range" min="0" max="1000" value={Math.round(gpxProgress * 1000)} onChange={event => { gpxProgressRef.current = Number(event.target.value) / 1000; setGpxProgress(gpxProgressRef.current); const position = pointAt(gpxReview.points,gpxProgressRef.current); mapRef.current?.flyTo({ center: position.point.coordinates, zoom: 16, pitch: 0, duration: 300 }); }} aria-label="Posición del recorrido" />
+            <div className="control-group"><div className="control-label"><span>{t("Erreprodukzio abiadura","Velocidad de reproducción")}</span><strong>{speed.toLocaleString('es-ES', { maximumFractionDigits: 1 })}×</strong></div><div className="segmented speed-segmented">{SPEEDS.map(value => <button key={value} className={speed === value ? 'on' : ''} onClick={() => setSpeed(value)}>{value.toLocaleString('es-ES', { minimumFractionDigits: value < 1 ? 1 : 0, maximumFractionDigits: 1 })}×</button>)}</div></div>
+            <div className="video-card gpx-video-card"><div className="video-card-heading"><strong>{t("Berrikuspen bideoa · GPX","Vídeo de revisión · GPX")}</strong><span>MP4</span></div><div className="video-actions"><button className="folder-button" onClick={chooseOutputFolder}>▰ {folderName || 'Elegir carpeta…'}</button><button className="export-button" disabled={!folderName || recording || !!gpxReview.media} onClick={exportVideo}>{recording ? '■ Finalizar' : '● Grabar revisión'}</button></div><small>{exportMessage || (folderName ? `Incluye el recorrido y las notas al llegar a cada incidencia.` : 'Graba el recorrido con las notas y guárdalo como MP4.')}</small></div>
+          </> : <div className="conflict-empty gpx-empty-state">Todavía no hay un GPX en este proyecto. Pulsa <strong>{t("GPX fitxategia inportatu","Importar archivo GPX")}</strong> para abrir el recorrido del vehículo de la autoescuela.</div>}
+          {gpxReview.media&&<p>{t("Dashcamarekin egindako muntaketaren MP4 esportazioa oraindik ez dago erabilgarri.","La exportación MP4 del montaje con dashcam todavía no está disponible.")}</p>}{gpxMessage && <small className="gpx-message" role="status">{gpxMessage}</small>}</fieldset>
         </div>}
-        <div className="library-tools"><div className="library-tools-title"><strong>Biblioteca y copias</strong><small>{window.trazaDesktop ? 'Guardado automático en el Mac.' : 'Los datos de esta web se guardan en este navegador.'}</small></div><input ref={libraryBackupInputRef} className="audio-file-input" type="file" accept=".json,application/json" onChange={importLibraryBackup} /><div className="library-tool-actions">{window.trazaDesktop ? <button onClick={() => window.trazaDesktop.openDataFolder()}>Abrir carpeta de datos</button> : <button onClick={exportLibraryBackup}>Descargar copia</button>}<button onClick={() => libraryBackupInputRef.current?.click()}>Importar copia</button></div><small>La copia conserva proyectos, trayectorias, notas y GPX. Los vídeos y GPX originales se guardan como archivos en sus carpetas.</small></div>
-        <div className="sidebar-footer"><span>TRAZA 01</span>{window.trazaDesktop ? <span title={window.trazaDesktop.dataDirectory}>DATOS EN ESTE MAC</span> : <span>GUARDADO EN ESTE NAVEGADOR</span>}</div>
+        <fieldset disabled={liveLesson} className="library-tools"><div className="library-tools-title"><strong>{t("Liburutegia eta kopiak","Biblioteca y copias")}</strong><small>{window.trazaDesktop ? 'Guardado automático en el Mac.' : 'Los datos de esta web se guardan en este navegador.'}</small></div><input ref={libraryBackupInputRef} className="audio-file-input" type="file" accept=".json,application/json" onChange={importLibraryBackup} /><div className="library-tool-actions">{window.trazaDesktop ? <button onClick={() => window.trazaDesktop.openDataFolder()}>Abrir carpeta de datos</button> : <button onClick={exportLibraryBackup}>{t("Kopia deskargatu","Descargar copia")}</button>}<button onClick={() => libraryBackupInputRef.current?.click()}>{t("Kopia inportatu","Importar copia")}</button></div><small>La copia conserva proyectos, trayectorias, notas y GPX. Los vídeos y GPX originales se guardan como archivos en sus carpetas.</small>
+        </fieldset><div className="sidebar-footer"><span>TRAZA 01</span>{window.trazaDesktop ? <span title={window.trazaDesktop.dataDirectory}>DATOS EN ESTE MAC</span> : <span>GUARDADO EN ESTE NAVEGADOR</span>}</div>
       </aside>
       <section className="map-panel">
+        {workspaceMode==='gpx-review'&&<ReviewStudio review={gpxReview} onReview={setGpxReview} progress={gpxProgress} onProgress={seekGpx} playing={playing} onPlaying={setPlaying} speed={speed} language={language} live={liveLesson}/>}
+
         <div ref={mapNode} className="map-canvas" />
         {workspaceMode === 'gpx-review' && playing && currentGpxIncident && <div className="gpx-live-note"><span>INCIDENCIA {currentGpxIncidentIndex + 1} · REVISIÓN</span><strong>{currentGpxIncident.title}</strong><p>{currentGpxIncident.note}</p></div>}
         {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba que el token público esté activo y que la cuenta permita cargar el estilo. También puedes volver a geoEuskadi.' : 'Comprueba la conexión a geoEuskadi y vuelve a intentarlo.'}</small></div></div>}
@@ -1279,16 +1280,16 @@ export default function App() {
         {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => { setMapTokenDraft(event.target.value); setMapboxTokenError(''); }} /><small className="map-token-help">Usa un token público (pk.) con permisos styles:read y fonts:read. Se guarda en este navegador y se envía a Mapbox para cargar el mapa. No uses un token secreto (sk.).</small>{mapboxTokenError && <div className="mapbox-token-error" role="alert">{mapboxTokenError}</div>}<div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" onClick={() => selectMapProvider('mapbox')}>Usar Mapbox</button></div></div>}
         {offlineMessage && <div className="offline-map-status" role="status">{offlineMessage}</div>}
         <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>{mapProvider === 'mapbox' ? 'Mapbox Satellite · Bizkaia' : 'Ortofoto geoEuskadi · Bizkaia'}</span></div>
-        {mapReady && <div className="map-hint">{placingGpxIncident ? <><b>＋</b> Haz clic donde ocurrió el error</> : placingMarker ? <><b>＋</b> Haz clic en el mapa para colocar la señal <button onClick={cancelMarkerPlacement}>Cancelar</button></> : workspaceMode === 'gpx-review' ? <><b>●</b> {gpxReview.points.length ? 'Recorrido GPX · marca los errores para revisarlos' : 'Importa un GPX para comenzar la revisión'}</> : mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
+        {mapReady && <div className="map-hint">{placingGpxIncident ? <><b>＋</b> Haz clic donde ocurrió el error</> : placingMarker ? <><b>＋</b> Haz clic en el mapa para colocar la señal <button onClick={cancelMarkerPlacement}>{t("Utzi","Cancelar")}</button></> : workspaceMode === 'gpx-review' ? <><b>●</b> {gpxReview.points.length ? 'Recorrido GPX · marca los errores para revisarlos' : 'Importa un GPX para comenzar la revisión'}</> : mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
         {playing && <div className="flight-badge"><span className="pulse-dot" /> {workspaceMode === 'gpx-review' ? 'REVISIÓN EN DIRECTO' : 'VUELO EN DIRECTO'} <span>·</span> {workspaceMode === 'gpx-review' ? gpxReview.name : activeRoute?.name}</div>}
       </section>
     </section>
     {gpxIncidentDraft && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setGpxIncidentDraft(null); }}><form className="marker-dialog gpx-incident-dialog" onSubmit={saveGpxIncident}>
-      <div className="marker-dialog-heading"><div><p className="eyebrow">REVISIÓN DEL ALUMNO</p><h2>{gpxReview.incidents.some(item => item.id === gpxIncidentDraft.id) ? 'Editar incidencia' : 'Anotar error'}</h2></div><button type="button" className="marker-dialog-close" onClick={() => setGpxIncidentDraft(null)} aria-label="Cerrar">×</button></div>
+      <div className="marker-dialog-heading"><div><p className="eyebrow">{t("IKASLEAREN BERRIKUSPENA","REVISIÓN DEL ALUMNO")}</p><h2>{gpxReview.incidents.some(item => item.id === gpxIncidentDraft.id) ? t("Gorabehera editatu","Editar incidencia") : t("Akatsa idatzi","Anotar error")}</h2></div><button type="button" className="marker-dialog-close" onClick={() => setGpxIncidentDraft(null)} aria-label="Cerrar">×</button></div>
       <p className="gpx-dialog-location">Punto guardado en el recorrido{gpxIncidentDraft.time ? ` · ${new Date(gpxIncidentDraft.time).toLocaleTimeString('es-ES')}` : ''}. Puedes explicar qué ocurrió y cómo corregirlo.</p>
       <label className="marker-field-label">Título breve <input autoFocus className="marker-dialog-input" maxLength={60} value={gpxIncidentDraft.title} onChange={event => setGpxIncidentDraft(previous => ({ ...previous, title: event.target.value }))} placeholder="Ej.: No cede el paso" /></label>
       <label className="marker-field-label">Nota para revisar con el alumno <textarea className="marker-dialog-input marker-description-input" maxLength={500} rows={4} required value={gpxIncidentDraft.note} onChange={event => setGpxIncidentDraft(previous => ({ ...previous, note: event.target.value }))} placeholder="Describe el error y cómo debería haber actuado…" /></label>
-      <div className="marker-dialog-actions"><button type="button" onClick={() => setGpxIncidentDraft(null)}>Cancelar</button><button type="submit" className="marker-primary-button">Guardar nota</button></div>
+      <div className="marker-dialog-actions"><button type="button" onClick={() => setGpxIncidentDraft(null)}>{t("Utzi","Cancelar")}</button><button type="submit" className="marker-primary-button">Guardar nota</button></div>
     </form></div>}
     {markerDialog && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setMarkerDialog(null); }}><form className="marker-dialog" onSubmit={event => { event.preventDefault(); markerDialog.editingId ? saveMarkerChanges() : beginMarkerPlacement(); }}>
       <div className="marker-dialog-heading"><div><p className="eyebrow">NUEVO MARCADOR · {activeRoute?.name}</p><h2>{markerDialog.editingId ? 'Editar punto conflictivo' : 'Añadir punto conflictivo'}</h2></div><button type="button" className="marker-dialog-close" onClick={() => setMarkerDialog(null)} aria-label="Cerrar">×</button></div>
@@ -1309,14 +1310,14 @@ export default function App() {
       <label className="marker-field-label">Explicación para el alumnado <textarea className="marker-dialog-input marker-description-input" maxLength={180} rows={3} value={markerDialog.draft.description || ''} onChange={event => updateMarkerDraft('description', event.target.value)} placeholder="¿Qué deben observar los alumnos en este punto?" /></label>
       <label className="marker-field-label">Asociar a trayectoria <select className="marker-dialog-input" value={markerDialog.draft.routeId} onChange={event => updateMarkerDraft('routeId', event.target.value)}>{routes.map(route => <option key={route.id} value={route.id}>{route.name}</option>)}</select></label>
       <label className="marker-video-toggle"><input type="checkbox" checked={markerDialog.draft.showInVideo !== false} onChange={event => updateMarkerDraft('showInVideo', event.target.checked)} /><span><strong>Mostrar durante el vídeo</strong><small>La señal y la explicación aparecen al llegar a este punto.</small></span></label>
-      <div className="marker-dialog-actions"><button type="button" onClick={() => setMarkerDialog(null)}>Cancelar</button>{markerDialog.editingId && <button type="button" className="marker-reposition-button" onClick={beginMarkerPlacement}>Reubicar</button>}<button type="submit" className="marker-primary-button">{markerDialog.editingId ? 'Guardar cambios' : 'Colocar en el mapa'}</button></div>
+      <div className="marker-dialog-actions"><button type="button" onClick={() => setMarkerDialog(null)}>{t("Utzi","Cancelar")}</button>{markerDialog.editingId && <button type="button" className="marker-reposition-button" onClick={beginMarkerPlacement}>Reubicar</button>}<button type="submit" className="marker-primary-button">{markerDialog.editingId ? 'Guardar cambios' : 'Colocar en el mapa'}</button></div>
     </form></div>}
     {nameDialog && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setNameDialog(null); }}><form className="name-dialog" onSubmit={saveNameDialog}>
       <p className="eyebrow">{nameDialog.kind === 'route' ? 'TRAYECTORIA' : nameDialog.kind === 'gpx-review' ? 'RECORRIDO GPX' : 'PROYECTO'}</p>
       <h2>{nameDialog.kind === 'project-new' ? 'Crear proyecto' : nameDialog.kind === 'gpx-review' ? 'Nombrar recorrido GPX' : 'Cambiar nombre'}</h2>
       <label htmlFor="name-dialog-input">Nombre</label>
       <input id="name-dialog-input" autoFocus maxLength={60} value={nameDialog.value} onChange={event => setNameDialog(previous => ({ ...previous, value: event.target.value }))} placeholder="Escribe un nombre" />
-      <div className="dialog-actions"><button type="button" onClick={() => setNameDialog(null)}>Cancelar</button><button type="submit" disabled={!nameDialog.value.trim()}>Guardar</button></div>
+      <div className="dialog-actions"><button type="button" onClick={() => setNameDialog(null)}>{t("Utzi","Cancelar")}</button><button type="submit" disabled={!nameDialog.value.trim()}>Guardar</button></div>
     </form></div>}
   </main>;
 }

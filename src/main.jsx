@@ -1,4 +1,5 @@
 import React from 'react';
+import {Capacitor} from '@capacitor/core';
 import { createRoot } from 'react-dom/client';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -43,7 +44,7 @@ async function start() {
     } catch (error) { console.error('No se pudo abrir la biblioteca local:', error); }
     connectDesktopLibrary();
   }
-  if (import.meta.env.PROD && 'serviceWorker' in navigator && !window.trazaDesktop) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if (import.meta.env.PROD && 'serviceWorker' in navigator && !window.trazaDesktop && !Capacitor.isNativePlatform()) navigator.serviceWorker.register('/sw.js').catch(() => {});
   const openApp = async () => {
     const { default: App } = await import('./App.jsx');
     root.render(<React.StrictMode><App /></React.StrictMode>);
