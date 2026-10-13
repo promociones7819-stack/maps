@@ -13,7 +13,8 @@
     "package:mac": "npm run icon:mac && npm run build && electron-builder --mac dmg --arm64 --publish never",
     "ios:sync": "npm run build && cap sync ios",
     "test:racebox": "node tests/racebox.mjs && node tests/lessons-ui.mjs",
-    "test:studio": "node tests/review-time.mjs && node tests/studio-ui.mjs"
+    "test:studio": "node tests/review-time.mjs && node tests/studio-ui.mjs",
+    "prepare": "npm run build"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^8.3.0",

@@ -76,3 +76,5 @@ Compilación nativa preparada con `npm run ios:sync`; requiere Xcode completo y 
 Web: https://maps.promociones7819.workers.dev/
 
 Para actualizarla: `npm run build` y `npx wrangler deploy --keep-vars`. La configuración está en `wrangler.jsonc`. Las capacidades y limitaciones de RaceBox Mini y vídeo están documentadas en [RACEBOX.md](RACEBOX.md).
+
+El despliegue automático genera `dist` al instalar las dependencias (`prepare`). Wrangler también ejecuta `npm run build` antes de publicar, para admitir despliegues desde un checkout sin archivos generados.

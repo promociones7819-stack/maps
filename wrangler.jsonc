@@ -1,5 +1,10 @@
 {
   "name": "maps",
   "compatibility_date": "2026-10-12",
-  "assets": { "directory": "./dist" }
+  "assets": {
+    "directory": "./dist"
+  },
+  "build": {
+    "command": "npm run build"
+  }
 }
