@@ -76,10 +76,12 @@ La cabecera de la ventana permite arrastrarla con ratón o dedo, y ⤢ cambia su
 
 Empieza con MP4 H.264. Otros contenedores/códecs dependen del navegador; se muestra un error si no se pueden reproducir. Solo se contempla un archivo de vídeo por sesión. No hay unión automática de clips de dashcam ni corrección de deriva del reloj mediante varios puntos de sincronización.
 
-La reproducción en navegador no convierte archivos ni sube vídeos a servidores. El contenedor nativo iPad comparte la implementación, pero sigue pendiente la instalación y prueba en dispositivo real, especialmente con grabaciones largas y de alta resolución. La exportación MP4 del montaje completo (mapa + dashcam + telemetría) no está implementada. El botón de exportación de revisión anterior se deshabilita al asociar un vídeo para evitar presentar un resultado incompleto como el montaje solicitado.
+La reproducción en navegador no convierte archivos ni sube vídeos a servidores. El contenedor nativo iPad comparte la implementación, pero sigue pendiente la instalación y prueba en dispositivo real, especialmente con grabaciones largas y de alta resolución. «Vídeo final · MP4» abre una pantalla limpia con el vídeo original y los puntos críticos. Exporta el vídeo completo con su audio y avisos de cuatro segundos por incidencia, sin mapa ni interfaz de edición. Se conserva la proporción original hasta 1280×720, 30 fps, recodificando a H.264/AAC según soporte real del navegador. La exportación es en tiempo real: mantén la aplicación visible y la pantalla encendida; puedes cancelarla. Después pulsa Descargar MP4. No sube el vídeo al servidor. El montaje con mapa y telemetría sigue fuera de este flujo.
 
 ### Comprobaciones de esta ampliación
 
 - `npm run test:racebox`: datos del paquete oficial, incluidos acelerómetro y giroscopio, y flujos de alumnos/GPX existentes.
 - `npm run test:studio`: reloj GPS con tiempos irregulares/repetidos/ausentes y segmentos; Chromium y WebKit decodifican un MP4 H.264 de prueba, sincronizan, avanzan, guardan un punto crítico y recuperan el vídeo y ajuste tras recargar.
 - Compilación de producción y sincronización iOS. El MP4 de colores de tests/fixtures es exclusivamente una entrada de prueba; no aparece en la aplicación de los usuarios ni representa una dashcam real.
+
+- `npm run test:movie`: exportación real en Chromium y WebKit, contenedor MP4, duración, fotogramas visibles, audio audible decodificado, cancelación/reintento, descarga y sincronización de avisos.

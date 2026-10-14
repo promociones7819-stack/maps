@@ -9,3 +9,5 @@ build/*
 tests/*.png
 
 .wrangler/
+
+tests/*-final.mp4
