@@ -85,3 +85,5 @@ La reproducción en navegador no convierte archivos ni sube vídeos a servidores
 - Compilación de producción y sincronización iOS. El MP4 de colores de tests/fixtures es exclusivamente una entrada de prueba; no aparece en la aplicación de los usuarios ni representa una dashcam real.
 
 - `npm run test:movie`: exportación real en Chromium y WebKit, contenedor MP4, duración, fotogramas visibles, audio audible decodificado, cancelación/reintento, descarga y sincronización de avisos.
+
+Los puntos críticos de GPX y vídeo abren el editor al marcarlos. Permite seleccionar el mismo catálogo de señales que las trayectorias (STOP, ceder el paso, semáforo y otras), editar título/explicación, parámetros de la señal y decidir si aparece en el vídeo. Se reabren desde el marcador del mapa o Editar punto crítico. Los atributos se conservan en las sesiones, historial y copias JSON; el MP4 muestra la señal y la explicación.

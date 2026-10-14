@@ -3,7 +3,7 @@ import {pointAt,speedAt,timeline} from './reviewTime.js';
 import {loadVideo,saveVideo} from './lessonStore.js';
 import {createFinalMovie,movieIncidents} from './finalMovie.js';
 
-export default function ReviewStudio({review,onReview,progress,onProgress,playing,onPlaying,speed,language,live,getComposition,onMovieFrame,onMapResize}){
+export default function ReviewStudio({review,onReview,progress,onProgress,playing,onPlaying,speed,language,live,getComposition,onMovieFrame,onMapResize,onEditIncident}){
  const t=(eu,es)=>language==='eu'?eu:es;
  const clock=useMemo(()=>timeline(review.points),[review.points]);
  const position=pointAt(review.points,live?1:progress,clock),point=position.point;
@@ -48,7 +48,7 @@ export default function ReviewStudio({review,onReview,progress,onProgress,playin
   finally{e.target.value='';}
  };
  const align=()=>{if(!clock.timed||!videoRef.current)return;onReview({...review,media:{...review.media,videoStartUtc:position.time-videoRef.current.currentTime*1000}});setCalibrating(false);setMessage(t('Sinkronizazioa gordeta. Gorde saioa historia eguneratzeko.','Sincronización guardada. Guarda la sesión para actualizar el historial.'));};
- const mark=()=>{if(!point||live||position.gap)return;onPlaying(false);const incident={id:crypto.randomUUID(),coordinates:[...point.coordinates],pointIndex:position.index,time:position.time??point.time,fraction:progress,videoTime:targetTime!=null&&!outside?targetTime:null,title:t('Gorabehera','Incidencia'),note:''};onReview({...review,incidents:[...review.incidents,incident]});};
+ const mark=()=>{if(!point||live||position.gap)return;onPlaying(false);const incident={id:crypto.randomUUID(),coordinates:[...point.coordinates],pointIndex:position.index,time:position.time??point.time,fraction:progress,videoTime:targetTime!=null&&!outside?targetTime:null,title:t('Gorabehera','Incidencia'),note:''};onReview({...review,incidents:[...review.incidents,incident]});onEditIncident?.(incident);};
  const format=(n,d=1)=>Number.isFinite(n)?n.toFixed(d):'—';
  const zero=review.calibration;
  const force=axis=>point?.gForce&&!position.gap?point.gForce[axis]-(zero?.[axis]||0):null;

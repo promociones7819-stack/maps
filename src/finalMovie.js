@@ -1,12 +1,12 @@
 // Render uploaded footage and timed incident captions, without editor chrome.
 export function movieIncidents(review,clock) {
  const start=review.media?.videoStartUtc??clock.start;
- return (review.incidents||[]).map(i=>({...i,second:Number.isFinite(i.time)&&Number.isFinite(start)?(i.time-start)/1000:i.videoTime})).filter(i=>Number.isFinite(i.second)&&i.second>=0);
+ return (review.incidents||[]).map(i=>({...i,second:Number.isFinite(i.time)&&Number.isFinite(start)?(i.time-start)/1000:i.videoTime})).filter(i=>i.showInVideo!==false&&Number.isFinite(i.second)&&i.second>=0);
 }
 export function visibleIncidents(incidents,second){return incidents.filter(i=>second>=i.second&&second<i.second+4);}
 export function drawMovie(ctx,video,incidents,second,composition){
  const {width:w,height:h}=ctx.canvas;ctx.fillStyle='#000';ctx.fillRect(0,0,w,h);if(composition){ctx.drawImage(composition.mapCanvas,0,0,w,h);const r=composition.pipRect();const panel=composition.mapCanvas.getBoundingClientRect();const scale=w/panel.width;const x=(r.left-panel.left)*scale,y=(r.top-panel.top)*scale,pw=r.width*scale,ph=r.height*scale;ctx.fillStyle='#111';ctx.fillRect(x,y,pw,ph);const fit=Math.min(pw/video.videoWidth,ph/video.videoHeight);ctx.drawImage(video,x+(pw-video.videoWidth*fit)/2,y+(ph-video.videoHeight*fit)/2,video.videoWidth*fit,video.videoHeight*fit);ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(x,y,pw,ph);ctx.font=`${Math.max(10,w/110)}px sans-serif`;ctx.fillStyle='#fff';ctx.fillText(composition.attribution||'© geoEuskadi',12,h-12);composition.drawMarkers?.(ctx,w,h);const hud=composition.hud?.(),hr=composition.hudRect?.();if(hud&&hr){const hx=(hr.left-panel.left)*scale,hy=(hr.top-panel.top)*scale,hw=hr.width*scale,hh=hr.height*scale;ctx.fillStyle='#172c25ed';ctx.fillRect(hx,hy,hw,hh);ctx.fillStyle='#fff';const fs=Math.max(9,12*scale);ctx.font=`${fs}px sans-serif`;hud.split('\n').slice(0,11).forEach((line,i)=>ctx.fillText(line,hx+8*scale,hy+(20+i*17)*scale,hw-16*scale));}}else ctx.drawImage(video,0,0,w,h);
- const active=visibleIncidents(incidents,second);if(!active.length)return;
+ const active=visibleIncidents(incidents,second);if(!active.length)return;composition?.drawIncident?.(ctx,active[0],w);
  const font=Math.max(16,Math.round(w/45)),pad=font;ctx.font=`600 ${font}px sans-serif`;
  const words=active.map(i=>[i.title,i.note].filter(Boolean).join(' · ')).join(' / ').split(/\s+/);const lines=[];let line='';
  for(const word of words){const next=line?line+' '+word:word;if(ctx.measureText(next).width>w-pad*2&&line){lines.push(line);line=word;}else line=next;}if(line)lines.push(line);

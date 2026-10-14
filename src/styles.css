@@ -25,3 +25,5 @@
 
 
 .map-panel.movie-preview{position:fixed;inset:0;width:100vw;height:100dvh;z-index:5000;background:#15221d;border-radius:0}.movie-preview .review-pip header,.movie-preview .review-pip>label,.movie-preview .review-pip>small,.movie-preview .review-pip>button,.movie-preview .pip-actions,.movie-preview .review-clock,.movie-preview .map-top-tools,.movie-preview .map-hint,.movie-preview .flight-badge,.movie-preview .telemetry-hud button{display:none}.movie-preview .review-pip{background:#111;border:2px solid white;overflow:hidden}.movie-preview .review-pip video{max-height:none}.movie-toolbar{position:absolute;z-index:20;bottom:8px;left:12px;right:12px;background:#172c25ee;color:white;padding:10px;border-radius:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.movie-toolbar button,.movie-toolbar a{padding:8px 12px;border-radius:7px;background:#176253;color:white;text-decoration:none}.movie-toolbar small{width:100%;font-size:11px}.movie-toolbar p{margin:0}.movie-preview .telemetry-hud{bottom:120px}
+
+.gpx-editor-backdrop{z-index:6000}.gpx-live-note .signal-face{max-width:120px}.gpx-incident-dialog{max-height:90dvh;overflow-y:auto}
