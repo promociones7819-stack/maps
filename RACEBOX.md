@@ -101,3 +101,5 @@ En GPX / Sesiones, usa **Carpeta de la clase → Abrir carpeta** (Chrome de escr
 La exportación sigue siendo a velocidad real, en primer plano y con pantalla encendida. Se han probado reproducción/exportación real con vídeo corto y escritura de 1,56 GiB con cola acotada; esta prueba de volumen no certifica una sesión continua de 50 minutos ni todas las combinaciones de cámara/códec. Los mapas pueden requerir conexión para descargar imágenes.
 
 Pruebas: `npm run test:workspace`, `npm run test:desktop-workspace`, `npm run test:studio`, `npm run test:movie`. Los selectores de carpeta/destino se automatizan en las pruebas; las escrituras y lecturas de archivos son reales.
+
+RutasAD sirve el vídeo local con peticiones de rango HTTP (206) y lectura acotada a 1 MiB, para saltar dentro de archivos grandes sin leerlos completos. La prueba de escritorio comprueba también la lectura de los últimos 100 bytes de un archivo de 1,56 GiB.

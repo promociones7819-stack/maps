@@ -117,8 +117,15 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  protocol.handle('traza', request => {
-    if(new URL(request.url).hostname==='app'&&new URL(request.url).pathname.startsWith('/__workspace/')){try{return net.fetch(pathToFileURL(workspaceFile(decodeURIComponent(new URL(request.url).pathname.slice('/__workspace/'.length)))).toString(),{headers:request.headers});}catch{return new Response('Archivo no disponible',{status:404});}}
+  protocol.handle('traza', async request => {
+    if(new URL(request.url).hostname==='app'&&new URL(request.url).pathname.startsWith('/__workspace/')){
+      try{
+        const file=workspaceFile(decodeURIComponent(new URL(request.url).pathname.slice('/__workspace/'.length))),stat=await fs.promises.lstat(file);if(!stat.isFile())return new Response('Archivo no disponible',{status:404});
+        const size=stat.size,range=request.headers.get('range');let start=0,end=size-1,status=200;const headers={'Accept-Ranges':'bytes','Content-Type':({'.mp4':'video/mp4','.m4v':'video/mp4','.mov':'video/quicktime','.webm':'video/webm'})[path.extname(file).toLowerCase()]||'application/octet-stream'};
+        if(range){const match=/^bytes=(\d*)-(\d*)$/.exec(range);if(!match||(!match[1]&&!match[2]))return new Response(null,{status:416,headers:{'Content-Range':`bytes */${size}`}});start=match[1]?Number(match[1]):Math.max(0,size-Number(match[2]));end=match[1]&&match[2]?Math.min(size-1,Number(match[2])):size-1;if(start>end||start>=size)return new Response(null,{status:416,headers:{'Content-Range':`bytes */${size}`}});status=206;headers['Content-Range']=`bytes ${start}-${end}/${size}`;}
+        headers['Content-Length']=String(Math.max(0,end-start+1));const body=request.method==='HEAD'||!size?null:require('node:stream').Readable.toWeb(fs.createReadStream(file,{start,end}),{strategy:{highWaterMark:1024*1024,size:chunk=>chunk.byteLength}});return new Response(body,{status,headers});
+      }catch{return new Response('Archivo no disponible',{status:404});}
+    }
     let requestedPath;
     try { requestedPath = decodeURIComponent(new URL(request.url).pathname); }
     catch { return new Response('Dirección no válida', { status: 400 }); }
