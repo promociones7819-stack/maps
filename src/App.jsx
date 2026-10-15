@@ -275,6 +275,7 @@ export default function App() {
   const [language,setLanguage]=useState(()=>localStorage.getItem('traza-bizkaia-language')==='es'?'es':'eu');
   const t=(eu,es)=>language==='eu'?eu:es;
   const [liveLesson,setLiveLesson]=useState(false);
+  const [raceboxPosition,setRaceboxPosition]=useState(null);
   const liveLessonRef=useRef(false);liveLessonRef.current=liveLesson;
   useEffect(()=>{document.documentElement.lang=language;try{localStorage.setItem('traza-bizkaia-language',language);}catch{}},[language]);
 
@@ -665,8 +666,18 @@ export default function App() {
     });
     return () => instances.forEach(instance => instance.remove());
   }, [mapReady, mapProvider, workspaceMode, gpxReview.incidents]);
+  useEffect(()=>{
+    const map=mapRef.current;
+    if(!mapReady||!map||workspaceMode!=='gpx-review'||!raceboxPosition)return;
+    const coordinates=[raceboxPosition.lon,raceboxPosition.lat];
+    const element=document.createElement('div');element.className='racebox-live-position';element.setAttribute('role','img');element.setAttribute('aria-label',t('RaceBox-en uneko kokapena','Posición actual del RaceBox'));
+    const Constructor=mapProvider==='mapbox'?MapboxMarker:MapLibreMarker;
+    const marker=new Constructor({element}).setLngLat(coordinates).addTo(map);
+    map.easeTo({center:coordinates,zoom:Math.max(16,map.getZoom()),duration:0});
+    return()=>marker.remove();
+  },[mapReady,mapProvider,workspaceMode,raceboxPosition]);
   useEffect(()=>{if(!mapReady||workspaceMode!=='gpx-review'||liveLesson||gpxReview.points.length<2)return;const coords=gpxReview.points.map(p=>p.coordinates);const bounds=coords.reduce((b,c)=>b.extend(c),new LngLatBounds(coords[0],coords[0]));mapRef.current?.fitBounds(bounds.toArray(),{padding:70,maxZoom:17,duration:0});},[mapReady,workspaceMode,gpxReview.sessionId,gpxReview.name,currentProject.id]);
-  useEffect(()=>{const p=pointAt(gpxReview.points,gpxProgress).point;if(workspaceMode==='gpx-review'&&p&&mapReady&&((playing&&follow)||liveLesson))mapRef.current?.easeTo({center:p.coordinates,zoom:Math.max(16,mapRef.current.getZoom()),duration:0});},[gpxProgress,gpxReview,workspaceMode,mapReady,playing,liveLesson,follow]);
+  useEffect(()=>{const p=liveLesson?gpxReview.points.at(-1):pointAt(gpxReview.points,gpxProgress).point;if(workspaceMode==='gpx-review'&&p&&mapReady&&((playing&&follow)||liveLesson))mapRef.current?.easeTo({center:p.coordinates,zoom:Math.max(16,mapRef.current.getZoom()),duration:0});},[gpxProgress,gpxReview,workspaceMode,mapReady,playing,liveLesson,follow]);
   useEffect(() => {
     if (mapReady && mapRef.current?.getSource('gpx-vehicle')) mapRef.current.getSource('gpx-vehicle').setData(gpxVehicleFeature(gpxReview, workspaceMode === 'gpx-review' && liveLesson ? gpxReview.points.at(-1)?.coordinates : workspaceMode === 'gpx-review' ? (reviewPosition.gap?null:reviewPosition.point?.coordinates) : null));
   }, [mapReady, gpxReview, gpxProgress, playing, workspaceMode,liveLesson]);
@@ -1254,7 +1265,7 @@ export default function App() {
         <div className="control-group orientation-row"><div><strong>Orientación dinámica</strong><small>La cámara gira con la trayectoria</small></div><button className={`switch ${follow ? 'on' : ''}`} onClick={() => setFollow(!follow)} aria-label="Alternar orientación"><span /></button></div>
         <div className="future-card"><span>✦</span><p><strong>Señales del catálogo</strong><br />Personaliza el tipo, destinos y explicación.</p><span className="soon-tag">EN PRUEBA</span></div>
         </> : <div className="gpx-review-panel">
-          <FolderWorkspace review={gpxReview} onReview={r=>{setPlaying(false);setGpxReview(r);seekGpx(0);}} language={language} disabled={liveLesson}/><RaceBoxPanel language={language} review={gpxReview} projectId={currentProject.id} onActive={setLiveLesson} onReview={r=>{setGpxReview(r);gpxRef.current=r;setPlaying(false);setPlacingGpxIncident(false);}}/><fieldset className="review-controls" disabled={liveLesson}><p className="eyebrow">{t("GIDATZEAREN BERRIKUSPENA","REVISIÓN DE CONDUCCIÓN")}</p><h2>{t("Ikaslearen benetako ibilbidea","Recorrido real del alumno")}</h2>
+          <FolderWorkspace review={gpxReview} onReview={r=>{setPlaying(false);setGpxReview(r);seekGpx(0);}} language={language} disabled={liveLesson}/><RaceBoxPanel language={language} review={gpxReview} projectId={currentProject.id} onActive={setLiveLesson} onPosition={setRaceboxPosition} onReview={r=>{setGpxReview(r);gpxRef.current=r;setPlaying(false);setPlacingGpxIncident(false);}}/><fieldset className="review-controls" disabled={liveLesson}><p className="eyebrow">{t("GIDATZEAREN BERRIKUSPENA","REVISIÓN DE CONDUCCIÓN")}</p><h2>{t("Ikaslearen benetako ibilbidea","Recorrido real del alumno")}</h2>
           <p className="gpx-intro">{t("Inportatu saioan grabatutako GPXa. Ondoren, markatu akatsak mapan eta gehitu azalpena ikaslearekin berrikusteko.","Importa el GPX grabado durante la clase. Después, marca en el mapa los errores y añade una explicación para revisarlos con el alumno.")}</p>
           <input ref={gpxFileInputRef} className="audio-file-input" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" onChange={importGpx} />
           <button className="gpx-import-button" onClick={() => gpxFileInputRef.current?.click()}>{t("＋ GPX fitxategia inportatu","＋ Importar archivo GPX")}</button>

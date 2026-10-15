@@ -37,3 +37,5 @@
 .movie-preview .review-pip>p{display:none}
 
 .bluetooth-backdrop{z-index:7000}.bluetooth-device{display:block;width:100%;text-align:left;padding:12px;margin:8px 0;background:#e5f0e9;border:1px solid #b9ccbf;border-radius:8px}
+
+.racebox-live-position {width:20px;height:20px;border-radius:50%;background:#087cff;border:3px solid white;box-shadow:0 0 0 8px #087cff33,0 2px 6px #0006;}
