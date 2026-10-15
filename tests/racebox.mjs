@@ -9,3 +9,5 @@ console.log('RaceBox official packet, all split positions, checksum, recovery, c
 
 const {raceboxRequestOptions,raceboxModel,DEVICE_INFO}=await import('../src/raceboxConnection.js');
 const options=raceboxRequestOptions();assert.equal(options.services,undefined);assert.equal(options.namePrefix,'RaceBox Mini');assert.ok(options.optionalServices.includes(DEVICE_INFO));assert.equal(raceboxRequestOptions(true).namePrefix,undefined);assert.equal(raceboxModel(new TextEncoder().encode('RaceBox Mini\0 ')),'RaceBox Mini');console.log('Discovery without mandatory advertised UUID, model access permission and broad scan options PASS');
+
+const {supportedRaceboxModel}=await import('../src/raceboxConnection.js');assert.ok(supportedRaceboxModel('RaceBox Mini S'));assert.ok(supportedRaceboxModel('RaceBox Mini'));assert.equal(supportedRaceboxModel('RaceBox Micro'),false);

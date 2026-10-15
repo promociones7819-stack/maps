@@ -1,0 +1,12 @@
+// Inject discovery events in an isolated Electron process to test its picker.
+// This does not simulate a production connection or claim a physical BLE test.
+import {_electron} from '@playwright/test';import fs from 'node:fs/promises';import path from 'node:path';import assert from 'node:assert/strict';
+const root=process.cwd(),scratch=path.resolve('../../work/desktop-bluetooth-test'),archive=process.env.PACKAGED_APP||root;await fs.mkdir(path.join(scratch,'Documents'),{recursive:true});const harness=path.join(scratch,'main.cjs');await fs.writeFile(harness,`const {app}=require('electron');app.setPath('documents',${JSON.stringify(path.join(scratch,'Documents'))});app.setAppPath(${JSON.stringify(archive)});require(${JSON.stringify(path.join(archive,'electron/main.cjs'))});`);
+const app=await _electron.launch({args:[harness],timeout:20000});try{
+ const page=await app.firstWindow({timeout:15000});page.setDefaultTimeout(12000);await page.getByRole('tab',{name:'GPX / Saioak'}).click();
+ const emit=async devices=>app.evaluate(({BrowserWindow},devices)=>{global.btChoices??=[];const contents=BrowserWindow.getAllWindows()[0].webContents;contents.emit('select-bluetooth-device',{preventDefault(){}},devices,id=>global.btChoices.push(id));},devices);
+ await emit([]);const chooser=page.getByRole('dialog',{name:'Bluetooth gailua aukeratu'});await chooser.waitFor();await chooser.getByText('Oraindik ez da gailurik aurkitu.').waitFor();await emit([{deviceId:'TEST-MINI-S',deviceName:'RaceBox Mini S 0000000000'}]);await chooser.getByRole('button',{name:'RaceBox Mini S 0000000000'}).waitFor();assert.deepEqual(await app.evaluate(()=>global.btChoices),[]);
+ assert.match(await page.evaluate(()=>window.trazaDesktop.selectBluetooth('invalid','unknown').catch(e=>e.message)),/dispositivo/);await chooser.getByRole('button',{name:'RaceBox Mini S 0000000000'}).click();await chooser.waitFor({state:'hidden'});assert.deepEqual(await app.evaluate(()=>global.btChoices),['TEST-MINI-S']);
+ await emit([{deviceId:'TEST-OTHER',deviceName:'Other device'}]);await chooser.waitFor();await chooser.getByRole('button',{name:'Utzi',exact:true}).click();await chooser.waitFor({state:'hidden'});assert.deepEqual(await app.evaluate(()=>global.btChoices),['TEST-MINI-S','']);
+ console.log('Desktop BLE picker event harness PASS: live discovery list, explicit Mini S selection, unknown request rejection and cancellation');
+}finally{await app.close();}

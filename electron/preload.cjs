@@ -1,6 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('trazaDesktop', Object.freeze({
+  onBluetoothDevices:callback=>{const listener=(_event,data)=>callback(data);ipcRenderer.on('bluetooth:devices',listener);return ()=>ipcRenderer.removeListener('bluetooth:devices',listener);},
+  onBluetoothClosed:callback=>{const listener=(_event,data)=>callback(data);ipcRenderer.on('bluetooth:closed',listener);return ()=>ipcRenderer.removeListener('bluetooth:closed',listener);},
+  selectBluetooth:(requestId,deviceId)=>ipcRenderer.invoke('bluetooth:select',{requestId,deviceId}),
+  cancelBluetooth:requestId=>ipcRenderer.invoke('bluetooth:cancel',requestId),
   chooseWorkspace:()=>ipcRenderer.invoke('workspace:choose'),
   readWorkspaceText:name=>ipcRenderer.invoke('workspace:read-text',name),
   writeWorkspaceProject:text=>ipcRenderer.invoke('workspace:write-project',text),

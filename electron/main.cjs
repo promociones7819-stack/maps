@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, protocol, net, shell, session, dialog } = r
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const attachBluetooth=require('./bluetooth.cjs');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'traza', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
 app.setName('RutasAD');
@@ -105,6 +106,7 @@ async function createWindow() {
     },
   });
 
+  attachBluetooth(window);
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };

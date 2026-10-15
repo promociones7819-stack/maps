@@ -5,3 +5,5 @@ export const MODEL='00002a24-0000-1000-8000-00805f9b34fb';
 // then verify the real model over GATT before accepting any telemetry.
 export function raceboxRequestOptions(all=false){return {...(all?{}:{namePrefix:'RaceBox Mini'}),optionalServices:[SERVICE,DEVICE_INFO]};}
 export function raceboxModel(value){return new TextDecoder().decode(value).replace(/\0/g,'').trim();}
+
+export const supportedRaceboxModel=model=>['RaceBox Mini','RaceBox Mini S'].includes(model);

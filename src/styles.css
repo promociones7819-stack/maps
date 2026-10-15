@@ -35,3 +35,5 @@
 .folder-workspace{border:1px solid #d5e3da;border-radius:10px;padding:12px;margin:10px 0;background:#f1f7f3}.folder-workspace h2{font-size:16px}.folder-workspace label{display:block;margin:8px 0;font-size:12px}.folder-workspace select{width:100%;padding:6px}.folder-workspace small{font-size:11px;display:block;margin-top:8px}
 
 .movie-preview .review-pip>p{display:none}
+
+.bluetooth-backdrop{z-index:7000}.bluetooth-device{display:block;width:100%;text-align:left;padding:12px;margin:8px 0;background:#e5f0e9;border:1px solid #b9ccbf;border-radius:8px}

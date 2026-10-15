@@ -4,7 +4,7 @@ Integración realizada sobre https://github.com/promociones7819-stack/maps.git, 
 
 ## Uso
 
-La bienvenida ofrece Euskara / Castellano; euskera es el idioma inicial. Abre **GPX / Saioak** (en castellano, **Revisar recorrido GPX**). El panel RaceBox Mini permite crear/seleccionar alumno, conectar el Mini, iniciar sesión, marcar incidencias con un botón grande y finalizar. Se comprueba el modelo por Device Information y solo se acepta RaceBox Mini. Espera una solución GPS 3D válida y reciente para iniciar o marcar.
+La bienvenida ofrece Euskara / Castellano; euskera es el idioma inicial. Abre **GPX / Saioak** (en castellano, **Revisar recorrido GPX**). El panel RaceBox Mini permite crear/seleccionar alumno, conectar el Mini, iniciar sesión, marcar incidencias con un botón grande y finalizar. Se comprueba el modelo por Device Information y se aceptan RaceBox Mini y RaceBox Mini S. Espera una solución GPS 3D válida y reciente para iniciar o marcar.
 
 El mapa de Traza, con GeoEuskadi o Mapbox, muestra los segmentos del recorrido. El punto de vehículo se actualiza durante la sesión. Las incidencias usan posición/hora del último paquete, y no abren un formulario durante la práctica. Después puedes usar los formularios existentes para editar notas, eliminar incidencias y revisar el recorrido con el alumno. Guarda las modificaciones con **Guardar sesión** para actualizar el historial.
 
@@ -111,3 +111,13 @@ La búsqueda normal filtra por nombre `RaceBox Mini`, sin exigir el UUID UART en
 Si no aparece el RaceBox, desconéctalo de la aplicación oficial y ciérrala; para descartar reconexiones, desactiva temporalmente Bluetooth en ese teléfono. En el Mac, permite Bluetooth a Google Chrome en Ajustes del Sistema → Privacidad y seguridad → Bluetooth. Recarga la web y prueba Conectar o Buscar todos. Un LED azul fijo significa que hay un cliente BLE conectado, según el manual del fabricante. No es necesario enlazarlo desde la lista general de dispositivos de macOS.
 
 `node tests/ble-connection.mjs` usa un entorno de prueba de la API Bluetooth de Chrome para comprobar búsqueda, permisos, rechazo de otro modelo y cancelación. No equivale a una prueba física de radio/GATT con el RaceBox del usuario. Esta actualización se publica en la web; el DMG 0.3.0 existente no se regenera con este cambio.
+
+## RutasAD 0.3.1 · Mini S y selector Bluetooth en Mac
+
+Se admite el modelo `RaceBox Mini S`, con el mismo protocolo de telemetría en vivo que Mini. El tipo de sesión interno sigue siendo `racebox-mini` para conservar compatibilidad con el historial. No se controla la memoria ni la grabación autónoma del Mini S: Iniciar/Finalizar sesión guarda la práctica en RutasAD.
+
+Electron maneja `select-bluetooth-device` con una lista de descubrimiento que se actualiza, selección explícita, cancelación y plazo de 60 segundos. El instalador incluye `NSBluetoothAlwaysUsageDescription`, para que macOS pueda pedir permiso Bluetooth a RutasAD. La búsqueda web mantiene los permisos explícitos de UART y Device Information y admite también Mini S.
+
+Pruebas: `node tests/ble-connection.mjs` (contrato API de Chrome, Mini y Mini S), `node tests/desktop-bluetooth.mjs` (eventos de descubrimiento y selector real de Electron en un proceso de prueba aislado), y pruebas del instalador empaquetado. No se ha certificado una conexión física de radio/GATT con el Mini S del usuario.
+
+La app oficial debe desconectarse antes de probar. La captura del usuario muestra Mini S conectado en la app oficial, aunque no figure en la lista general de Bluetooth de macOS; la selección de RutasAD se hace dentro de RutasAD.
