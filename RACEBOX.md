@@ -89,3 +89,15 @@ La reproducción en navegador no convierte archivos ni sube vídeos a servidores
 Los puntos críticos de GPX y vídeo abren el editor al marcarlos. Permite seleccionar el mismo catálogo de señales que las trayectorias (STOP, ceder el paso, semáforo y otras), editar título/explicación, parámetros de la señal y decidir si aparece en el vídeo. Se reabren desde el marcador del mapa o Editar punto crítico. Los atributos se conservan en las sesiones, historial y copias JSON; el MP4 muestra la señal y la explicación.
 
 El catálogo GPX incluye las mismas señales de dirección S-220a y S-350, destinos editables, flechas, distancia y límites de velocidad que Trayectoria. Reubicar conserva la señal y su explicación, ajusta posición/hora al punto del GPX más cercano y permite confirmar el cambio sin crear otro marcador.
+
+## RutasAD 0.3 · carpetas y clases largas
+
+En GPX / Sesiones, usa **Carpeta de la clase → Abrir carpeta** (Chrome de escritorio o RutasAD). Deja el GPX y un vídeo original en la raíz de esa carpeta, selecciona ambos y pulsa Cargar clase. No se copia el vídeo a IndexedDB ni a memoria completa: se reproduce desde el archivo. Se sigue admitiendo un vídeo PIP por proyecto.
+
+**Guardar proyecto** escribe `RutasAD-proyecto.json` con posiciones, incidencias, señales, sincronización, calibración y referencia al vídeo. Conserva el vídeo original junto a este archivo. Al abrir de nuevo la carpeta se recupera el proyecto. Chrome puede solicitar renovar el permiso; Reabrir carpeta recuerda el último directorio autorizado. En RutasAD se elige de nuevo la carpeta al abrir la aplicación. No sobrescribe las sesiones del historial anterior.
+
+**Mapa + PIP · MP4 → Exportar MP4** pide el archivo de destino antes de empezar. En Chrome se usa FileSystemWritableFileStream; en RutasAD, escritura incremental mediante Electron a un archivo temporal y renombrado al terminar. Cada bloque se escribe en orden, con un máximo de 32 MiB pendientes. Un error de disco o una cancelación aborta la escritura; no se presenta un archivo parcial como un MP4 terminado. Los archivos existentes permanecen intactos al cancelar. En los navegadores sin escritura directa, la exportación en memoria queda limitada a vídeos de hasta cinco minutos.
+
+La exportación sigue siendo a velocidad real, en primer plano y con pantalla encendida. Se han probado reproducción/exportación real con vídeo corto y escritura de 1,56 GiB con cola acotada; esta prueba de volumen no certifica una sesión continua de 50 minutos ni todas las combinaciones de cámara/códec. Los mapas pueden requerir conexión para descargar imágenes.
+
+Pruebas: `npm run test:workspace`, `npm run test:desktop-workspace`, `npm run test:studio`, `npm run test:movie`. Los selectores de carpeta/destino se automatizan en las pruebas; las escrituras y lecturas de archivos son reales.

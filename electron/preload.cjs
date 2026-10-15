@@ -1,6 +1,13 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('trazaDesktop', Object.freeze({
+  chooseWorkspace:()=>ipcRenderer.invoke('workspace:choose'),
+  readWorkspaceText:name=>ipcRenderer.invoke('workspace:read-text',name),
+  writeWorkspaceProject:text=>ipcRenderer.invoke('workspace:write-project',text),
+  beginMovie:()=>ipcRenderer.invoke('movie:begin'),
+  writeMovie:(id,bytes)=>ipcRenderer.invoke('movie:write',id,bytes),
+  finishMovie:id=>ipcRenderer.invoke('movie:finish',id),
+  abortMovie:id=>ipcRenderer.invoke('movie:abort',id),
   dataDirectory: ipcRenderer.sendSync('files:get-data-directory'),
   loadLibrary: () => ipcRenderer.invoke('library:load'),
   saveLibrary: storage => ipcRenderer.invoke('library:save', storage),

@@ -1,3 +1,4 @@
+import FolderWorkspace from './FolderWorkspace.jsx';
 import ReviewStudio from './ReviewStudio.jsx';
 import {pointAt,pointFraction,timeline} from './reviewTime.js';
 import RaceBoxPanel from './RaceBoxPanel.jsx';
@@ -1253,7 +1254,7 @@ export default function App() {
         <div className="control-group orientation-row"><div><strong>Orientación dinámica</strong><small>La cámara gira con la trayectoria</small></div><button className={`switch ${follow ? 'on' : ''}`} onClick={() => setFollow(!follow)} aria-label="Alternar orientación"><span /></button></div>
         <div className="future-card"><span>✦</span><p><strong>Señales del catálogo</strong><br />Personaliza el tipo, destinos y explicación.</p><span className="soon-tag">EN PRUEBA</span></div>
         </> : <div className="gpx-review-panel">
-          <RaceBoxPanel language={language} review={gpxReview} projectId={currentProject.id} onActive={setLiveLesson} onReview={r=>{setGpxReview(r);gpxRef.current=r;setPlaying(false);setPlacingGpxIncident(false);}}/><fieldset className="review-controls" disabled={liveLesson}><p className="eyebrow">{t("GIDATZEAREN BERRIKUSPENA","REVISIÓN DE CONDUCCIÓN")}</p><h2>{t("Ikaslearen benetako ibilbidea","Recorrido real del alumno")}</h2>
+          <FolderWorkspace review={gpxReview} onReview={r=>{setPlaying(false);setGpxReview(r);seekGpx(0);}} language={language} disabled={liveLesson}/><RaceBoxPanel language={language} review={gpxReview} projectId={currentProject.id} onActive={setLiveLesson} onReview={r=>{setGpxReview(r);gpxRef.current=r;setPlaying(false);setPlacingGpxIncident(false);}}/><fieldset className="review-controls" disabled={liveLesson}><p className="eyebrow">{t("GIDATZEAREN BERRIKUSPENA","REVISIÓN DE CONDUCCIÓN")}</p><h2>{t("Ikaslearen benetako ibilbidea","Recorrido real del alumno")}</h2>
           <p className="gpx-intro">{t("Inportatu saioan grabatutako GPXa. Ondoren, markatu akatsak mapan eta gehitu azalpena ikaslearekin berrikusteko.","Importa el GPX grabado durante la clase. Después, marca en el mapa los errores y añade una explicación para revisarlos con el alumno.")}</p>
           <input ref={gpxFileInputRef} className="audio-file-input" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" onChange={importGpx} />
           <button className="gpx-import-button" onClick={() => gpxFileInputRef.current?.click()}>{t("＋ GPX fitxategia inportatu","＋ Importar archivo GPX")}</button>

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, protocol, net, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net, shell, session, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -74,6 +74,18 @@ ipcMain.handle('files:open-data-folder', async () => {
 });
 ipcMain.on('files:get-data-directory', event => { event.returnValue = dataDirectory; });
 
+let workspaceDirectory=null;
+const movieWrites=new Map();
+function workspaceFile(name){if(!workspaceDirectory||typeof name!=='string'||name!==path.basename(name)||name.includes('\\'))throw Error('Archivo fuera de la carpeta de trabajo.');return path.join(workspaceDirectory,name);}
+ipcMain.handle('workspace:choose',async()=>{const result=await dialog.showOpenDialog({title:'Carpeta de la clase · RutasAD',properties:['openDirectory']});if(result.canceled)return null;workspaceDirectory=result.filePaths[0];const entries=await fs.promises.readdir(workspaceDirectory,{withFileTypes:true});const files=[];for(const e of entries)if(e.isFile())files.push({name:e.name,size:(await fs.promises.stat(path.join(workspaceDirectory,e.name))).size});return {name:path.basename(workspaceDirectory),files};});
+ipcMain.handle('workspace:read-text',async(_event,name)=>{if(!/\.(gpx|json)$/i.test(name))throw Error('Solo se leen proyectos JSON y tracks GPX.');return fs.promises.readFile(workspaceFile(name),'utf8');});
+ipcMain.handle('workspace:write-project',async(_event,text)=>{const target=workspaceFile('RutasAD-proyecto.json');const parsed=JSON.parse(text);if(parsed.format!=='rutasad-project')throw Error('Proyecto inválido.');const temporary=target+'.tmp';await fs.promises.writeFile(temporary,text,'utf8');await fs.promises.rename(temporary,target);});
+ipcMain.handle('movie:begin',async()=>{const result=await dialog.showSaveDialog({title:'Guardar montaje MP4',defaultPath:path.join(workspaceDirectory||videoDirectory,'RutasAD-mapa-pip.mp4'),filters:[{name:'MP4',extensions:['mp4']}]});if(result.canceled)return null;const id=require('node:crypto').randomUUID(),temporary=result.filePath+'.'+id+'.partial';const handle=await fs.promises.open(temporary,'wx');movieWrites.set(id,{handle,temporary,target:result.filePath});return {id,name:path.basename(result.filePath)};});
+ipcMain.handle('movie:write',async(_event,id,bytes)=>{const entry=movieWrites.get(id);if(!entry)throw Error('La exportación no está abierta.');if(!(bytes instanceof ArrayBuffer)||bytes.byteLength>32*1024*1024)throw Error('Bloque de vídeo inválido.');await entry.handle.writeFile(Buffer.from(bytes));});
+ipcMain.handle('movie:finish',async(_event,id)=>{const entry=movieWrites.get(id);if(!entry)throw Error('La exportación no está abierta.');await entry.handle.sync();await entry.handle.close();entry.closed=true;await fs.promises.rename(entry.temporary,entry.target);movieWrites.delete(id);});
+ipcMain.handle('movie:abort',async(_event,id)=>{const entry=movieWrites.get(id);if(!entry)return;if(!entry.closed)await entry.handle.close().catch(()=>{});await fs.promises.unlink(entry.temporary).catch(()=>{});movieWrites.delete(id);});
+app.on('before-quit',()=>{for(const entry of movieWrites.values()){void entry.handle.close().catch(()=>{});try{fs.unlinkSync(entry.temporary);}catch{}}movieWrites.clear();});
+
 const distDirectory = path.join(app.getAppPath(), 'dist');
 
 async function createWindow() {
@@ -106,6 +118,7 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   protocol.handle('traza', request => {
+    if(new URL(request.url).hostname==='app'&&new URL(request.url).pathname.startsWith('/__workspace/')){try{return net.fetch(pathToFileURL(workspaceFile(decodeURIComponent(new URL(request.url).pathname.slice('/__workspace/'.length)))).toString(),{headers:request.headers});}catch{return new Response('Archivo no disponible',{status:404});}}
     let requestedPath;
     try { requestedPath = decodeURIComponent(new URL(request.url).pathname); }
     catch { return new Response('Dirección no válida', { status: 400 }); }
