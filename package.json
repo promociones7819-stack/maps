@@ -1,6 +1,6 @@
 {
   "name": "bizkaia-aerial-routes",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -68,8 +68,8 @@
       "icon": "build/icon.icns",
       "identity": null,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "RutasAD usa el micr\u00f3fono si eliges grabar voz para las clases.",
-        "NSBluetoothAlwaysUsageDescription": "RutasAD necesita Bluetooth para conectar con tu RaceBox Mini o Mini S y recibir los datos de la pr\u00e1ctica."
+        "NSMicrophoneUsageDescription": "RutasAD usa el micrófono si eliges grabar voz para las clases.",
+        "NSBluetoothAlwaysUsageDescription": "RutasAD necesita Bluetooth para conectar con tu RaceBox Mini o Mini S y recibir los datos de la práctica."
       }
     },
     "dmg": {
