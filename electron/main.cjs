@@ -4,7 +4,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'traza', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
-app.setName('Traza Bizkaia');
+app.setName('RutasAD');
 
 const dataDirectory = path.join(app.getPath('documents'), 'Traza Bizkaia');
 const libraryPath = path.join(dataDirectory, 'Biblioteca de recorridos.json');
@@ -83,7 +83,7 @@ async function createWindow() {
     height: 960,
     minWidth: 1050,
     minHeight: 720,
-    title: 'Traza · Bizkaia',
+    title: 'RutasAD',
     backgroundColor: '#f5f6f3',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

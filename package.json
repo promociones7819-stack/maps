@@ -1,6 +1,6 @@
 {
   "name": "bizkaia-aerial-routes",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -41,7 +41,7 @@
   },
   "build": {
     "appId": "com.traza.bizkaia",
-    "productName": "Traza Bizkaia",
+    "productName": "RutasAD",
     "asar": true,
     "directories": {
       "output": "release",
@@ -65,12 +65,12 @@
       "icon": "build/icon.icns",
       "identity": null,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Traza Bizkaia usa el micr\u00f3fono si eliges grabar voz para las clases."
+        "NSMicrophoneUsageDescription": "RutasAD usa el micr\u00f3fono si eliges grabar voz para las clases."
       }
     },
     "dmg": {
-      "title": "Traza Bizkaia",
-      "artifactName": "Traza-Bizkaia-${version}-${arch}.dmg",
+      "title": "RutasAD",
+      "artifactName": "RutasAD.dmg",
       "contents": [
         {
           "x": 140,
