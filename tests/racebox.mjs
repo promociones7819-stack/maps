@@ -6,3 +6,6 @@ const parser=new RaceBoxParser(),bad=bytes.slice();bad[30]^=1;assert.equal(parse
 assert.equal(new RaceBoxParser().push(new DataView(Uint8Array.from([...bytes,...bytes]).buffer)).length,2);
 assert.throws(()=>validateTrack({points:[{lat:91,lon:0,time:null}],events:[]}));
 console.log('RaceBox official packet, all split positions, checksum, recovery, coalesced frames: PASS');
+
+const {raceboxRequestOptions,raceboxModel,DEVICE_INFO}=await import('../src/raceboxConnection.js');
+const options=raceboxRequestOptions();assert.equal(options.services,undefined);assert.equal(options.namePrefix,'RaceBox Mini');assert.ok(options.optionalServices.includes(DEVICE_INFO));assert.equal(raceboxRequestOptions(true).namePrefix,undefined);assert.equal(raceboxModel(new TextEncoder().encode('RaceBox Mini\0 ')),'RaceBox Mini');console.log('Discovery without mandatory advertised UUID, model access permission and broad scan options PASS');

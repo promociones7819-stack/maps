@@ -103,3 +103,11 @@ La exportación sigue siendo a velocidad real, en primer plano y con pantalla en
 Pruebas: `npm run test:workspace`, `npm run test:desktop-workspace`, `npm run test:studio`, `npm run test:movie`. Los selectores de carpeta/destino se automatizan en las pruebas; las escrituras y lecturas de archivos son reales.
 
 RutasAD sirve el vídeo local con peticiones de rango HTTP (206) y lectura acotada a 1 MiB, para saltar dentro de archivos grandes sin leerlos completos. La prueba de escritorio comprueba también la lectura de los últimos 100 bytes de un archivo de 1,56 GiB.
+
+## Conexión en Chrome · diagnóstico
+
+La búsqueda normal filtra por nombre `RaceBox Mini`, sin exigir el UUID UART en el anuncio BLE. `Buscar todos los dispositivos` permite seleccionar un dispositivo aunque su nombre no esté disponible en el anuncio. Ambos modos solicitan explícitamente permisos para UART y Device Information; el modelo se comprueba por GATT antes de suscribirse a los datos. No se omite la comprobación del modelo ni se inicia una sesión sin GPS real.
+
+Si no aparece el RaceBox, desconéctalo de la aplicación oficial y ciérrala; para descartar reconexiones, desactiva temporalmente Bluetooth en ese teléfono. En el Mac, permite Bluetooth a Google Chrome en Ajustes del Sistema → Privacidad y seguridad → Bluetooth. Recarga la web y prueba Conectar o Buscar todos. Un LED azul fijo significa que hay un cliente BLE conectado, según el manual del fabricante. No es necesario enlazarlo desde la lista general de dispositivos de macOS.
+
+`node tests/ble-connection.mjs` usa un entorno de prueba de la API Bluetooth de Chrome para comprobar búsqueda, permisos, rechazo de otro modelo y cancelación. No equivale a una prueba física de radio/GATT con el RaceBox del usuario. Esta actualización se publica en la web; el DMG 0.3.0 existente no se regenera con este cambio.
