@@ -1,6 +1,6 @@
 {
   "name": "bizkaia-aerial-routes",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -18,7 +18,8 @@
     "test:movie": "node tests/final-movie.mjs",
     "test:workspace": "node tests/movie-writer.mjs && node tests/workspace-ui.mjs",
     "test:desktop-workspace": "node tests/desktop-workspace.mjs",
-    "test:bluetooth": "node tests/racebox.mjs && node tests/ble-connection.mjs && node tests/desktop-bluetooth.mjs"
+    "test:bluetooth": "node tests/racebox.mjs && node tests/ble-connection.mjs && node tests/desktop-bluetooth.mjs",
+    "test:map-recording": "node tests/map-recording.mjs"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^8.3.0",

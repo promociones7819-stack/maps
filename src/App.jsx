@@ -1,3 +1,4 @@
+import {recordingContextOptions} from './mapRecording.js';
 import FolderWorkspace from './FolderWorkspace.jsx';
 import ReviewStudio from './ReviewStudio.jsx';
 import {pointAt,pointFraction,timeline} from './reviewTime.js';
@@ -540,7 +541,7 @@ export default function App() {
       bearing: initialView.bearing,
       attributionControl: false,
       cooperativeGestures: true,
-      preserveDrawingBuffer: true,
+      ...recordingContextOptions(isMapbox),
     });
     mapRef.current = map;
     map.addControl(isMapbox ? new MapboxNavigationControl({ showCompass: true }) : new NavigationControl({ showCompass: true }), 'top-right');
