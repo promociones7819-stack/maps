@@ -1,6 +1,6 @@
 import {recordingContextOptions} from './mapRecording.js';
 import RouteLibrary from './RouteLibrary.jsx';
-import {listLessons,listLibraryReviews,saveLibraryReview} from './lessonStore.js';
+import {listLessons,listLibraryReviews,saveLibraryReview,deleteLibraryReview} from './lessonStore.js';
 import FolderWorkspace from './FolderWorkspace.jsx';
 import ReviewStudio from './ReviewStudio.jsx';
 import {pointAt,pointFraction,timeline} from './reviewTime.js';
@@ -289,7 +289,8 @@ export default function App() {
   const currentProject = projectState.projects.find(project => project.id === projectState.activeProjectId) || projectState.projects[0];
   const [routes, setRoutes] = useState(() => loadProjectRoutes(currentProject));
   const [workspaceMode, setWorkspaceMode] = useState('routes');
-  const [libraryOpen,setLibraryOpen]=useState(false),[libraryEntries,setLibraryEntries]=useState([]),[libraryError,setLibraryError]=useState('');
+  const [libraryOpen,setLibraryOpen]=useState(false),[libraryEntries,setLibraryEntries]=useState([]),[libraryError,setLibraryError]=useState(''),[libraryBusy,setLibraryBusy]=useState(false);
+  const librarySaveTimer=useRef(null);
   const [gpxReview, setGpxReview] = useState(() => loadProjectGpxReview(currentProject));
   const [gpxProgress, setGpxProgress] = useState(0);
   const [gpxIncidentDraft, setGpxIncidentDraft] = useState(null);
@@ -511,7 +512,7 @@ export default function App() {
     if(gpxReview.source==='racebox-mini')return;
     if(gpxReview.points.length&&!gpxReview.libraryId&&!gpxReview.sessionId){setGpxReview({...gpxReview,libraryId:crypto.randomUUID()});return;}
     try { localStorage.setItem(`traza-bizkaia-project-${currentProject.id}-gpx-review`, JSON.stringify(gpxReview)); } catch { setGpxMessage('El recorrido es demasiado grande para guardarse en este navegador. El GPX puede seguir abierto hasta cerrar la página.'); }
-    if(gpxReview.points.length){const id=gpxReview.libraryId||gpxReview.sessionId;const snapshot={id,projectId:currentProject.id,review:gpxReview,updatedAt:Date.now()};const timer=setTimeout(()=>saveLibraryReview(snapshot).catch(()=>setGpxMessage(t('Ezin izan da liburutegian gorde.','No se pudo guardar en la biblioteca.'))),500);return()=>clearTimeout(timer);}
+    if(gpxReview.points.length){const id=gpxReview.libraryId||gpxReview.sessionId;const snapshot={id,projectId:currentProject.id,review:gpxReview,updatedAt:Date.now()};const timer=librarySaveTimer.current=setTimeout(()=>saveLibraryReview(snapshot).catch(()=>setGpxMessage(t('Ezin izan da liburutegian gorde.','No se pudo guardar en la biblioteca.'))),500);return()=>clearTimeout(timer);}
   }, [gpxReview, currentProject.id, workspaceMode]);
 
   useEffect(() => { placingGpxIncidentRef.current = placingGpxIncident; }, [placingGpxIncident]);
@@ -1213,7 +1214,7 @@ export default function App() {
 
   const showLibrary=async()=>{
     if(recording||liveLesson)return;
-    setPlaying(false);stopNarration();mapRef.current?.stop();setLibraryError('');
+    setPlaying(false);stopNarration();mapRef.current?.stop();setLibraryError('');setLibraryBusy(true);
     let opened={};try{opened=JSON.parse(localStorage.getItem('traza-bizkaia-library-opened')||'{}');}catch{}
     const entries=[],known=new Set();
     const addReview=(review,project,extra={})=>{if(!review?.points?.length)return;const key=review.sessionId?`lesson:${review.sessionId}`:`review:${review.libraryId||project.id}`;if(known.has(key))return;known.add(key);const first=review.points[0]?.time,last=review.points.at(-1)?.time;entries.push({key,kind:'reviews',name:review.name||extra.studentName||project.name,projectId:project.id,projectName:project.name,review,coordinates:review.points.map(p=>p.coordinates),video:!!review.media,criticalCoordinates:review.incidents.map(i=>i.coordinates).filter(Boolean),incidents:review.incidents.length,minutes:Number.isFinite(first)&&last>first?Math.round((last-first)/60000):null,openedAt:opened[key]||0,...extra});};
@@ -1225,7 +1226,31 @@ export default function App() {
     setLibraryEntries(entries);setLibraryOpen(true);
     try{const [savedReviews,sessions]=await Promise.all([listLibraryReviews(),listLessons()]);for(const item of savedReviews){const project=projectState.projects.find(p=>p.id===item.projectId)||currentProject;try{addReview(item.review,project,{date:item.updatedAt||0});}catch{}}for(const session of sessions){const project=projectState.projects.find(p=>p.id===session.projectId)||currentProject;try{addReview(lessonReview(session),project,{studentName:session.studentName,date:Date.parse(session.startedAt)||0});}catch{}}
       setLibraryEntries([...entries]);
-    }catch(e){setLibraryError(t('Ezin izan da ikasleen historia kargatu.','No se pudo cargar el historial de alumnos.'));}
+    }catch(e){setLibraryError(t('Ezin izan da ikasleen historia kargatu.','No se pudo cargar el historial de alumnos.'));}finally{setLibraryBusy(false);}
+  };
+  const removeLibraryEntry=async entry=>{
+    if(libraryBusy||recording||liveLesson)return;
+    if(!window.confirm(t(`«${entry.name}» ezabatu? Gordetako ibilbidea eta bere gorabeherak ezabatuko dira. Jatorrizko fitxategiak mantenduko dira.`,`¿Eliminar «${entry.name}»? Se borrará el recorrido guardado y sus incidencias. Los archivos GPX y vídeos originales se conservarán.`)))return;
+    setLibraryBusy(true);setLibraryError('');
+    try{
+      if(entry.kind==='routes'){
+        const project=projectState.projects.find(p=>p.id===entry.projectId);if(!project)throw Error('Proyecto no encontrado');
+        const isCurrent=project.id===currentProject.id,source=isCurrent?routes:loadProjectRoutes(project),markers=isCurrent?conflictMarkers:loadProjectMarkers(project);
+        let next=source.filter(r=>r.id!==entry.routeId);if(!next.length)next=makeInitialRoutes();const nextMarkers=markers.filter(m=>m.routeId!==entry.routeId);
+        localStorage.setItem(`traza-bizkaia-project-${project.id}`,JSON.stringify(next));localStorage.setItem(`traza-bizkaia-project-${project.id}-markers`,JSON.stringify(nextMarkers));if(project.legacy)localStorage.setItem('traza-bizkaia-routes',JSON.stringify(next));
+        if(isCurrent){if(activeId===entry.routeId){setActiveId(next[0].id);activeRef.current=next[0].id;setProgress(0);progressRef.current=0;}commitRoutes(next);setConflictMarkers(nextMarkers);setSelectedPoint(null);setSelectedMarkerId(null);setCurrentMarkerId(null);}
+      }else{
+        const target=entry.review,matches=review=>!!review?.points?.length&&(target.sessionId?review.sessionId===target.sessionId:target.libraryId?review.libraryId===target.libraryId:review===target);
+        if(matches(gpxReview))clearTimeout(librarySaveTimer.current);
+        await deleteLibraryReview({libraryId:target.libraryId,sessionId:target.sessionId});
+        for(const project of projectState.projects){const review=project.id===currentProject.id?gpxReview:loadProjectGpxReview(project);if(matches(review)||(!target.libraryId&&!target.sessionId&&project.id===entry.projectId)){
+          localStorage.setItem(`traza-bizkaia-project-${project.id}-gpx-review`,JSON.stringify(emptyGpxReview()));if(project.id===currentProject.id){setGpxReview(emptyGpxReview());gpxRef.current=emptyGpxReview();setGpxProgress(0);gpxProgressRef.current=0;setGpxIncidentDraft(null);setPlacingGpxIncident(false);}
+        }}
+        window.dispatchEvent(new Event('rutasad:lessons-changed'));
+      }
+      setLibraryEntries(previous=>previous.filter(e=>e.key!==entry.key));
+      try{const opened=JSON.parse(localStorage.getItem('traza-bizkaia-library-opened')||'{}');delete opened[entry.key];localStorage.setItem('traza-bizkaia-library-opened',JSON.stringify(opened));}catch{}
+    }catch(error){setLibraryError(t('Ezin izan da ezabatu: ','No se pudo eliminar: ')+error.message);}finally{setLibraryBusy(false);}
   };
   const openLibraryEntry=entry=>{
     const project=projectState.projects.find(p=>p.id===entry.projectId);if(!project)return;
@@ -1242,7 +1267,7 @@ export default function App() {
       <div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><div className="brand-name">TRAZA<span> / BIZKAIA</span></div><div className="brand-subtitle">Estudio de recorridos aéreos</div></div></div>
       <div className="topbar-right"><button className="library-launch" disabled={recording||liveLesson} onClick={showLibrary}>▤ {t("Liburutegia","Biblioteca")}</button><span className="map-status"><i className={mapReady && !mapError ? 'status-dot ready' : 'status-dot'} />{mapProvider === 'mapbox' ? 'Mapbox Satélite' : 'Ortofoto geoEuskadi'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
     </header>
-    {libraryOpen&&<RouteLibrary entries={libraryEntries} language={language} onLanguage={setLanguage} error={libraryError} onClose={()=>setLibraryOpen(false)} onOpen={openLibraryEntry} onNavigate={next=>{setLibraryOpen(false);setWorkspace(next==='students'?'gpx-review':next);if(next==='students')requestAnimationFrame(()=>{document.querySelector('.racebox-panel')?.scrollIntoView({block:'start'});document.querySelector('.racebox-panel select')?.focus();});}} onNew={next=>{setLibraryOpen(false);createProject();if(next==='gpx-review')setWorkspaceMode('gpx-review');}}/>}
+    {libraryOpen&&<RouteLibrary entries={libraryEntries} language={language} onLanguage={setLanguage} error={libraryError} onClose={()=>setLibraryOpen(false)} onOpen={openLibraryEntry} onDelete={removeLibraryEntry} busy={libraryBusy} onNavigate={next=>{setLibraryOpen(false);setWorkspace(next==='students'?'gpx-review':next);if(next==='students')requestAnimationFrame(()=>{document.querySelector('.racebox-panel')?.scrollIntoView({block:'start'});document.querySelector('.racebox-panel select')?.focus();});}} onNew={next=>{setLibraryOpen(false);createProject();if(next==='gpx-review')setWorkspaceMode('gpx-review');}}/>}
     <section className="workspace">
       <aside className="sidebar">
         <label className="app-language">Hizkuntza / Idioma<select aria-label="Hizkuntza / Idioma" value={language} onChange={e=>setLanguage(e.target.value)}><option value="eu">Euskara</option><option value="es">Castellano</option></select></label><div className="panel-heading"><div><p className="eyebrow">{t("PROIEKTUA","PROYECTO")}</p><h1 title={currentProject.name}>{currentProject.name}</h1></div><div className="project-actions"><button className="add-route" title="Crear proyecto" onClick={createProject}>+</button><button className="more-button" title="Cambiar nombre" onClick={renameProject}>···</button></div></div>

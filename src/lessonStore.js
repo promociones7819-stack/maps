@@ -9,3 +9,9 @@ export async function deleteVideo(id){const db=await open();return new Promise((
 
 export async function saveLibraryReview(item){const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction('library','readwrite');tx.objectStore('library').put(structuredClone(item));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
 export async function listLibraryReviews(){const db=await open();return new Promise((resolve,reject)=>{const r=db.transaction('library').objectStore('library').getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+
+// Delete every saved representation of one review in a single transaction.
+// Original source files and stored/shared video blobs are deliberately untouched.
+export async function deleteLibraryReview({libraryId,sessionId}){
+ const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction(['library','sessions'],'readwrite');if(sessionId)tx.objectStore('sessions').delete(sessionId);const request=tx.objectStore('library').openCursor();request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;const item=cursor.value;if((libraryId&&(item.id===libraryId||item.review?.libraryId===libraryId))||(sessionId&&(item.id===sessionId||item.review?.sessionId===sessionId)))cursor.delete();cursor.continue();};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
+}
