@@ -2,6 +2,7 @@ import {chromium} from '@playwright/test';import assert from 'node:assert/strict
 const browser=await chromium.launch();try{
  const page=await browser.newPage();await page.addInitScript(()=>{
   localStorage.setItem('traza-bizkaia-language','es');localStorage.setItem('traza-bizkaia-routes',JSON.stringify([{id:'pause-test',name:'Audio test',color:'#e36b4d',points:[[-2.93,43.26],[-2.90,43.28]],narration:''}]));
+  window.recordedSignalFrames=0;const fillText=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(text,...args){if(String(text).startsWith('R-2 ·'))window.recordedSignalFrames++;return fillText.call(this,text,...args);};
   const NativeAudio=window.Audio;window.Audio=class extends NativeAudio{constructor(...args){super(...args);window.testAudio=this;}};
   const NativeRecorder=window.MediaRecorder;window.MediaRecorder=class extends NativeRecorder{constructor(...args){super(...args);window.testRecorder=this;}};
   window.showDirectoryPicker=async()=>{const root=await navigator.storage.getDirectory();return root.getDirectoryHandle('pause-test',{create:true});};
@@ -12,6 +13,11 @@ const browser=await chromium.launch();try{
  await page.locator('.video-card').first().screenshot({path:'../RutasAD-controles-pausa.png'});
  const before=await page.evaluate(()=>({progress:document.querySelector('.timeline-fill').style.width,audio:window.testAudio.currentTime}));await page.waitForTimeout(1000);
  const after=await page.evaluate(()=>({progress:document.querySelector('.timeline-fill').style.width,audio:window.testAudio.currentTime,paused:window.testAudio.paused,state:window.testRecorder.state,tracks:window.testRecorder.stream.getAudioTracks().map(t=>t.readyState)}));assert.equal(after.progress,before.progress);assert.ok(after.audio>before.audio+.7);assert.equal(after.paused,false);assert.equal(after.state,'recording');assert.deepEqual(after.tracks,['live']);
+ await page.getByRole('button',{name:'Añadir punto conflictivo en pausa',exact:false}).click();
+ const dialog=page.locator('.marker-dialog');await dialog.getByLabel('Señal del catálogo',{exact:true}).selectOption('R-2');await dialog.getByLabel('Explicación para el alumnado').fill('Detenerse y comprobar ambos lados');await dialog.getByRole('button',{name:'Añadir en este punto',exact:true}).click();
+ const popup=page.getByRole('complementary',{name:'Punto conflictivo'});await popup.waitFor();assert.match(await popup.innerText(),/Detenerse/);const popupBox=await popup.boundingBox(),mapBox=await page.locator('.map-canvas').boundingBox();assert.ok(popupBox.x>mapBox.x+mapBox.width/2);assert.ok(popupBox.y<mapBox.y+80);assert.equal(await page.locator('.map-signal-card').count(),0);
+ await page.waitForFunction(()=>window.recordedSignalFrames>0);
+ const stillRecording=await page.evaluate(()=>({state:window.testRecorder.state,audio:window.testAudio.paused}));assert.deepEqual(stillRecording,{state:'recording',audio:false});
  await page.getByRole('button',{name:'Reanudar recorrido',exact:true}).click();await page.waitForTimeout(700);assert.notEqual(await page.locator('.timeline-fill').evaluate(e=>e.style.width),after.progress);await page.getByRole('button',{name:'■ Finalizar y guardar',exact:true}).click();await page.getByText('Vídeo guardado en',{exact:false}).waitFor();
  console.log('Real MP4 recording: paused route progression, continuous audio and recording stream, resume and file save PASS');
 }finally{await browser.close();}

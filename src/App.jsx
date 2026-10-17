@@ -206,7 +206,7 @@ function drawTeachingCard(context, marker, width) {
 
 function drawGpxIncidentCard(context, incident, index, width) {
   const scale = Math.max(0.8, Math.min(1.45, width / 1500));
-  const x = 22 * scale, y = 22 * scale, w = 390 * scale, h = 126 * scale, pad = 17 * scale;
+  const w = Math.min(390 * scale,width-24), x = width-w-22*scale, y = 22 * scale, h = 126 * scale, pad = 17 * scale;
   context.save(); context.shadowColor = 'rgba(16,31,23,.22)'; context.shadowBlur = 18 * scale; context.shadowOffsetY = 5 * scale;
   context.fillStyle = 'rgba(255,255,255,.97)'; context.beginPath(); context.roundRect(x, y, w, h, 13 * scale); context.fill(); context.shadowColor = 'transparent';
   context.fillStyle = '#bb4338'; context.font = `700 ${9 * scale}px sans-serif`; context.fillText(`REVISIÓN DEL RECORRIDO · INCIDENCIA ${index + 1}`, x + pad, y + 22 * scale);
@@ -375,6 +375,8 @@ export default function App() {
   const currentGpxIncident = currentGpxIncidentIndex >= 0 ? gpxReview.incidents[currentGpxIncidentIndex] : null;
   const activeConflictMarkers = conflictMarkers.filter(marker => marker.routeId === activeId);
   const currentConflictMarker = activeConflictMarkers.find(marker => marker.id === currentMarkerId) || null;
+  const visibleConflictMarker=activeConflictMarkers.find(marker=>marker.id===selectedMarkerId)||currentConflictMarker;
+  const recordingMarkers=useRef({markers:conflictMarkers,playing,selectedMarkerId});recordingMarkers.current={markers:conflictMarkers,playing,selectedMarkerId};
   const narrationLanguage = activeRoute?.narrationLanguage || 'es';
   const narrationVoice = narrationVoiceFor(speechVoices, narrationLanguage);
   const totalDistance = useMemo(() => activeRoute?.points.slice(1).reduce((sum, p, i) => sum + distance(activeRoute.points[i], p), 0) || 0, [activeRoute]);
@@ -706,7 +708,7 @@ export default function App() {
       element.setAttribute('role', 'button');
       element.setAttribute('tabindex', '0');
       element.setAttribute('aria-label', `${marker.signalCode}: ${marker.title || signalDefinition(marker.signalCode).name}`);
-      element.innerHTML = `<div class="map-signal-pin signal-pin-${signalDefinition(marker.signalCode).kind}"><span>${escapeHtml(marker.signalCode === 'SEMÁFORO' ? '●' : marker.signalCode)}</span></div>${expanded ? `<div class="map-signal-card"><div class="map-signal-card-code">${escapeHtml(marker.signalCode)} · ${escapeHtml(signalDefinition(marker.signalCode).name)}</div>${markerFaceHtml(marker)}<strong>${escapeHtml(marker.title || signalDefinition(marker.signalCode).name)}</strong>${marker.description ? `<small>${escapeHtml(marker.description)}</small>` : ''}<button type="button" data-edit-marker="${escapeHtml(marker.id)}">Editar señal</button></div>` : ''}`;
+      element.innerHTML = `<div class="map-signal-pin signal-pin-${signalDefinition(marker.signalCode).kind}"><span>${escapeHtml(marker.signalCode === 'SEMÁFORO' ? '●' : marker.signalCode)}</span></div>`;
       element.addEventListener('click', event => { event.stopPropagation(); setSelectedMarkerId(marker.id); });
       element.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedMarkerId(marker.id); } });
       element.querySelector('[data-edit-marker]')?.addEventListener('click', event => {
@@ -854,7 +856,7 @@ export default function App() {
     setSelectedPoint(null);
   };
   const openNewMarkerDialog = () => {
-    if (!activeRoute) return;
+    if (!activeRoute||(recording&&playing)) return;
     setMarkerDialog({ draft: defaultMarkerDraft(activeId) });
     setSelectedMarkerId(null);
   };
@@ -870,6 +872,11 @@ export default function App() {
   const beginMarkerPlacement = () => {
     if (!markerDialog) return;
     const draft = markerDialog.draft;
+    if(recording&&!playing){
+      const position=interpolateRoute(activeRoute.points,progressRef.current).coords;
+      const marker={...draft,id:markerDialog.editingId||crypto.randomUUID(),routeId:activeId,coordinates:position,title:draft.title?.trim()||signalDefinition(draft.signalCode).name,description:draft.description?.trim()||'',destinations:(draft.destinations||[]).filter(d=>d.text?.trim())};
+      setConflictMarkers(previous=>[...previous.filter(m=>m.id!==marker.id),marker]);setSelectedMarkerId(marker.id);setMarkerDialog(null);return;
+    }
     markerPlacementRef.current = {
       ...draft,
       id: markerDialog.editingId || draft.id || '',
@@ -1014,7 +1021,7 @@ export default function App() {
           const incidentIndex = gpxReview.incidents.findIndex(incident => incident.showInVideo!==false&&Math.abs((incident.fraction ?? 0) - gpxProgressRef.current) < 0.018);
           if (incidentIndex >= 0) {const incident=gpxReview.incidents[incidentIndex];if(incident.signalCode)drawTeachingCard(context,{...incident,description:incident.note||''},videoCanvas.width);else drawGpxIncidentCard(context,incident,incidentIndex,videoCanvas.width);}
         } else {
-          const teachingMarker = distanceToMarker(framePosition, conflictMarkers, videoRoute.id);
+          const state=recordingMarkers.current;const teachingMarker = (!state.playing&&state.markers.find(m=>m.id===state.selectedMarkerId&&m.routeId===videoRoute.id&&m.showInVideo!==false))||distanceToMarker(framePosition, state.markers, videoRoute.id);
           if (teachingMarker) drawTeachingCard(context, teachingMarker, videoCanvas.width);
         }
         recordFrameRef.current = requestAnimationFrame(composeFrame);
@@ -1148,7 +1155,7 @@ export default function App() {
     }
     const position = interpolateRoute(route.points, progressRef.current);
     setProgress(progressRef.current);
-    const nearbyMarker = distanceToMarker(position.coords, conflictMarkers, route.id);
+    const nearbyMarker = distanceToMarker(position.coords, recordingMarkers.current.markers, route.id);
     setCurrentMarkerId(previous => previous === nearbyMarker?.id ? previous : nearbyMarker?.id || null);
     updateSources(routesRef.current, activeRef.current, position.coords);
     if (follow) {
@@ -1242,11 +1249,11 @@ export default function App() {
             {activeId === route.id && <><div className="route-actions"><button onClick={() => renameRoute(route.id)}>{t("Izena aldatu","Renombrar")}</button><button onClick={() => focusRoute(route)}>Enfocar</button><button className="danger-text" onClick={() => deleteRoute(route.id)}>{routes.length === 1 ? 'Vaciar' : 'Eliminar'}</button></div><div className="route-color-picker" aria-label={`Color de ${route.name}`}>{COLORS.map(color => { const usedByAnother = routes.some(other => other.id !== route.id && other.color.toLowerCase() === color); return <button key={color} type="button" className={`route-color-choice ${route.color.toLowerCase() === color ? 'chosen' : ''}`} style={{ '--choice-color': color }} aria-label={`Elegir color ${color}`} aria-pressed={route.color.toLowerCase() === color} title={usedByAnother ? 'Este color ya está usado por otra trayectoria' : `Cambiar a ${color}`} disabled={usedByAnother} onClick={() => setRouteColor(route.id, color)} />; })}</div></>}
           </article>)}
         </div>
-        <div className="section-title conflict-section-title"><div><span className="eyebrow">PUNTOS CONFLICTIVOS</span><span className="count-badge">{activeConflictMarkers.length}</span></div><button className="add-route" onClick={openNewMarkerDialog} disabled={recording} aria-label="Añadir señal o punto conflictivo" title="Añadir señal o punto conflictivo">+</button></div>
+        <div className="section-title conflict-section-title"><div><span className="eyebrow">PUNTOS CONFLICTIVOS</span><span className="count-badge">{activeConflictMarkers.length}</span></div><button className="add-route" onClick={openNewMarkerDialog} disabled={recording&&playing} aria-label="Añadir señal o punto conflictivo" title="Añadir señal o punto conflictivo">+</button></div>
         <div className="conflict-list">
           {activeConflictMarkers.map(marker => <article key={marker.id} className={`conflict-card ${selectedMarkerId === marker.id ? 'selected' : ''}`}>
             <button className="conflict-card-main" onClick={() => focusMarker(marker)}><span className={`conflict-card-icon signal-pin-${signalDefinition(marker.signalCode).kind}`}><span>{marker.signalCode === 'SEMÁFORO' ? '●' : marker.signalCode}</span></span><span className="conflict-card-copy"><strong>{marker.title || signalDefinition(marker.signalCode).name}</strong><small>{marker.signalCode}{signalDefinition(marker.signalCode).kind === 'direction' ? ` · ${(marker.destinations || []).map(item => item.text).filter(Boolean).join(' · ')}` : ''}</small></span></button>
-            <div className="conflict-card-actions"><button onClick={() => editMarker(marker)} disabled={recording}>Editar</button><button onClick={() => deleteMarker(marker.id)} disabled={recording}>{t("Ezabatu","Eliminar")}</button><span className="conflict-video-state">{marker.showInVideo === false ? 'Solo mapa' : 'Vídeo'}</span></div>
+            <div className="conflict-card-actions"><button onClick={() => editMarker(marker)} disabled={recording&&playing}>Editar</button><button onClick={() => deleteMarker(marker.id)} disabled={recording}>{t("Ezabatu","Eliminar")}</button><span className="conflict-video-state">{marker.showInVideo === false ? 'Solo mapa' : 'Vídeo'}</span></div>
           </article>)}
           {!activeConflictMarkers.length && <div className="conflict-empty">Añade señales o situaciones de riesgo asociadas a esta trayectoria.</div>}
         </div>
@@ -1271,6 +1278,7 @@ export default function App() {
           <div className="video-card-heading"><strong>Vídeo · {activeRoute?.name}</strong><span>MP4</span></div>
           <div className="video-actions"><button className="folder-button" onClick={chooseOutputFolder}>▰ {folderName || 'Elegir carpeta…'}</button><button className="export-button" disabled={!recording && (!folderName || !activeRoute || activeRoute.points.length < 2)} onClick={exportVideo}>{recording ? '■ Finalizar y guardar' : '● Grabar vídeo'}</button></div>
           <div className="recording-pause-controls"><button aria-label="Pausar imagen" disabled={!recording||!playing} onClick={togglePlayback}>Ⅱ {t('Irudia pausatu','Pausar imagen')}</button><button aria-label="Reanudar recorrido" disabled={!recording||playing} onClick={togglePlayback}>▶ {t('Ibilbidea jarraitu','Reanudar recorrido')}</button></div>
+          <button className="recording-add-incident" disabled={!recording||playing} onClick={openNewMarkerDialog}>＋ {t('Gatazka-puntua gehitu','Añadir punto conflictivo en pausa')}</button>
           <p className="recording-pause-status" role="status">{recording?(playing?t('Ibilbidea grabatzen. Irudia pausa dezakezu; audioak jarraitzen du.','Grabando recorrido. Puedes pausar la imagen; el audio continúa.'):t('Irudia pausatuta. Audioak grabatzen jarraitzen du.','Imagen pausada. El audio sigue grabándose.')):t('Grabazioa hasi ondoren aktibatuko dira.','Se activan al iniciar la grabación.')}</p>
           <small>{exportMessage || (folderName ? `Se guardará en «${folderName}».` : 'Selecciona una trayectoria y elige dónde guardar su vídeo MP4.')}</small>
         </div>
@@ -1320,6 +1328,7 @@ export default function App() {
         {workspaceMode==='gpx-review'&&<ReviewStudio review={gpxReview} onReview={setGpxReview} progress={gpxProgress} onProgress={seekGpx} playing={playing} onPlaying={setPlaying} speed={speed} language={language} live={liveLesson} onEditIncident={incident=>{setPlaying(false);setGpxIncidentDraft({...incident});}} onMapResize={()=>{const map=mapRef.current;if(!map)return;map.resize();if(gpxReview.points.length>1){const bounds=gpxReview.points.reduce((b,p)=>[[Math.min(b[0][0],p.coordinates[0]),Math.min(b[0][1],p.coordinates[1])],[Math.max(b[1][0],p.coordinates[0]),Math.max(b[1][1],p.coordinates[1])]],[[180,90],[-180,-90]]);map.fitBounds(bounds,{padding:60,maxZoom:18,duration:0});}}} onMovieFrame={f=>{const p=pointAt(gpxReview.points,f).point;if(p)mapRef.current?.jumpTo({center:p.coordinates});}} getComposition={async()=>{const map=mapRef.current,video=document.querySelector(".review-pip video");if(!map||!video)return null;await new Promise((resolve,reject)=>{if(map.loaded())return resolve();const finish=()=>{clearTimeout(timeout);resolve();};const timeout=setTimeout(()=>{map.off("idle",finish);reject(new Error("El mapa aún está cargando. Espera y vuelve a exportar."));},20000);map.once("idle",finish);});return {drawIncident:(ctx,incident,w)=>{if(incident.signalCode)drawTeachingCard(ctx,{...incident,description:incident.note||''},w);},mapCanvas:map.getCanvas(),pipRect:()=>video.getBoundingClientRect(),hud:()=>{const hud=document.querySelector(".telemetry-hud");return hud?Array.from(hud.children).filter(e=>e.tagName!=="BUTTON").map(e=>e.innerText.replace(/\s+/g," ")).join("\n"):"";},hudRect:()=>document.querySelector(".telemetry-hud")?.getBoundingClientRect(),drawMarkers:(ctx,w)=>{const ratio=w/map.getCanvas().getBoundingClientRect().width;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillStyle="white";ctx.font=`bold ${12*ratio}px sans-serif`;gpxReview.incidents.forEach((i,n)=>{const p=map.project(i.coordinates);ctx.fillText(String(n+1),p.x*ratio,p.y*ratio);});ctx.textAlign="start";ctx.textBaseline="alphabetic";},attribution:map.getContainer().querySelector(".maplibregl-ctrl-attrib-inner,.mapboxgl-ctrl-attrib-inner")?.innerText};}}/>}
 
         <div ref={mapNode} className="map-canvas" />
+        {workspaceMode==='routes'&&visibleConflictMarker&&<aside className="trajectory-conflict-popup" aria-label="Punto conflictivo"><small>{visibleConflictMarker.signalCode} · {signalDefinition(visibleConflictMarker.signalCode).name}</small><SignalFace marker={visibleConflictMarker}/><strong>{visibleConflictMarker.title||signalDefinition(visibleConflictMarker.signalCode).name}</strong>{visibleConflictMarker.description&&<p>{visibleConflictMarker.description}</p>}<button disabled={recording&&playing} onClick={()=>editMarker(visibleConflictMarker)}>Editar señal</button></aside>}
         {workspaceMode === 'gpx-review' && playing && currentGpxIncident && currentGpxIncident.showInVideo!==false && <div className="gpx-live-note"><span>INCIDENCIA {currentGpxIncidentIndex + 1} · REVISIÓN</span>{currentGpxIncident.signalCode&&<SignalFace marker={currentGpxIncident} compact/>}<strong>{currentGpxIncident.title}</strong><p>{currentGpxIncident.note}</p></div>}
         {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba que el token público esté activo y que la cuenta permita cargar el estilo. También puedes volver a geoEuskadi.' : 'Comprueba la conexión a geoEuskadi y vuelve a intentarlo.'}</small></div></div>}
         <div className="map-top-tools"><button className="map-pill map-source-button" onClick={() => setMapSettingsOpen(!mapSettingsOpen)} aria-expanded={mapSettingsOpen}><span className="satellite-icon">▧</span><span>MAPA: {mapProvider === 'mapbox' ? 'MAPBOX' : 'GEOEUSKADI'}</span><span className="pill-divider" /><span>⚙</span></button>{workspaceMode === 'routes' ? <button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button> : <button className={`map-tool ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}><span>＋</span> Marcar error</button>}<button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading || mapProvider === 'mapbox'} title={mapProvider === 'mapbox' ? 'La descarga offline está disponible con geoEuskadi' : ''}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
@@ -1366,7 +1375,7 @@ export default function App() {
       <label className="marker-field-label">Explicación para el alumnado <textarea className="marker-dialog-input marker-description-input" maxLength={180} rows={3} value={markerDialog.draft.description || ''} onChange={event => updateMarkerDraft('description', event.target.value)} placeholder="¿Qué deben observar los alumnos en este punto?" /></label>
       <label className="marker-field-label">Asociar a trayectoria <select className="marker-dialog-input" value={markerDialog.draft.routeId} onChange={event => updateMarkerDraft('routeId', event.target.value)}>{routes.map(route => <option key={route.id} value={route.id}>{route.name}</option>)}</select></label>
       <label className="marker-video-toggle"><input type="checkbox" checked={markerDialog.draft.showInVideo !== false} onChange={event => updateMarkerDraft('showInVideo', event.target.checked)} /><span><strong>Mostrar durante el vídeo</strong><small>La señal y la explicación aparecen al llegar a este punto.</small></span></label>
-      <div className="marker-dialog-actions"><button type="button" onClick={() => setMarkerDialog(null)}>{t("Utzi","Cancelar")}</button>{markerDialog.editingId && <button type="button" className="marker-reposition-button" onClick={beginMarkerPlacement}>Reubicar</button>}<button type="submit" className="marker-primary-button">{markerDialog.editingId ? 'Guardar cambios' : 'Colocar en el mapa'}</button></div>
+      <div className="marker-dialog-actions"><button type="button" onClick={() => setMarkerDialog(null)}>{t("Utzi","Cancelar")}</button>{markerDialog.editingId && <button type="button" className="marker-reposition-button" onClick={beginMarkerPlacement}>Reubicar</button>}<button type="submit" className="marker-primary-button">{markerDialog.editingId ? 'Guardar cambios' : recording&&!playing?'Añadir en este punto':'Colocar en el mapa'}</button></div>
     </form></div>}
     {nameDialog && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setNameDialog(null); }}><form className="name-dialog" onSubmit={saveNameDialog}>
       <p className="eyebrow">{nameDialog.kind === 'route' ? 'TRAYECTORIA' : nameDialog.kind === 'gpx-review' ? 'RECORRIDO GPX' : 'PROYECTO'}</p>
