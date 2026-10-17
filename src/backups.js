@@ -1,0 +1,73 @@
+import {listLessons,listLibraryReviews,replaceBackupRecords} from './lessonStore.js';
+import {validateTrack} from './racebox.js';
+const prefix='traza-bizkaia-';
+export const backupStorage=()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith(prefix)).map(k=>[k,localStorage.getItem(k)]));
+const array=(value,max=10000)=>Array.isArray(value)&&value.length<=max;
+const text=value=>typeof value==='string'&&value.length>0&&value.length<=500;
+const coordinates=p=>array(p,2)&&p.length===2&&p.every(Number.isFinite)&&Math.abs(p[0])<=180&&Math.abs(p[1])<=90;
+const fail=()=>{throw Error('La copia no contiene una biblioteca válida de RutasAD.');};
+const json=value=>{try{return JSON.parse(value);}catch{fail();}};
+function reviewValid(review){
+ if(!review||!array(review.points,100000)||!array(review.incidents,10000))fail();
+ for(const p of review.points)if(!p||!coordinates(p.coordinates)||(p.time!=null&&!Number.isFinite(p.time)))fail();
+ for(const i of review.incidents)if(!i||!coordinates(i.coordinates)||typeof i.title!=='string'||typeof i.note!=='string')fail();
+ if(review.name!=null&&typeof review.name!=='string')fail();
+ if(review.media!=null&&(!review.media||typeof review.media!=='object'||typeof review.media.name!=='string'))fail();
+}
+function routesValid(routes){if(!array(routes,1000))fail();for(const route of routes){if(!route||!text(route.id)||!text(route.name)||typeof route.color!=='string'||!array(route.points,100000)||route.points.some(p=>!coordinates(p)))fail();}}
+function markersValid(markers){if(!array(markers,10000))fail();for(const marker of markers)if(!marker||!text(marker.id)||!text(marker.routeId)||!coordinates(marker.coordinates))fail();}
+export function parseBackup(input){
+ if(!input||![1,2].includes(input.version)||(input.version===2&&input.format!=='rutasad-backup')||!input.storage||typeof input.storage!=='object'||Array.isArray(input.storage))fail();
+ const storage=Object.fromEntries(Object.entries(input.storage).filter(([key])=>key.startsWith(prefix)));
+ if(Object.values(storage).some(value=>typeof value!=='string'))fail();
+ const index=json(storage[`${prefix}projects`]);
+ if(!index||!text(index.activeProjectId)||!array(index.projects,1000)||!index.projects.length||index.projects.some(p=>!p||!text(p.id)||!text(p.name))||new Set(index.projects.map(p=>p.id)).size!==index.projects.length||!index.projects.some(p=>p.id===index.activeProjectId))fail();
+ if(storage[`${prefix}routes`])routesValid(json(storage[`${prefix}routes`]));
+ for(const project of index.projects){
+  const key=`${prefix}project-${project.id}`;
+  if(!storage[key]&&storage[`${prefix}routes`]&&(project.legacy||index.projects.length===1))storage[key]=storage[`${prefix}routes`];
+  if(storage[key])routesValid(json(storage[key]));
+  if(storage[`${key}-markers`])markersValid(json(storage[`${key}-markers`]));
+  if(storage[`${key}-gpx-review`])reviewValid(json(storage[`${key}-gpx-review`]));
+ }
+ storage[`${prefix}projects`]=JSON.stringify({...index,projects:index.projects.map(({legacy,...project})=>project)});
+ if(storage[`${prefix}students`]){const students=json(storage[`${prefix}students`]);if(!array(students,10000)||students.some(s=>!s||!text(s.id)||!text(s.name)))fail();}
+ const sessions=input.version===2?input.sessions||[]:[],library=input.version===2?input.library||[]:[];
+ if(!array(sessions,1000)||!array(library,10000))fail();
+ for(const session of sessions){if(!session||!text(session.id)||!text(session.studentId)||!text(session.studentName)||!Number.isFinite(Date.parse(session.startedAt)))fail();try{validateTrack(session);}catch{fail();}}
+ for(const item of library){if(!item||!text(item.id)||!text(item.projectId))fail();reviewValid(item.review);}
+ if(new Set(sessions.map(s=>s.id)).size!==sessions.length||new Set(library.map(s=>s.id)).size!==library.length)fail();
+ return {format:'rutasad-backup',version:2,createdAt:input.createdAt||input.updatedAt||null,storage,sessions,library};
+}
+export function backupSummary(backup){
+ const index=json(backup.storage[`${prefix}projects`]);let trajectories=0;const reviews=new Set();
+ const add=(r,key)=>{if(r.points.length)reviews.add(r.sessionId?`session:${r.sessionId}`:r.libraryId?`library:${r.libraryId}`:key);};
+ for(const p of index.projects){const key=`${prefix}project-${p.id}`;if(backup.storage[key])trajectories+=json(backup.storage[key]).filter(r=>r.points.length).length;if(backup.storage[`${key}-gpx-review`])add(json(backup.storage[`${key}-gpx-review`]),`project:${p.id}`);}
+ for(const item of backup.library)add(item.review,`library:${item.id}`);for(const session of backup.sessions)if(session.points.length)reviews.add(`session:${session.id}`);
+ return {projects:index.projects.length,trajectories,reviews:reviews.size,sessions:backup.sessions.length};
+}
+export async function createBackup(){const [sessions,library]=await Promise.all([listLessons(),listLibraryReviews()]);return parseBackup({format:'rutasad-backup',version:2,createdAt:new Date().toISOString(),storage:backupStorage(),sessions,library});}
+const mergeItems=(current,incoming,update)=>{const map=new Map(current.map(item=>[item.id,item]));for(const item of incoming)if(update||!map.has(item.id))map.set(item.id,item);return [...map.values()];};
+export function mergeBackupStorage(current,incoming,update=false){
+ const next={...current},oldIndex=current[`${prefix}projects`]?json(current[`${prefix}projects`]):{projects:[]},newIndex=json(incoming[`${prefix}projects`]);
+ const oldIds=new Set(oldIndex.projects.map(p=>p.id));
+ for(const [key,value] of Object.entries(incoming)){
+  if(key===`${prefix}projects`||key===`${prefix}students`)continue;
+  const project=newIndex.projects.find(p=>key===`${prefix}project-${p.id}`||key===`${prefix}project-${p.id}-markers`||key===`${prefix}project-${p.id}-gpx-review`);
+  if(project){if(!oldIds.has(project.id)||update)next[key]=value;}else if(!(key in current))next[key]=value;
+ }
+ const projects=mergeItems(oldIndex.projects,newIndex.projects,update);
+ next[`${prefix}projects`]=JSON.stringify({activeProjectId:oldIndex.activeProjectId||newIndex.activeProjectId,projects});
+ const oldStudents=current[`${prefix}students`]?json(current[`${prefix}students`]):[],newStudents=incoming[`${prefix}students`]?json(incoming[`${prefix}students`]):[];
+ if(oldStudents.length||newStudents.length)next[`${prefix}students`]=JSON.stringify(mergeItems(oldStudents,newStudents,update));
+ return next;
+}
+const writeStorage=storage=>{for(const key of Object.keys(localStorage))if(key.startsWith(prefix)&&!(key in storage))localStorage.removeItem(key);for(const [key,value] of Object.entries(storage))localStorage.setItem(key,value);};
+export async function restoreBackup(input,{update=false,desktop=window.trazaDesktop}={}){
+ const backup=parseBackup(input),storage=backupStorage(),[sessions,library]=await Promise.all([listLessons(),listLibraryReviews()]);
+ const merged=mergeBackupStorage(storage,backup.storage,update),records={sessions:mergeItems(sessions,backup.sessions,update),library:mergeItems(library,backup.library,update)};
+ let recordsWritten=false;
+ try{writeStorage(merged);await replaceBackupRecords(records);recordsWritten=true;if(desktop)await desktop.saveLibrary(merged);}
+ catch(error){let rollbackError;try{writeStorage(storage);}catch(e){rollbackError=e;}if(recordsWritten)try{await replaceBackupRecords({sessions,library});}catch(e){rollbackError=e;}if(desktop)try{await desktop.saveLibrary(storage);}catch(e){rollbackError=e;}throw Error(rollbackError?'No se pudo completar la restauración. No cierres la aplicación; conserva tu archivo de copia.':`No se pudo restaurar. Se han conservado los datos anteriores. ${error.message||''}`);}
+ return backupSummary(backup);
+}

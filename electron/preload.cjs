@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('trazaDesktop', Object.freeze({
   loadLibrary: () => ipcRenderer.invoke('library:load'),
   saveLibrary: storage => ipcRenderer.invoke('library:save', storage),
   saveLibraryBeforeClose: storage => ipcRenderer.sendSync('library:save-sync', storage),
+  saveBackup:(name,data)=>ipcRenderer.invoke('backup:save',{name,data}),
   saveGpx: (name, contents) => ipcRenderer.invoke('files:save-gpx', name, contents),
   saveVideo: (name, bytes) => ipcRenderer.invoke('files:save-video', name, bytes),
   openDataFolder: () => ipcRenderer.invoke('files:open-data-folder'),

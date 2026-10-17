@@ -15,3 +15,8 @@ export async function listLibraryReviews(){const db=await open();return new Prom
 export async function deleteLibraryReview({libraryId,sessionId}){
  const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction(['library','sessions'],'readwrite');if(sessionId)tx.objectStore('sessions').delete(sessionId);const request=tx.objectStore('library').openCursor();request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;const item=cursor.value;if((libraryId&&(item.id===libraryId||item.review?.libraryId===libraryId))||(sessionId&&(item.id===sessionId||item.review?.sessionId===sessionId)))cursor.delete();cursor.continue();};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
 }
+
+// Replace metadata atomically for restore/rollback; source videos are never touched.
+export async function replaceBackupRecords({sessions,library}){
+ const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction(['sessions','library'],'readwrite');for(const [name,items] of [['sessions',sessions],['library',library]]){const store=tx.objectStore(name);store.clear();for(const item of items)store.put(structuredClone(item));}tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
+}

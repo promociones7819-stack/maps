@@ -55,6 +55,15 @@ ipcMain.on('library:save-sync', (event, storage) => {
   catch (error) { console.error('No se pudo guardar la biblioteca al cerrar:', error); event.returnValue = false; }
 });
 
+ipcMain.handle('backup:save',async(event,{name,data}={})=>{
+  if(typeof data!=='string'||Buffer.byteLength(data,'utf8')>256*1024*1024)throw Error('La copia no tiene un tamaño válido.');
+  const result=await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender),{title:'Guardar copia de seguridad',defaultPath:path.join(app.getPath('downloads'),cleanFileName(name||'RutasAD-copia','.json')),filters:[{name:'Copia RutasAD',extensions:['json']}]});
+  if(result.canceled||!result.filePath)return {saved:false};
+  const temporary=`${result.filePath}.${require('node:crypto').randomUUID()}.tmp`;
+  try{await fs.promises.writeFile(temporary,data,'utf8');await fs.promises.rename(temporary,result.filePath);}catch(error){await fs.promises.rm(temporary,{force:true}).catch(()=>{});throw error;}
+  return {saved:true,name:path.basename(result.filePath),path:result.filePath};
+});
+
 ipcMain.handle('files:save-gpx', async (_event, fileName, contents) => {
   ensureDataDirectories();
   const safeName = cleanFileName(fileName, '.gpx');

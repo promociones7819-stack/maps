@@ -1,4 +1,5 @@
 import {recordingContextOptions} from './mapRecording.js';
+import BackupScreen from './BackupScreen.jsx';
 import RouteLibrary from './RouteLibrary.jsx';
 import {listLessons,listLibraryReviews,saveLibraryReview,deleteLibraryReview} from './lessonStore.js';
 import FolderWorkspace from './FolderWorkspace.jsx';
@@ -289,6 +290,7 @@ export default function App() {
   const currentProject = projectState.projects.find(project => project.id === projectState.activeProjectId) || projectState.projects[0];
   const [routes, setRoutes] = useState(() => loadProjectRoutes(currentProject));
   const [workspaceMode, setWorkspaceMode] = useState('routes');
+  const [backupOpen,setBackupOpen]=useState(false);
   const [libraryOpen,setLibraryOpen]=useState(false),[libraryEntries,setLibraryEntries]=useState([]),[libraryError,setLibraryError]=useState(''),[libraryBusy,setLibraryBusy]=useState(false);
   const librarySaveTimer=useRef(null);
   const [gpxReview, setGpxReview] = useState(() => loadProjectGpxReview(currentProject));
@@ -296,7 +298,6 @@ export default function App() {
   const [gpxIncidentDraft, setGpxIncidentDraft] = useState(null);
   const [gpxMessage, setGpxMessage] = useState('');
   const gpxFileInputRef = useRef(null);
-  const libraryBackupInputRef = useRef(null);
   const gpxRef = useRef(gpxReview);
   const gpxProgressRef = useRef(0);
   const workspaceModeRef = useRef(workspaceMode);
@@ -778,34 +779,6 @@ export default function App() {
   };
   const focusGpxIncident = incident => mapRef.current?.flyTo({ center: incident.coordinates, zoom: Math.max(17, mapRef.current.getZoom()), pitch: 0, duration: 700 });
   const deleteGpxIncident = id => setGpxReview(previous => ({ ...previous, incidents: previous.incidents.filter(incident => incident.id !== id) }));
-  const exportLibraryBackup = () => {
-    const storage = Object.fromEntries(Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
-      .filter(key => key?.startsWith('traza-bizkaia-')).map(key => [key, localStorage.getItem(key)]));
-    const blob = new Blob([JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), storage }, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a'); link.href = url; link.download = `Traza-Bizkaia-Biblioteca-${new Date().toISOString().slice(0, 10)}.json`; link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-  const importLibraryBackup = async event => {
-    if(liveLesson)return;
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      const backup = JSON.parse(await file.text());
-      const storage = backup?.storage;
-      const projectIndex = typeof storage?.['traza-bizkaia-projects'] === 'string' ? JSON.parse(storage['traza-bizkaia-projects']) : null;
-      if (backup?.version !== 1 || !projectIndex?.activeProjectId || !Array.isArray(projectIndex.projects) || !projectIndex.projects.length) throw new Error('El archivo no contiene una biblioteca válida de Traza Bizkaia.');
-      const entries = Object.entries(storage).filter(([key, value]) => key.startsWith('traza-bizkaia-') && typeof value === 'string');
-      for (const key of Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter(key => key?.startsWith('traza-bizkaia-'))) localStorage.removeItem(key);
-      entries.forEach(([key, value]) => localStorage.setItem(key, value));
-      if (window.trazaDesktop) await window.trazaDesktop.saveLibrary(Object.fromEntries(entries));
-      window.location.reload();
-    } catch (error) {
-      setGpxMessage(error?.message || 'No se pudo importar la copia de la biblioteca.');
-    } finally {
-      event.target.value = '';
-    }
-  };
   const toggleGpxPlayback = () => {
     if (gpxReview.points.length < 2) return;
     if (gpxProgressRef.current >= 1) { gpxProgressRef.current = 0; setGpxProgress(0); }
@@ -1212,6 +1185,13 @@ export default function App() {
     setPlaying(nextPlaying);
   };
 
+  const openBackupScreen=()=>{if(liveLesson||recording)return;setPlaying(false);stopNarration();mapRef.current?.stop();clearTimeout(librarySaveTimer.current);setLibraryOpen(false);setBackupOpen(true);};
+  const flushBackup=async()=>{
+    clearTimeout(librarySaveTimer.current);
+    localStorage.setItem(`traza-bizkaia-project-${currentProject.id}`,JSON.stringify(routes));
+    localStorage.setItem(`traza-bizkaia-project-${currentProject.id}-markers`,JSON.stringify(conflictMarkers));
+    if(gpxReview.source!=='racebox-mini'){localStorage.setItem(`traza-bizkaia-project-${currentProject.id}-gpx-review`,JSON.stringify(gpxReview));if(gpxReview.points.length)await saveLibraryReview({id:gpxReview.libraryId||gpxReview.sessionId||crypto.randomUUID(),projectId:currentProject.id,review:gpxReview,updatedAt:Date.now()});}
+  };
   const showLibrary=async()=>{
     if(recording||liveLesson)return;
     setPlaying(false);stopNarration();mapRef.current?.stop();setLibraryError('');setLibraryBusy(true);
@@ -1267,7 +1247,8 @@ export default function App() {
       <div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><div className="brand-name">TRAZA<span> / BIZKAIA</span></div><div className="brand-subtitle">Estudio de recorridos aéreos</div></div></div>
       <div className="topbar-right"><button className="library-launch" disabled={recording||liveLesson} onClick={showLibrary}>▤ {t("Liburutegia","Biblioteca")}</button><span className="map-status"><i className={mapReady && !mapError ? 'status-dot ready' : 'status-dot'} />{mapProvider === 'mapbox' ? 'Mapbox Satélite' : 'Ortofoto geoEuskadi'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
     </header>
-    {libraryOpen&&<RouteLibrary entries={libraryEntries} language={language} onLanguage={setLanguage} error={libraryError} onClose={()=>setLibraryOpen(false)} onOpen={openLibraryEntry} onDelete={removeLibraryEntry} busy={libraryBusy} onNavigate={next=>{setLibraryOpen(false);setWorkspace(next==='students'?'gpx-review':next);if(next==='students')requestAnimationFrame(()=>{document.querySelector('.racebox-panel')?.scrollIntoView({block:'start'});document.querySelector('.racebox-panel select')?.focus();});}} onNew={next=>{setLibraryOpen(false);createProject();if(next==='gpx-review')setWorkspaceMode('gpx-review');}}/>}
+    {libraryOpen&&<RouteLibrary entries={libraryEntries} language={language} onLanguage={setLanguage} error={libraryError} onClose={()=>setLibraryOpen(false)} onOpen={openLibraryEntry} onDelete={removeLibraryEntry} onBackups={openBackupScreen} busy={libraryBusy} onNavigate={next=>{setLibraryOpen(false);setWorkspace(next==='students'?'gpx-review':next);if(next==='students')requestAnimationFrame(()=>{document.querySelector('.racebox-panel')?.scrollIntoView({block:'start'});document.querySelector('.racebox-panel select')?.focus();});}} onNew={next=>{setLibraryOpen(false);createProject();if(next==='gpx-review')setWorkspaceMode('gpx-review');}}/>}
+    {backupOpen&&<BackupScreen language={language} onClose={()=>{setBackupOpen(false);showLibrary();}} onBeforeExport={flushBackup} onBeforeRestore={()=>clearTimeout(librarySaveTimer.current)}/>}
     <section className="workspace">
       <aside className="sidebar">
         <label className="app-language">Hizkuntza / Idioma<select aria-label="Hizkuntza / Idioma" value={language} onChange={e=>setLanguage(e.target.value)}><option value="eu">Euskara</option><option value="es">Castellano</option></select></label><div className="panel-heading"><div><p className="eyebrow">{t("PROIEKTUA","PROYECTO")}</p><h1 title={currentProject.name}>{currentProject.name}</h1></div><div className="project-actions"><button className="add-route" title="Crear proyecto" onClick={createProject}>+</button><button className="more-button" title="Cambiar nombre" onClick={renameProject}>···</button></div></div>
@@ -1354,8 +1335,7 @@ export default function App() {
           </> : <div className="conflict-empty gpx-empty-state">Todavía no hay un GPX en este proyecto. Pulsa <strong>{t("GPX fitxategia inportatu","Importar archivo GPX")}</strong> para abrir el recorrido del vehículo de la autoescuela.</div>}
           {gpxReview.media&&<p>{t("Ireki «Mapa + PIP · MP4» mapa, ibilbidea, PIP bideoa eta puntu kritikoak grabatzeko.","Abre «Mapa + PIP · MP4» para grabar el mapa, el recorrido, el vídeo PIP y los puntos críticos.")}</p>}{gpxMessage && <small className="gpx-message" role="status">{gpxMessage}</small>}</fieldset>
         </div>}
-        <fieldset disabled={liveLesson} className="library-tools"><div className="library-tools-title"><strong>{t("Liburutegia eta kopiak","Biblioteca y copias")}</strong><small>{window.trazaDesktop ? 'Guardado automático en el Mac.' : 'Los datos de esta web se guardan en este navegador.'}</small></div><input ref={libraryBackupInputRef} className="audio-file-input" type="file" accept=".json,application/json" onChange={importLibraryBackup} /><div className="library-tool-actions">{window.trazaDesktop ? <button onClick={() => window.trazaDesktop.openDataFolder()}>Abrir carpeta de datos</button> : <button onClick={exportLibraryBackup}>{t("Kopia deskargatu","Descargar copia")}</button>}<button onClick={() => libraryBackupInputRef.current?.click()}>{t("Kopia inportatu","Importar copia")}</button></div><small>La copia conserva proyectos, trayectorias, notas y GPX. Los vídeos y GPX originales se guardan como archivos en sus carpetas.</small>
-        </fieldset><div className="sidebar-footer"><span>TRAZA 01</span>{window.trazaDesktop ? <span title={window.trazaDesktop.dataDirectory}>DATOS EN ESTE MAC</span> : <span>GUARDADO EN ESTE NAVEGADOR</span>}</div>
+        <section className="backup-launch-card"><span>▣</span><div><strong>{t('Segurtasun-kopiak','Copias de seguridad')}</strong><p>{t('Gorde edo berreskuratu zure liburutegia.','Guarda o recupera tu biblioteca.')}</p><button disabled={liveLesson||recording} onClick={openBackupScreen}>{t('Kopiak kudeatu','Gestionar copias')}</button></div></section><div className="sidebar-footer"><span>TRAZA 01</span>{window.trazaDesktop ? <span title={window.trazaDesktop.dataDirectory}>DATOS EN ESTE MAC</span> : <span>GUARDADO EN ESTE NAVEGADOR</span>}</div>
       </aside>
       <section className="map-panel">
         {workspaceMode==='gpx-review'&&<ReviewStudio review={gpxReview} onReview={setGpxReview} progress={gpxProgress} onProgress={seekGpx} playing={playing} onPlaying={setPlaying} speed={speed} language={language} live={liveLesson} onEditIncident={incident=>{setPlaying(false);setGpxIncidentDraft({...incident});}} onMapResize={()=>{const map=mapRef.current;if(!map)return;map.resize();if(gpxReview.points.length>1){const bounds=gpxReview.points.reduce((b,p)=>[[Math.min(b[0][0],p.coordinates[0]),Math.min(b[0][1],p.coordinates[1])],[Math.max(b[1][0],p.coordinates[0]),Math.max(b[1][1],p.coordinates[1])]],[[180,90],[-180,-90]]);map.fitBounds(bounds,{padding:60,maxZoom:18,duration:0});}}} onMovieFrame={f=>{const p=pointAt(gpxReview.points,f).point;if(p)mapRef.current?.jumpTo({center:p.coordinates});}} getComposition={async()=>{const map=mapRef.current,video=document.querySelector(".review-pip video");if(!map||!video)return null;await new Promise((resolve,reject)=>{if(map.loaded())return resolve();const finish=()=>{clearTimeout(timeout);resolve();};const timeout=setTimeout(()=>{map.off("idle",finish);reject(new Error("El mapa aún está cargando. Espera y vuelve a exportar."));},20000);map.once("idle",finish);});return {stageRect:()=>map.getContainer().closest('.map-panel').getBoundingClientRect(),split:map.getContainer().closest('.map-panel').classList.contains('pip-split'),drawIncident:(ctx,incident,w)=>{if(incident.signalCode)drawTeachingCard(ctx,{...incident,description:incident.note||''},w);},mapCanvas:map.getCanvas(),pipRect:()=>video.getBoundingClientRect(),hud:()=>{const hud=document.querySelector(".telemetry-hud");return hud?Array.from(hud.children).filter(e=>e.tagName!=="BUTTON").map(e=>e.innerText.replace(/\s+/g," ")).join("\n"):"";},hudRect:()=>document.querySelector(".telemetry-hud")?.getBoundingClientRect(),drawMarkers:(ctx,w)=>{const ratio=w/map.getCanvas().getBoundingClientRect().width;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillStyle="white";ctx.font=`bold ${12*ratio}px sans-serif`;gpxReview.incidents.forEach((i,n)=>{const p=map.project(i.coordinates);ctx.fillText(String(n+1),p.x*ratio,p.y*ratio);});ctx.textAlign="start";ctx.textBaseline="alphabetic";},attribution:map.getContainer().querySelector(".maplibregl-ctrl-attrib-inner,.mapboxgl-ctrl-attrib-inner")?.innerText};}}/>}
