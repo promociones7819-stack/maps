@@ -1110,7 +1110,7 @@ export default function App() {
       if (!isGpxReview && activeRoute.narration?.trim()) speakNarration(activeRoute.narration);
       setRecording(true);
       setPlaying(true);
-      setExportMessage('Grabando el recorrido. Se guardará automáticamente al llegar al final.');
+      setExportMessage('Grabando el recorrido. Puedes pausar la imagen para explicar; el audio sigue grabándose. Reanuda para continuar.');
     } catch {
       cancelAnimationFrame(recordFrameRef.current);
       await releaseAudio();
@@ -1171,19 +1171,19 @@ export default function App() {
 
   useEffect(() => {
     if (playing && workspaceMode==='routes') { lastFrameRef.current = 0; rafRef.current = requestAnimationFrame(animate); }
-    else { cancelAnimationFrame(rafRef.current); setCurrentMarkerId(null); updateSources(routes, activeId); }
+    else { cancelAnimationFrame(rafRef.current); if(!recording){setCurrentMarkerId(null); updateSources(routes, activeId);} }
     return () => cancelAnimationFrame(rafRef.current);
-  }, [playing, animate, routes, activeId, updateSources,workspaceMode]);
+  }, [playing, animate, routes, activeId, updateSources,workspaceMode,recording]);
 
   useEffect(() => {
     const synth = window.speechSynthesis;
-    if (!synth || !narrationUtteranceRef.current) return;
+    if (recording || !synth || !narrationUtteranceRef.current) return;
     if (playing && synth.paused) synth.resume();
     else if (!playing && synth.speaking && !synth.paused) synth.pause();
-  }, [playing]);
+  }, [playing,recording]);
 
   useEffect(() => {
-    if (playing) return;
+    if (playing||recording) return;
     const route = routes.find(item => item.id === activeId);
     const map = mapRef.current;
     if (!map || !route?.points.length) return;
@@ -1204,10 +1204,11 @@ export default function App() {
       duration: 700,
       essential: true,
     });
-  }, [cameraView, height, follow, activeId, playing, routes]);
+  }, [cameraView, height, follow, activeId, playing, routes,recording]);
 
   const togglePlayback = () => {
     if (!activeRoute || activeRoute.points.length < 2) return;
+    if(recording){mapRef.current?.stop();setPlaying(!playing);return;}
     if (progressRef.current >= 1) progressRef.current = 0;
     const nextPlaying = !playing;
     const audio = audioResourcesRef.current?.audio;
@@ -1262,8 +1263,8 @@ export default function App() {
         <div className="divider" />
         <div className="section-title playback-title"><div><span className="eyebrow">VUELO DE CÁMARA</span></div><span className="preview-label">PREVISUALIZACIÓN</span></div>
         <div className="play-card">
-          <button className={`play-button ${playing ? 'is-playing' : ''}`} onClick={togglePlayback} disabled={!activeRoute || activeRoute.points.length < 2} aria-label={playing ? 'Pausar' : 'Reproducir'}>{playing ? 'Ⅱ' : '▶'}</button>
-          <div className="play-copy"><strong>{playing ? 'Simulación en curso' : 'Vista previa del recorrido'}</strong><small>{activeRoute?.points.length < 2 ? 'Añade al menos dos puntos' : `Sigue ${activeRoute?.name}`}</small></div>
+          <button className={`play-button ${playing ? 'is-playing' : ''}`} onClick={togglePlayback} disabled={!activeRoute || activeRoute.points.length < 2} aria-label={recording?(playing?'Pausar imagen':'Reanudar recorrido'):(playing ? 'Pausar' : 'Reproducir')}>{playing ? 'Ⅱ' : '▶'}</button>
+          <div className="play-copy"><strong>{recording?(playing?'Grabando recorrido y audio':'Imagen pausada · audio grabándose'):(playing ? 'Simulación en curso' : 'Vista previa del recorrido')}</strong><small>{activeRoute?.points.length < 2 ? 'Añade al menos dos puntos' : `Sigue ${activeRoute?.name}`}</small></div>
           <button className="restart-button" title="Volver al inicio" onClick={() => { progressRef.current = 0; setProgress(0); if (activeRoute?.points[0]) { const vehicleView = cameraView === 'vehicle'; mapRef.current?.flyTo({ center: activeRoute.points[0], zoom: vehicleView ? Math.max(18.8, Math.min(19.7, 20.3 - Math.log2(height / 100))) : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100))), pitch: vehicleView ? 60 : 0, bearing: vehicleView ? interpolateRoute(activeRoute.points, 0).bearing : 0, duration: 700 }); } }}>↺</button>
         </div>
         <div className="video-card">
@@ -1303,7 +1304,7 @@ export default function App() {
             <button className={`draw-toggle gpx-place-button ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}>{placingGpxIncident ? t("Sakatu mapan…","Haz clic en el mapa…") : t("+  Seinalea edo puntu kritikoa gehitu","+  Añadir señal o punto crítico")}</button>
             <div className="conflict-list gpx-incident-list">{gpxReview.incidents.map((incident, index) => <article key={incident.id} className="conflict-card"><button className="conflict-card-main" onClick={() => focusGpxIncident(incident)}><span className="gpx-incident-number">{incident.signalCode?<SignalFace marker={incident} compact/>:index+1}</span><span className="conflict-card-copy"><strong>{incident.title}</strong><small>{incident.note}</small>{incident.time && <small>Hora GPS: {new Date(incident.time).toLocaleTimeString('es-ES')}</small>}</span></button><div className="conflict-card-actions"><button onClick={() => setGpxIncidentDraft({ ...incident })}>{t("Puntua editatu","Editar punto crítico")}</button><button onClick={() => deleteGpxIncident(incident.id)}>{t("Ezabatu","Eliminar")}</button></div></article>)}{!gpxReview.incidents.length && <div className="conflict-empty">{t("Akatsa markatzean, azaldu zer gertatu den eta nola zuzendu.","Al marcar un error, escribe qué ocurrió y cómo corregirlo.")}</div>}</div>
             <div className="divider" /><div className="section-title playback-title"><div><span className="eyebrow">{t("IBILBIDEA ERREPRODUZITU","REPRODUCIR RECORRIDO")}</span></div><span className="preview-label">{t("BERRIKUSPENA","VISTA DE REVISIÓN")}</span></div>
-            <div className="play-card"><button className={`play-button ${playing && workspaceMode === 'gpx-review' ? 'is-playing' : ''}`} onClick={toggleGpxPlayback} aria-label={playing ? 'Pausar' : 'Reproducir'}>{playing ? 'Ⅱ' : '▶'}</button><div className="play-copy"><strong>{playing ? t("GPXa erreproduzitzen","Reproduciendo GPX") : t("Ikaslearekin berrikusi","Revisar con el alumno")}</strong><small>{t("Kamerak erregistratutako posizioari jarraitzen dio","La cámara sigue la posición registrada")}</small></div><button className="restart-button" title="Volver al inicio" onClick={() => { gpxProgressRef.current = 0; setGpxProgress(0); mapRef.current?.flyTo({ center: gpxReview.points[0].coordinates, zoom: 16, pitch: 0, duration: 600 }); }}>↺</button></div>
+            <div className="play-card"><button className={`play-button ${playing && workspaceMode === 'gpx-review' ? 'is-playing' : ''}`} onClick={toggleGpxPlayback} aria-label={recording?(playing?'Pausar imagen':'Reanudar recorrido'):(playing ? 'Pausar' : 'Reproducir')}>{playing ? 'Ⅱ' : '▶'}</button><div className="play-copy"><strong>{playing ? t("GPXa erreproduzitzen","Reproduciendo GPX") : t("Ikaslearekin berrikusi","Revisar con el alumno")}</strong><small>{t("Kamerak erregistratutako posizioari jarraitzen dio","La cámara sigue la posición registrada")}</small></div><button className="restart-button" title="Volver al inicio" onClick={() => { gpxProgressRef.current = 0; setGpxProgress(0); mapRef.current?.flyTo({ center: gpxReview.points[0].coordinates, zoom: 16, pitch: 0, duration: 600 }); }}>↺</button></div>
             <input className="gpx-timeline" type="range" min="0" max="1000" value={Math.round(gpxProgress * 1000)} onChange={event => { gpxProgressRef.current = Number(event.target.value) / 1000; setGpxProgress(gpxProgressRef.current); const position = pointAt(gpxReview.points,gpxProgressRef.current); mapRef.current?.flyTo({ center: position.point.coordinates, zoom: 16, pitch: 0, duration: 300 }); }} aria-label="Posición del recorrido" />
             <div className="control-group"><div className="control-label"><span>{t("Erreprodukzio abiadura","Velocidad de reproducción")}</span><strong>{speed.toLocaleString('es-ES', { maximumFractionDigits: 1 })}×</strong></div><div className="segmented speed-segmented">{SPEEDS.map(value => <button key={value} className={speed === value ? 'on' : ''} onClick={() => setSpeed(value)}>{value.toLocaleString('es-ES', { minimumFractionDigits: value < 1 ? 1 : 0, maximumFractionDigits: 1 })}×</button>)}</div></div>
             <div className="video-card gpx-video-card"><div className="video-card-heading"><strong>{t("Berrikuspen bideoa · GPX","Vídeo de revisión · GPX")}</strong><span>MP4</span></div><div className="video-actions"><button className="folder-button" onClick={chooseOutputFolder}>▰ {folderName || 'Elegir carpeta…'}</button><button className="export-button" disabled={(!gpxReview.media&&!folderName) || recording} onClick={()=>gpxReview.media?document.querySelector(".final-movie-open")?.click():exportVideo()}>{recording ? '■ Finalizar' : gpxReview.media?'Mapa + PIP · MP4':'● Grabar revisión'}</button></div><small>{exportMessage || (folderName ? `Incluye el recorrido y las notas al llegar a cada incidencia.` : 'Graba el recorrido con las notas y guárdalo como MP4.')}</small></div>
