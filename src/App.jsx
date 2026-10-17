@@ -1189,30 +1189,6 @@ export default function App() {
     else if (!playing && synth.speaking && !synth.paused) synth.pause();
   }, [playing,recording]);
 
-  useEffect(() => {
-    if (playing||recording) return;
-    const route = routes.find(item => item.id === activeId);
-    const map = mapRef.current;
-    if (!map || !route?.points.length) return;
-    const progressAt = progressRef.current;
-    const position = route.points.length > 1
-      ? interpolateRoute(route.points, progressAt)
-      : { coords: route.points[0], bearing: 0 };
-    const vehicleView = cameraView === 'vehicle';
-    const zoom = vehicleView
-      ? Math.max(18.8, Math.min(19.7, 20.3 - Math.log2(height / 100)))
-      : Math.max(15.5, Math.min(19.2, 18.2 - Math.log2(height / 100)));
-    map.easeTo({
-      center: position.coords,
-      offset: vehicleView ? [0, map.getContainer().clientHeight * 0.14] : [0, 0],
-      bearing: vehicleView && follow ? position.bearing : 0,
-      pitch: vehicleView ? 60 : 0,
-      zoom,
-      duration: 700,
-      essential: true,
-    });
-  }, [cameraView, height, follow, activeId, playing, routes,recording]);
-
   const togglePlayback = () => {
     if (!activeRoute || activeRoute.points.length < 2) return;
     if(recording){mapRef.current?.stop();setPlaying(!playing);return;}
@@ -1261,7 +1237,7 @@ export default function App() {
           <div className="drawing-heading"><span className="draw-icon">✳</span><div><strong>Edición de trazado</strong><small>{mode === 'add' ? 'Haz clic en el mapa para añadir puntos' : 'Selecciona una ruta para editarla'}</small></div></div>
           <button className={`draw-toggle ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}>{mode === 'add' ? '✓  Añadiendo puntos' : '+  Añadir puntos en el mapa'}</button>
           <fieldset className="trajectory-point-editor" disabled={recording}>
-          <label>{t('Ibilbideko puntua','Punto del itinerario')}<select aria-label={t('Ibilbideko puntua','Punto del itinerario')} value={selectedPoint?.routeId===activeId?selectedPoint.index:''} onChange={e=>{relocatePointRef.current=null;setRelocatingPoint(false);setMode('select');setPlaying(false);setSelectedPoint(e.target.value===''?null:{routeId:activeId,index:Number(e.target.value)});const p=activeRoute.points[Number(e.target.value)];if(p)mapRef.current?.easeTo({center:p,duration:300});}}><option value="">{t('Hautatu puntu bat','Selecciona un punto')}</option>{activeRoute?.points.map((p,i)=><option key={i} value={i}>{i+1} · {p[1].toFixed(5)}, {p[0].toFixed(5)}</option>)}</select></label>
+          <label>{t('Ibilbideko puntua','Punto del itinerario')}<select aria-label={t('Ibilbideko puntua','Punto del itinerario')} value={selectedPoint?.routeId===activeId?selectedPoint.index:''} onChange={e=>{relocatePointRef.current=null;setRelocatingPoint(false);setMode('select');setPlaying(false);setSelectedPoint(e.target.value===''?null:{routeId:activeId,index:Number(e.target.value)});}}><option value="">{t('Hautatu puntu bat','Selecciona un punto')}</option>{activeRoute?.points.map((p,i)=><option key={i} value={i}>{i+1} · {p[1].toFixed(5)}, {p[0].toFixed(5)}</option>)}</select></label>
           <p>{t('Hautatu edo arrastatu mapako puntu bat.','Selecciona o arrastra un punto del mapa, también mientras añades puntos.')}</p>
           <div className="lesson-actions"><button disabled={!selectedPoint||selectedPoint.index===0} onClick={()=>reorderPoint(-1)}>{t('↑ Aurreratu','↑ Adelantar')}</button><button disabled={!selectedPoint||selectedPoint.index>=((routes.find(r=>r.id===selectedPoint?.routeId)?.points.length||0)-1)} onClick={()=>reorderPoint(1)}>{t('↓ Atzeratu','↓ Retrasar')}</button><button disabled={!selectedPoint} onClick={()=>{relocatePointRef.current=selectedPoint;setRelocatingPoint(true);setMode('select');setPlaying(false);}}>{t('Lekuz aldatu','Recolocar punto')}</button><button disabled={!selectedPoint} onClick={removeSelectedPoint}>{t('Puntua ezabatu','Eliminar punto')}</button></div>
           {relocatingPoint&&<p role="status">{t('Egin klik mapan kokapen berrian.','Haz clic en el mapa en la nueva posición.')} <button onClick={()=>{relocatePointRef.current=null;setRelocatingPoint(false);}}>{t('Utzi','Cancelar')}</button></p>}
