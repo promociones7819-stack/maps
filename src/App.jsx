@@ -332,6 +332,8 @@ export default function App() {
   const [nameDialog, setNameDialog] = useState(null);
   const modeRef = useRef(mode);
   const dragRef = useRef(null);
+  const relocatePointRef=useRef(null),suppressPointClick=useRef(0);
+  const [relocatingPoint,setRelocatingPoint]=useState(false);
   const markerPlacementRef = useRef(null);
 
   useEffect(() => {
@@ -572,6 +574,13 @@ export default function App() {
       else setMapError(event.error.message);
     });
     map.on('click', event => {
+      if(Date.now()<suppressPointClick.current)return;
+      if(workspaceModeRef.current==='routes'&&relocatePointRef.current){
+        const {routeId,index}=relocatePointRef.current;
+        commitRoutes(routesRef.current.map(r=>r.id===routeId?{...r,points:r.points.map((p,i)=>i===index?[event.lngLat.lng,event.lngLat.lat]:p)}:r));
+        relocatePointRef.current=null;setRelocatingPoint(false);return;
+      }
+
       if (!liveLessonRef.current && workspaceModeRef.current === 'gpx-review' && placingGpxIncidentRef.current) {
         const coordinates = [event.lngLat.lng, event.lngLat.lat];
         const closest = gpxRef.current.points.reduce((best, point, index) => {
@@ -595,6 +604,8 @@ export default function App() {
         setPlacingMarker(false);
         return;
       }
+      const hit=workspaceModeRef.current==='routes'?map.queryRenderedFeatures(event.point,{layers:['route-points-layer']})[0]:null;
+      if(hit){setPlaying(false);setMode('select');setSelectedPoint({routeId:hit.properties.routeId,index:Number(hit.properties.index)});return;}
       if (workspaceModeRef.current !== 'routes' || modeRef.current !== 'add') {
         const features = map.queryRenderedFeatures(event.point, { layers: ['route-points-layer'] });
         if (features[0]) setSelectedPoint({ routeId: features[0].properties.routeId, index: Number(features[0].properties.index) });
@@ -608,7 +619,8 @@ export default function App() {
       commitRoutes(next);
     });
     map.on('mousedown', 'route-points-layer', event => {
-      if (modeRef.current === 'add') return;
+      if (workspaceModeRef.current!=='routes'||relocatePointRef.current||recorderRef.current?.state==='recording') return;
+      setPlaying(false);setMode('select');
       const feature = event.features?.[0];
       if (!feature) return;
       event.preventDefault();
@@ -620,6 +632,7 @@ export default function App() {
     });
     map.on('mousemove', event => {
       if (!dragRef.current) return;
+      suppressPointClick.current=Date.now()+300;
       const { routeId, index } = dragRef.current;
       const nextRoutes = routesRef.current.map(route => route.id === routeId ? { ...route, points: route.points.map((point, i) => i === index ? [event.lngLat.lng, event.lngLat.lat] : point) } : route);
       commitRoutes(nextRoutes);
@@ -793,7 +806,7 @@ export default function App() {
   const setWorkspace = next => {
     if(liveLesson)return;
     if (recording) return;
-    setPlaying(false); setWorkspaceMode(next); setMode('select'); setPlacingMarker(false); markerPlacementRef.current = null; setPlacingGpxIncident(false);
+    relocatePointRef.current=null;setRelocatingPoint(false);setPlaying(false); setWorkspaceMode(next); setMode('select'); setPlacingMarker(false); markerPlacementRef.current = null; setPlacingGpxIncident(false);
     if (next === 'gpx-review' && gpxReview.points.length > 1) {
       const coords = gpxReview.points.map(point => point.coordinates);
       const bounds = coords.reduce((box, coord) => box.extend(coord), new LngLatBounds(coords[0], coords[0]));
@@ -825,8 +838,17 @@ export default function App() {
     setSelectedMarkerId(null); setCurrentMarkerId(null);
     setSelectedPoint(null);
   };
+  const reorderPoint=delta=>{
+    if(!selectedPoint||recording)return;
+    relocatePointRef.current=null;setRelocatingPoint(false);
+    const {routeId,index}=selectedPoint,route=routes.find(r=>r.id===routeId),next=index+delta;
+    if(!route||next<0||next>=route.points.length)return;
+    const points=[...route.points];[points[index],points[next]]=[points[next],points[index]];
+    commitRoutes(routes.map(r=>r.id===routeId?{...r,points}:r));setSelectedPoint({routeId,index:next});setPlaying(false);
+  };
   const removeSelectedPoint = () => {
-    if (!selectedPoint) return;
+    if (!selectedPoint||recording) return;
+    relocatePointRef.current=null;setRelocatingPoint(false);
     const { routeId, index } = selectedPoint;
     commitRoutes(routes.map(route => route.id === routeId ? { ...route, points: route.points.filter((_, i) => i !== index) } : route));
     setSelectedPoint(null);
@@ -1103,7 +1125,7 @@ export default function App() {
     const bounds = route.points.reduce((b, coord) => b.extend(coord), new LngLatBounds(route.points[0], route.points[0]));
     mapRef.current.fitBounds(bounds.toArray(), { padding: 100, maxZoom: 16, duration: 800 });
   };
-  const setActive = id => { if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); stopNarration(); setPlaying(false); setProgress(0); progressRef.current = 0; setActiveId(id); setSelectedPoint(null); setSelectedMarkerId(null); setCurrentMarkerId(null); };
+  const setActive = id => { relocatePointRef.current=null;setRelocatingPoint(false); if (recorderRef.current?.state === 'recording') recorderRef.current.stop(); stopNarration(); setPlaying(false); setProgress(0); progressRef.current = 0; setActiveId(id); setSelectedPoint(null); setSelectedMarkerId(null); setCurrentMarkerId(null); };
 
   const animate = useCallback((now) => {
     if(workspaceModeRef.current==='gpx-review')return;
@@ -1230,7 +1252,12 @@ export default function App() {
         <div className="drawing-card">
           <div className="drawing-heading"><span className="draw-icon">✳</span><div><strong>Edición de trazado</strong><small>{mode === 'add' ? 'Haz clic en el mapa para añadir puntos' : 'Selecciona una ruta para editarla'}</small></div></div>
           <button className={`draw-toggle ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}>{mode === 'add' ? '✓  Añadiendo puntos' : '+  Añadir puntos en el mapa'}</button>
-          <div className="edit-row"><span>Arrastra un punto en el mapa para recolocarlo</span><button disabled={!selectedPoint} onClick={removeSelectedPoint} title="Eliminar punto seleccionado">⌫</button></div>
+          <fieldset className="trajectory-point-editor" disabled={recording}>
+          <label>{t('Ibilbideko puntua','Punto del itinerario')}<select aria-label={t('Ibilbideko puntua','Punto del itinerario')} value={selectedPoint?.routeId===activeId?selectedPoint.index:''} onChange={e=>{relocatePointRef.current=null;setRelocatingPoint(false);setMode('select');setPlaying(false);setSelectedPoint(e.target.value===''?null:{routeId:activeId,index:Number(e.target.value)});const p=activeRoute.points[Number(e.target.value)];if(p)mapRef.current?.easeTo({center:p,duration:300});}}><option value="">{t('Hautatu puntu bat','Selecciona un punto')}</option>{activeRoute?.points.map((p,i)=><option key={i} value={i}>{i+1} · {p[1].toFixed(5)}, {p[0].toFixed(5)}</option>)}</select></label>
+          <p>{t('Hautatu edo arrastatu mapako puntu bat.','Selecciona o arrastra un punto del mapa, también mientras añades puntos.')}</p>
+          <div className="lesson-actions"><button disabled={!selectedPoint||selectedPoint.index===0} onClick={()=>reorderPoint(-1)}>{t('↑ Aurreratu','↑ Adelantar')}</button><button disabled={!selectedPoint||selectedPoint.index>=((routes.find(r=>r.id===selectedPoint?.routeId)?.points.length||0)-1)} onClick={()=>reorderPoint(1)}>{t('↓ Atzeratu','↓ Retrasar')}</button><button disabled={!selectedPoint} onClick={()=>{relocatePointRef.current=selectedPoint;setRelocatingPoint(true);setMode('select');setPlaying(false);}}>{t('Lekuz aldatu','Recolocar punto')}</button><button disabled={!selectedPoint} onClick={removeSelectedPoint}>{t('Puntua ezabatu','Eliminar punto')}</button></div>
+          {relocatingPoint&&<p role="status">{t('Egin klik mapan kokapen berrian.','Haz clic en el mapa en la nueva posición.')} <button onClick={()=>{relocatePointRef.current=null;setRelocatingPoint(false);}}>{t('Utzi','Cancelar')}</button></p>}
+          </fieldset>
         </div>
         <div className="divider" />
         <div className="section-title playback-title"><div><span className="eyebrow">VUELO DE CÁMARA</span></div><span className="preview-label">PREVISUALIZACIÓN</span></div>
