@@ -137,7 +137,7 @@ function distanceToMarker(coords, markers, routeId) {
 }
 
 function drawTeachingCard(context, marker, width) {
-  const scale = Math.max(0.8, Math.min(1.45, width / 1500));
+  const scale = .82 * Math.max(0.8, Math.min(1.45, width / 1500));
   const cardW = 365 * scale, cardH = 186 * scale, pad = 17 * scale;
   const x = width - cardW - 22 * scale, y = 22 * scale;
   const radius = 13 * scale;
@@ -205,7 +205,7 @@ function drawTeachingCard(context, marker, width) {
 }
 
 function drawGpxIncidentCard(context, incident, index, width) {
-  const scale = Math.max(0.8, Math.min(1.45, width / 1500));
+  const scale = .82 * Math.max(0.8, Math.min(1.45, width / 1500));
   const w = Math.min(390 * scale,width-24), x = width-w-22*scale, y = 22 * scale, h = 126 * scale, pad = 17 * scale;
   context.save(); context.shadowColor = 'rgba(16,31,23,.22)'; context.shadowBlur = 18 * scale; context.shadowOffsetY = 5 * scale;
   context.fillStyle = 'rgba(255,255,255,.97)'; context.beginPath(); context.roundRect(x, y, w, h, 13 * scale); context.fill(); context.shadowColor = 'transparent';
@@ -375,7 +375,7 @@ export default function App() {
   const currentGpxIncident = currentGpxIncidentIndex >= 0 ? gpxReview.incidents[currentGpxIncidentIndex] : null;
   const activeConflictMarkers = conflictMarkers.filter(marker => marker.routeId === activeId);
   const currentConflictMarker = activeConflictMarkers.find(marker => marker.id === currentMarkerId) || null;
-  const visibleConflictMarker=activeConflictMarkers.find(marker=>marker.id===selectedMarkerId)||currentConflictMarker;
+  const visibleConflictMarker=(playing||recording)&&activeRoute?.points.length>1?distanceToMarker(interpolateRoute(activeRoute.points,progress).coords,conflictMarkers,activeId):activeConflictMarkers.find(marker=>marker.id===selectedMarkerId)||currentConflictMarker;
   const recordingMarkers=useRef({markers:conflictMarkers,playing,selectedMarkerId});recordingMarkers.current={markers:conflictMarkers,playing,selectedMarkerId};
   const narrationLanguage = activeRoute?.narrationLanguage || 'es';
   const narrationVoice = narrationVoiceFor(speechVoices, narrationLanguage);
@@ -1021,7 +1021,7 @@ export default function App() {
           const incidentIndex = gpxReview.incidents.findIndex(incident => incident.showInVideo!==false&&Math.abs((incident.fraction ?? 0) - gpxProgressRef.current) < 0.018);
           if (incidentIndex >= 0) {const incident=gpxReview.incidents[incidentIndex];if(incident.signalCode)drawTeachingCard(context,{...incident,description:incident.note||''},videoCanvas.width);else drawGpxIncidentCard(context,incident,incidentIndex,videoCanvas.width);}
         } else {
-          const state=recordingMarkers.current;const teachingMarker = (!state.playing&&state.markers.find(m=>m.id===state.selectedMarkerId&&m.routeId===videoRoute.id&&m.showInVideo!==false))||distanceToMarker(framePosition, state.markers, videoRoute.id);
+          const state=recordingMarkers.current;const teachingMarker = distanceToMarker(framePosition, state.markers, videoRoute.id);
           if (teachingMarker) drawTeachingCard(context, teachingMarker, videoCanvas.width);
         }
         recordFrameRef.current = requestAnimationFrame(composeFrame);
