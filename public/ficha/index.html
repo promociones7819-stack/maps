@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0878ad">
+<title>Ficha Autoescuela</title>
+
+<link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="reduced.css?v=18">
+</head>
+<body>
+<header class="topbar">
+  <div><div class="eyebrow">SEGUIMIENTO DE FORMACIÓN</div><h1>Ficha Autoescuela</h1></div>
+  <div class="topactions"><span id="saveState">Guardado local</span><button id="installBtn" class="secondary hidden">Instalar</button></div>
+</header>
+
+<main class="app">
+  <aside class="sidebar">
+    <section class="panel">
+      <div class="panelTitle"><h2>Alumnos</h2><button id="newStudent" class="iconBtn" title="Nuevo alumno">＋</button></div>
+      <input id="studentSearch" type="search" placeholder="Buscar alumno">
+      <div id="studentList" class="studentList"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Datos del alumno</h2>
+      <label>Nombre y apellidos<input id="studentName" type="text"></label>
+      <label>Profesor<input id="teacherName" type="text"></label>
+      <label>Autoescuela<input id="schoolName" type="text"></label>
+      <div class="row">
+        <button id="saveBtn">Guardar</button>
+        <button id="deleteStudentBtn" class="danger">Eliminar</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Sincronización sin servidor</h2>
+      <p class="help">Usa una copia portátil para pasar los datos entre iPad y Mac mediante AirDrop, iCloud Drive o la app Archivos. No se envía información a ningún servidor.</p>
+      <button id="exportAllBtn" class="secondary full">Exportar datos</button>
+      <label class="fileButton">Importar / fusionar datos<input id="importAllInput" type="file" accept="application/json"></label>
+    </section>
+  </aside>
+
+  <section class="content">
+    <div id="emptyState" class="panel emptyState">
+      <h2>Crea o selecciona un alumno</h2>
+      <p>Cada alumno puede tener uno o varios permisos y un histórico independiente de clases.</p>
+    </div>
+
+    <div id="workspace" class="hidden">
+      <div class="summary panel">
+        <div><div class="eyebrow">ALUMNO</div><div id="studentTitle" class="studentTitle"></div></div>
+        <div class="summaryRight"><span id="permitsBadge"></span></div>
+      </div>
+
+      <section class="panel permitManager">
+        <div class="panelTitle"><h2>Permisos del alumno</h2><button id="addPermitBtn">Añadir permiso</button></div>
+        <div id="permitChips" class="chips"></div>
+        <div id="addPermitBox" class="addPermitBox hidden">
+          <select id="newPermitSelect"></select>
+          <button id="confirmAddPermit">Añadir</button>
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="Secciones">
+        <button class="tab active" data-tab="theory">Teórica</button>
+        <button class="tab" data-tab="practical">Práctica</button><button class="tab" data-tab="reduced">Ficha reducida</button>
+        <button class="tab" data-tab="history">Histórico</button>
+        <button class="tab" data-tab="evolution">Evolución</button>
+        <button class="tab" data-tab="notes">Notas</button>
+        <button class="tab" data-tab="pdf">PDF oficial</button>
+      </nav>
+
+      <div id="tabContent"></div>
+    </div>
+  </section>
+</main>
+
+<footer>Funcionamiento local. Los datos permanecen en este dispositivo salvo que exportes una copia.</footer>
+
+<script src="pdf-lib.min.js"></script>
+<script src="data.js?v=18"></script>
+<script src="compat.js?v=18"></script>
+<script src="reduced.js?v=18"></script>
+<script src="app.js?v=18"></script>
+<script src="students-ui.js?v=18"></script>
+<script src="ui-simplify.js?v=18"></script>
+<script src="pdf-center-fix.js?v=18"></script>
+<script src="pdf-v11.js?v=18"></script>
+<script src="history-enhance.js?v=18"></script>
+<script src="session-reset.js?v=18"></script>
+<script src="class-workflow.js?v=18"></script>
+<script src="history-edit.js?v=18"></script>
+<script src="pdf-enhance.js?v=18"></script>
+<script src="rutas-bridge.js"></script></body>
+</html>

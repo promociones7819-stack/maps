@@ -78,3 +78,28 @@ Web: https://maps.promociones7819.workers.dev/
 Para actualizarla: `npm run build` y `npx wrangler deploy --keep-vars`. La configuración está en `wrangler.jsonc`. Las capacidades y limitaciones de RaceBox Mini y vídeo están documentadas en [RACEBOX.md](RACEBOX.md).
 
 El despliegue automático genera `dist` al instalar las dependencias (`prepare`). Wrangler también ejecuta `npm run build` antes de publicar, para admitir despliegues desde un checkout sin archivos generados.
+
+
+## RutasAD 0.7 · Alumnos, clases y recorridos
+
+El acceso **Alumnos** abre la gestión integrada de FichaAutoescuela, basada en su código `d15e5e2`. El formulario de matrícula, permisos, seguimiento, ficha reducida, evolución y PDF se conservan dentro de la app. Los menús nuevos respetan Euskara/Castellano; la ficha original y los cuadernillos DGT conservan sus textos en castellano.
+
+1. En **Alumnos → Importar FichaAutoescuela**, selecciona una copia JSON versión 2 y revisa la importación. Se conservan los identificadores. Las fichas más recientes actualizan las anteriores; dos personas con el mismo nombre no se fusionan automáticamente.
+2. Si el mismo alumno ya figuraba en RutasAD solo con su nombre, selecciona su ficha importada y utiliza **Vincular historial anterior**. Esta acción traslada sus sesiones; requiere seleccionar el registro y confirmar.
+3. Selecciona alumno, permiso y clase, o crea una clase de 50 minutos. **Valoración oficial (1–5)** edita esa clase sin duplicarla. **Valorar esta clase** abre la ficha reducida; termina con su propio botón **Guardar cambios**. Ambas escalas se mantienen independientes.
+4. **Asignar desde biblioteca** vincula una trayectoria o un recorrido existente. **GPX + PIP** y **RaceBox** preparan el mapa con esa clase seleccionada. Al guardar o grabar una sesión, se conserva la relación por alumno, permiso y clase. Las incidencias GPS no se convierten automáticamente en notas.
+5. **Copias y compartir** descarga una copia completa con alumnado, permisos, clases, valoraciones, rutas y sus vínculos. Comparte ese JSON por AirDrop, Archivos u otro medio y restaúralo en el otro dispositivo. Una exportación solo de FichaAutoescuela no contiene los recorridos de RutasAD.
+
+### Carpeta de datos en Chrome
+
+Desde Alumnos o Copias, **Elegir carpeta de datos** conecta una carpeta con `RutasAD-datos.json`. Con la carpeta conectada, los cambios se copian cada pocos segundos. **Guardar ahora** permite completar la copia antes de cerrar. Los datos de trabajo también permanecen en el navegador; los originales de vídeo y GPX siguen en sus carpetas de clase.
+
+Reabre la carpeta al comenzar cada sesión: Chrome gestiona los permisos y la app no sobrescribe una copia existente sin ofrecer importar o guardar los datos actuales. Si la copia cambia desde fuera, el guardado se detiene para evitar pisarla. Las escrituras son secuenciales, verifican el contenido y cierran el archivo de forma atómica mediante File System Access.
+
+La carpeta de datos puede ser la misma que contiene los archivos de clase, pero sus archivos son distintos: `RutasAD-datos.json` es la copia completa y `RutasAD-proyecto.json` es el montaje GPX/PIP de esa clase. Los vídeos originales no se incluyen en las copias JSON. No hay sincronización en la nube ni fusión simultánea de cambios: importa la copia más reciente antes de cambiar de dispositivo.
+
+### Mac y comprobaciones
+
+La app Mac conserva la gestión en su biblioteca local y los tracks en su almacenamiento local, incluidos en **Copias y compartir**. Las plantillas oficiales de los cinco permisos y el motor PDF se distribuyen con la app. Se mantiene la calibración y las limitaciones de los PDF de FichaAutoescuela; no se ha cambiado su contenido oficial.
+
+`tests/students.mjs` prueba importación con UUID, altas mediante la ficha original, las dos valoraciones de una misma clase, PDF, vínculo a biblioteca, guardado GPX en la clase, copias y reconciliación explícita del alumno antiguo. `tests/data-folder.mjs` utiliza File System Access real en una carpeta aislada del navegador y comprueba escrituras concurrentes y conflictos de contenido. `tests/desktop-students.mjs` ejecuta el paquete Mac con datos ficticios y verifica alta, notas, plantilla PDF y persistencia al cerrar. Estas pruebas no sustituyen una prueba de campo de RaceBox.

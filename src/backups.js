@@ -1,5 +1,6 @@
 import {listLessons,listLibraryReviews,replaceBackupRecords} from './lessonStore.js';
 import {validateTrack} from './racebox.js';
+import {FICHA_KEY,validateStudents,mergeStudents} from './students.js';
 const prefix='traza-bizkaia-';
 export const backupStorage=()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith(prefix)).map(k=>[k,localStorage.getItem(k)]));
 const array=(value,max=10000)=>Array.isArray(value)&&value.length<=max;
@@ -31,7 +32,8 @@ export function parseBackup(input){
   if(storage[`${key}-gpx-review`])reviewValid(json(storage[`${key}-gpx-review`]));
  }
  storage[`${prefix}projects`]=JSON.stringify({...index,projects:index.projects.map(({legacy,...project})=>project)});
- if(storage[`${prefix}students`]){const students=json(storage[`${prefix}students`]);if(!array(students,10000)||students.some(s=>!s||!text(s.id)||!text(s.name)))fail();}
+ if(storage[`${prefix}students`]){const students=json(storage[`${prefix}students`]);if(!array(students,10000)||students.some(s=>!s||!text(s.id)||['__proto__','constructor','prototype'].includes(s.id)||!text(s.name)))fail();}
+ if(storage[FICHA_KEY])validateStudents(json(storage[FICHA_KEY]));
  const sessions=input.version===2?input.sessions||[]:[],library=input.version===2?input.library||[]:[];
  if(!array(sessions,1000)||!array(library,10000))fail();
  for(const session of sessions){if(!session||!text(session.id)||!text(session.studentId)||!text(session.studentName)||!Number.isFinite(Date.parse(session.startedAt)))fail();try{validateTrack(session);}catch{fail();}}
@@ -44,7 +46,7 @@ export function backupSummary(backup){
  const add=(r,key)=>{if(r.points.length)reviews.add(r.sessionId?`session:${r.sessionId}`:r.libraryId?`library:${r.libraryId}`:key);};
  for(const p of index.projects){const key=`${prefix}project-${p.id}`;if(backup.storage[key])trajectories+=json(backup.storage[key]).filter(r=>r.points.length).length;if(backup.storage[`${key}-gpx-review`])add(json(backup.storage[`${key}-gpx-review`]),`project:${p.id}`);}
  for(const item of backup.library)add(item.review,`library:${item.id}`);for(const session of backup.sessions)if(session.points.length)reviews.add(`session:${session.id}`);
- return {projects:index.projects.length,trajectories,reviews:reviews.size,sessions:backup.sessions.length};
+ return {projects:index.projects.length,trajectories,reviews:reviews.size,sessions:backup.sessions.length,students:backup.storage[FICHA_KEY]?Object.keys(json(backup.storage[FICHA_KEY]).students).length:0,classes:backup.storage[FICHA_KEY]?Object.values(json(backup.storage[FICHA_KEY]).students).reduce((n,s)=>n+Object.values(s.permits).reduce((a,p)=>a+p.history.length,0),0):0};
 }
 export async function createBackup(){const [sessions,library]=await Promise.all([listLessons(),listLibraryReviews()]);return parseBackup({format:'rutasad-backup',version:2,createdAt:new Date().toISOString(),storage:backupStorage(),sessions,library});}
 const mergeItems=(current,incoming,update)=>{const map=new Map(current.map(item=>[item.id,item]));for(const item of incoming)if(update||!map.has(item.id))map.set(item.id,item);return [...map.values()];};
@@ -52,7 +54,7 @@ export function mergeBackupStorage(current,incoming,update=false){
  const next={...current},oldIndex=current[`${prefix}projects`]?json(current[`${prefix}projects`]):{projects:[]},newIndex=json(incoming[`${prefix}projects`]);
  const oldIds=new Set(oldIndex.projects.map(p=>p.id));
  for(const [key,value] of Object.entries(incoming)){
-  if(key===`${prefix}projects`||key===`${prefix}students`)continue;
+  if(key===`${prefix}projects`||key===`${prefix}students`||key===FICHA_KEY)continue;
   const project=newIndex.projects.find(p=>key===`${prefix}project-${p.id}`||key===`${prefix}project-${p.id}-markers`||key===`${prefix}project-${p.id}-gpx-review`);
   if(project){if(!oldIds.has(project.id)||update)next[key]=value;}else if(!(key in current))next[key]=value;
  }
@@ -60,6 +62,8 @@ export function mergeBackupStorage(current,incoming,update=false){
  next[`${prefix}projects`]=JSON.stringify({activeProjectId:oldIndex.activeProjectId||newIndex.activeProjectId,projects});
  const oldStudents=current[`${prefix}students`]?json(current[`${prefix}students`]):[],newStudents=incoming[`${prefix}students`]?json(incoming[`${prefix}students`]):[];
  if(oldStudents.length||newStudents.length)next[`${prefix}students`]=JSON.stringify(mergeItems(oldStudents,newStudents,update));
+ if(!incoming[FICHA_KEY]&&newStudents.length){const canonical=current[FICHA_KEY]?json(current[FICHA_KEY]):{students:{}};for(const s of newStudents)if(!Object.hasOwn(canonical.students,s.id))canonical.students[s.id]={...s,permits:{},teacher:'',school:'',notes:'',updatedAt:new Date().toISOString()};next[FICHA_KEY]=JSON.stringify(canonical);}
+ if(incoming[FICHA_KEY]||current[FICHA_KEY])next[FICHA_KEY]=JSON.stringify(mergeStudents(next[FICHA_KEY]?json(next[FICHA_KEY]):{students:{}},incoming[FICHA_KEY]?json(incoming[FICHA_KEY]):{students:{}},update));
  return next;
 }
 const writeStorage=storage=>{for(const key of Object.keys(localStorage))if(key.startsWith(prefix)&&!(key in storage))localStorage.removeItem(key);for(const [key,value] of Object.entries(storage))localStorage.setItem(key,value);};

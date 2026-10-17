@@ -1,0 +1,1 @@
+Integrated from https://github.com/promociones7819-stack/FichaAutoescuela at d15e5e2bd8ecd99638c1cdb31094615339c90084. Original student/permit/class/reduced schemas retained. RutasAD adapter uses shared prefixed storage, exact IDs and bundled official PDF templates.

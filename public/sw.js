@@ -44,6 +44,7 @@ self.addEventListener('fetch', event => {
   }
 
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/ficha/')) {event.respondWith((async()=>{const cache=await caches.open(APP_CACHE);try{const r=await fetch(request);if(r.ok)await cache.put(request,r.clone());return r;}catch{return (await cache.match(request))||new Response('Abre esta ficha con conexión la primera vez.',{status:503});}})());return;}
   if (request.mode === 'navigate') {
     event.respondWith((async () => {
       try {

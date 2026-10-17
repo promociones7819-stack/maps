@@ -1,0 +1,2 @@
+*.pdf binary
+public/ficha/pdf-lib.min.js -diff

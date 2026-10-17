@@ -1,4 +1,6 @@
 import React from 'react';
+import {watchDataFolder} from './dataFolder.js';
+watchDataFolder();
 import {Capacitor} from '@capacitor/core';
 import { createRoot } from 'react-dom/client';
 import 'maplibre-gl/dist/maplibre-gl.css';

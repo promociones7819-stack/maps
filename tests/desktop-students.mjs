@@ -1,0 +1,20 @@
+import {_electron} from '@playwright/test';
+import fs from 'node:fs/promises';import path from 'node:path';import assert from 'node:assert/strict';
+const archive=process.env.PACKAGED_APP||process.cwd(),scratch=await fs.mkdtemp(path.resolve('../../work/students-desktop-')),docs=path.join(scratch,'Documents'),harness=path.join(scratch,'main.cjs');await fs.mkdir(docs);
+await fs.writeFile(harness,`const {app}=require('electron');app.setPath('documents',${JSON.stringify(docs)});app.setAppPath(${JSON.stringify(archive)});require(${JSON.stringify(path.join(archive,'electron/main.cjs'))});`);
+const app=await _electron.launch({args:[harness],timeout:20000});try{
+ const page=await app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.getByRole('button',{name:'♙ Ikasleak',exact:true}).waitFor();
+ await page.evaluate(()=>{localStorage.setItem('traza-bizkaia-language','es');});await page.reload();await page.getByRole('button',{name:'♙ Alumnos',exact:true}).click();
+ const screen=page.getByRole('dialog',{name:'Alumnos',exact:true});await screen.getByRole('button',{name:'Nuevo alumno',exact:false}).click();const ficha=page.frameLocator('iframe[title="FichaAutoescuela"]');
+ await ficha.locator('#sfFirst').fill('Alumno');await ficha.locator('#sfLast').fill('Mac');await ficha.locator('#sfDni').fill('PRUEBA');await ficha.locator('#sfPhone').fill('000000000');await ficha.locator('#sfSave').click();
+ await page.waitForFunction(()=>Object.values(JSON.parse(localStorage.getItem('traza-bizkaia-ficha-autoescuela-v2')||'{"students":{}}').students).some(s=>s.name==='Alumno Mac'));
+ await screen.getByRole('button',{name:'Volver a clases',exact:false}).click();await screen.getByRole('heading',{name:'Alumno Mac',exact:true}).waitFor();
+ await screen.getByRole('button',{name:'Nueva clase',exact:false}).click();await screen.getByRole('button',{name:'Crear clase',exact:true}).click();
+ await screen.getByRole('button',{name:'Valoración oficial (1–5)',exact:true}).click();await ficha.locator('.class-ratings .rating').first().getByRole('button',{name:'3',exact:true}).click();await screen.getByRole('button',{name:'Volver a clases',exact:false}).click();
+ await screen.getByRole('button',{name:'PDF',exact:true}).click();await ficha.locator('#pdfFilled').waitFor();
+ assert.equal(await ficha.locator('body').evaluate(async()=>{const r=await fetch('./pdf/B.pdf');return r.ok&&new Uint8Array(await r.arrayBuffer()).slice(0,4).every((b,i)=>b===[37,80,68,70][i]);}),true);
+ await screen.getByRole('button',{name:'Volver a clases',exact:false}).click();await screen.getByRole('button',{name:'Volver al mapa',exact:false}).click();
+ const file=path.join(docs,'Traza Bizkaia','Biblioteca de recorridos.json');await page.waitForFunction(async()=>{const value=localStorage.getItem('traza-bizkaia-ficha-autoescuela-v2');return value&&JSON.parse(value).students;});
+ await app.close();const library=JSON.parse(await fs.readFile(file,'utf8')),db=JSON.parse(library.storage['traza-bizkaia-ficha-autoescuela-v2']);const student=Object.values(db.students)[0];assert.equal(student.name,'Alumno Mac');assert.equal(student.permits.B.history.length,1);assert.ok(Object.values(student.permits.B.history[0].ratings).includes(3));assert.deepEqual(errors,[]);
+ console.log('PASS packaged Mac: embedded registration, same class official grading, bundled PDF fetch, native persistence on close');
+}finally{try{await app.close();}catch{}}
