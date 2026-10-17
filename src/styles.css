@@ -39,3 +39,5 @@
 .bluetooth-backdrop{z-index:7000}.bluetooth-device{display:block;width:100%;text-align:left;padding:12px;margin:8px 0;background:#e5f0e9;border:1px solid #b9ccbf;border-radius:8px}
 
 .racebox-live-position {width:20px;height:20px;border-radius:50%;background:#087cff;border:3px solid white;box-shadow:0 0 0 8px #087cff33,0 2px 6px #0006;}
+
+.recording-pause-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.recording-pause-controls button{min-height:42px;padding:8px;border:1px solid #496554;border-radius:7px;background:#edf4ee;color:#203c2c;font-size:12px;font-weight:700}.recording-pause-controls button:disabled{opacity:.4;cursor:not-allowed}.recording-pause-status{font-size:11px;line-height:1.5;color:#41594a;margin:8px 0}
