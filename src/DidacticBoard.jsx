@@ -25,12 +25,12 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
  const [state,dispatch]=useReducer(historyReducer,undefined,empty),[tool,setTool]=useState('pointer'),[ready,setReady]=useState(false),[error,setError]=useState('');
  const [draftPath,setDraftPath]=useState(null),[selected,setSelected]=useState(null),[editor,setEditor]=useState(null),[signal,setSignal]=useState({...defaultDraft,signalCode:'R-2',title:''});
  const [color,setColor]=useState(colorOptions[0]),[locating,setLocating]=useState(false),[view,setView]=useState({lat:'',lng:''});
- const [group,setGroup]=useState('draw'),[showSignals,setShowSignals]=useState(true),[drawing,setDrawing]=useState(null),[vehicleKind,setVehicleKind]=useState('car'),[vehicleLabel,setVehicleLabel]=useState('A'),[vehicleColor,setVehicleColor]=useState('#57b9f4');
+ const [group,setGroup]=useState('draw'),[showSignals,setShowSignals]=useState(true),[strokeWidth,setStrokeWidth]=useState(5),[fillOpacity,setFillOpacity]=useState(.24),[drawing,setDrawing]=useState(null),[vehicleKind,setVehicleKind]=useState('car'),[vehicleLabel,setVehicleLabel]=useState('A'),[vehicleColor,setVehicleColor]=useState('#57b9f4');
  const [playing,setPlaying]=useState(false),[soloVehicle,setSoloVehicle]=useState(false),[playProgress,setPlayProgress]=useState(0),[playDuration,setPlayDuration]=useState(8),[scenes,setScenes]=useState([]),[sceneIndex,setSceneIndex]=useState(-1),[presenting,setPresenting]=useState(false),[revealed,setRevealed]=useState(false);
  const [question,setQuestion]=useState(''),[answer,setAnswer]=useState(''),[boardName,setBoardName]=useState(''),[libraryOpen,setLibraryOpen]=useState(false),[library,setLibrary]=useState(()=>loadBoardLibrary()),[message,setMessage]=useState('');
  const markersRef=useRef([]),arrowTipsRef=useRef([]),vehicleMarkersRef=useRef(new Map()),drawingRef=useRef(null),presentationSnapshot=useRef(null),animationRef=useRef(null);
  useEffect(()=>{const bar=panelRef.current.querySelector('.board-tools');const measure=()=>panelRef.current?.style.setProperty('--board-tools-bottom',`${bar.offsetTop+bar.offsetHeight+12}px`);const resize=new ResizeObserver(measure);resize.observe(bar);measure();return()=>resize.disconnect();},[]);
- stateRef.current={items:state.items,tool,draftPath,selected,signal,color,editor,vehicleKind,vehicleLabel,vehicleColor,presenting};
+ stateRef.current={items:state.items,tool,draftPath,selected,signal,color,editor,vehicleKind,vehicleLabel,vehicleColor,presenting,strokeWidth,fillOpacity};
  const commit=items=>dispatch({type:'set',items});
  const selectTool=next=>{setTool(next);setDraftPath(null);drawingRef.current=null;setDrawing(null);setLocating(false);if(ringRef.current)ringRef.current.hidden=true;};
  const remove=id=>{commit(items=>items.filter(i=>i.id!==id));setSelected(null);setDraftPath(null);};
@@ -62,7 +62,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
   const load=()=>{
    map.addSource('board-lines',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
    map.addSource('board-polygons',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
-   map.addLayer({id:'board-fill',type:'fill',source:'board-polygons',paint:{'fill-color':['get','color'],'fill-opacity':.24}});
+   map.addLayer({id:'board-fill',type:'fill',source:'board-polygons',paint:{'fill-color':['get','color'],'fill-opacity':['get','opacity']}});
    map.addLayer({id:'board-polygon-border',type:'line',source:'board-polygons',paint:{'line-color':['get','color'],'line-width':3}});
    map.addLayer({id:'board-outline',type:'line',source:'board-lines',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#163b30','line-width':10}});
    map.addLayer({id:'board-lines',type:'line',source:'board-lines',filter:['!=',['get','dashed'],true],layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':['get','color'],'line-width':['get','width']}});
@@ -103,7 +103,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    const s=stateRef.current;
    if(s.editor||s.presenting||!['ink','line','dashed','circle','rectangle','area','sight','stopline','yieldline','crosswalk'].includes(s.tool)||e.pointerType==='mouse'&&e.button!==0)return;
    const p=locate(e);
-   drawingRef.current={id:crypto.randomUUID(),type:s.tool,color:s.color,points:[p,p],width:5,aperture:70};
+   drawingRef.current={id:crypto.randomUUID(),type:s.tool,color:s.color,points:[p,p],width:s.strokeWidth,opacity:s.fillOpacity,aperture:70};
    setDrawing(drawingRef.current);
    canvas.setPointerCapture(e.pointerId);
   };
@@ -279,6 +279,13 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
     {!presenting&&<button onClick={()=>{setSignal(s=>({...s,signalCode:'SEMÁFORO',title:t('Semaforoa','Semáforo')}));selectTool('signal');}}>{t('Semaforoa','Semáforo')}</button>}
     {!presenting&&<button aria-expanded={locating} onClick={()=>{const p=mapRef.current?.getCenter();if(!p)return;setView({lat:p.lat.toFixed(6),lng:p.lng.toFixed(6)});setLocating(!locating);}}>{t('Koordenatuak','Coordenadas')}</button>}
    </nav>
+   {!presenting&&group==='draw'&&['ink','line','dashed','circle','rectangle','area','sight','text'].includes(tool)&&<section className="board-control-card board-ui board-draw-controls">
+    <strong>{t('Marrazketa-aukerak','Opciones de dibujo')}</strong>
+    <label>{t('Kolorea','Color')}<input type="color" value={color} onChange={e=>setColor(e.target.value)}/></label>
+    <label>{t('Lodiera','Grosor')}<input type="range" min="2" max="18" step="1" value={strokeWidth} onChange={e=>setStrokeWidth(Number(e.target.value))}/></label>
+    <label>{t('Gardentasuna','Transparencia')}<input type="range" min=".08" max=".8" step=".04" value={fillOpacity} onChange={e=>setFillOpacity(Number(e.target.value))}/></label>
+    <small>{t('Marraztu mapan hatzarekin edo saguarekin.','Dibuja directamente en el mapa con el dedo o ratón.')}</small>
+   </section>}
    {!presenting&&group==='signals'&&<section className="board-control-card board-ui board-signal-controls">
     <strong>{t('Seinaleak eta galtzadako markak','Señales y marcas viales')}</strong>
     <label className="board-toggle-signals"><input type="checkbox" checked={showSignals} onChange={e=>setShowSignals(e.target.checked)}/> {t('Seinaleak eta markak erakutsi','Mostrar señales y marcas')}</label>
@@ -297,6 +304,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
     <strong>{t('Urratsez urratseko azalpena','Explicación por pasos')}</strong>
     <label>{t('Galdera (aukerakoa)','Pregunta (opcional)')}<textarea rows="2" value={question} onChange={e=>setQuestion(e.target.value)} /></label>
     <label>{t('Erantzuna','Respuesta')}<textarea rows="2" value={answer} onChange={e=>setAnswer(e.target.value)} /></label>
+    {selectedItem?.type==='sight'&&<><label>{t('Ikus-eremuaren angelua','Apertura de visibilidad')}<input type="range" min="10" max="180" value={selectedItem.aperture||70} onChange={e=>commit(items=>items.map(i=>i.id===selectedItem.id?{...i,aperture:Number(e.target.value)}:i))}/></label><label>{t('Orientazioa','Orientación')}<input type="range" min="0" max="359" value={selectedItem.heading||0} onChange={e=>commit(items=>items.map(i=>i.id===selectedItem.id?{...i,heading:Number(e.target.value)}:i))}/></label></>}
     <button onClick={addScene}>{t('Uneko eszena gehitu','Añadir escena actual')}</button><small>{scenes.length} {t('eszena','escenas')}</small>
     {scenes.map((s,i)=><div className="board-scene-item" key={s.id}><button onClick={()=>showScene(i)}>{i+1}. {s.name}</button><button aria-label={t('Ezabatu eszena','Eliminar escena')+' '+(i+1)} onClick={()=>setScenes(old=>old.filter(x=>x.id!==s.id))}>×</button></div>)}
    </section>}
