@@ -3,3 +3,55 @@
 .didactic-board .maplibregl-ctrl-group button,.didactic-board .mapboxgl-ctrl-group button{padding:0;border:0;border-radius:0;min-height:29px}.board-editor,.board-note-card,.board-location{top:var(--board-tools-bottom,92px);max-height:calc(100% - var(--board-tools-bottom,92px) - 16px)}
 
 .board-path-actions{display:flex;align-items:center;gap:8px}.didactic-board .board-actions label{display:flex}.board-footer>span{min-height:36px;display:flex;align-items:center}
+
+
+/* Pizarra ampliada: grupos compactos y controles específicos. */
+.didactic-board .board-tools{display:flex;flex-direction:column;align-items:flex-start;gap:6px;max-width:min(900px,calc(100% - 80px));padding:6px;max-height:min(36vh,240px);overflow:auto}
+.didactic-board .board-groups{display:flex;align-items:center;flex-wrap:wrap;gap:5px;width:100%}
+.didactic-board .board-groups button{font-weight:650;white-space:nowrap;padding:8px 11px}
+.didactic-board .board-groups button.active{background:#175e4b;color:#fff}
+.didactic-board .board-tool-choices{display:flex;flex-wrap:wrap;gap:4px;max-height:96px;overflow-y:auto;scrollbar-width:thin}
+.didactic-board .board-tool-choices button{white-space:nowrap}
+.didactic-board .board-control-card{position:absolute;left:16px;top:var(--board-tools-bottom,160px);width:min(300px,calc(100% - 80px));max-height:calc(100% - var(--board-tools-bottom,160px) - 18px);overflow-y:auto;z-index:5;background:#fffffffa;border:1px solid #d7e0d5;border-radius:12px;box-shadow:0 4px 17px #1a36252b;padding:12px;display:flex;flex-direction:column;gap:8px}
+.didactic-board .board-control-card strong{font-size:14px}
+.didactic-board .board-control-card p{margin:0;font-size:13px}
+.didactic-board .board-control-card label{font-size:12px}
+.didactic-board .board-play-controls{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+.didactic-board .board-play-controls>input{flex:1;min-width:100px}
+.didactic-board .board-play-controls>label{flex-basis:100%}
+.didactic-board .board-play-controls input[type=number]{max-width:90px}
+.didactic-board .board-map-item.board-vehicle{position:relative;width:44px;height:58px;display:flex;justify-content:center;align-items:center;filter:drop-shadow(0 2px 4px #000a);cursor:pointer;touch-action:none}
+.didactic-board .board-vehicle svg{width:36px;height:52px;filter:drop-shadow(0 0 1px #333)}
+.didactic-board .board-vehicle strong{position:absolute;bottom:-15px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #2b4133;color:#182e24;border-radius:11px;min-width:21px;padding:1px 4px;font-size:12px;line-height:17px}
+.didactic-board .board-map-item.board-map-text{font-size:16px;font-weight:700;background:#fffdfa;color:#202d28;padding:4px 8px;border:1px solid #495e51;border-radius:6px;max-width:280px;white-space:normal}
+.didactic-board .board-scene-item,.didactic-board .board-library-list>div{display:flex;align-items:center;gap:6px}
+.didactic-board .board-scene-item button:first-child,.didactic-board .board-library-list>div button:first-child{flex:1;text-align:left}
+.didactic-board .board-presenter{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);width:min(840px,calc(100% - 28px));z-index:8;display:grid;gap:8px;padding:14px 16px;background:#ffffffed;border:1px solid #cfded3;border-radius:13px;box-shadow:0 6px 23px #10291e66;text-align:center}
+.didactic-board .board-presenter p{margin:3px 0 8px;font-size:16px;font-weight:600}
+.didactic-board .board-presenter>div{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}
+.didactic-board .board-presenter .board-answer{background:#e8f4ec;border-radius:7px;padding:8px;color:#175e4b}
+.didactic-board .board-library-toggle{position:absolute;bottom:14px;left:14px;z-index:5}
+.didactic-board .board-library-toggle button{box-shadow:0 2px 10px #0015;background:#fff}
+.didactic-board .board-library{position:absolute;left:14px;bottom:65px;z-index:6;width:min(355px,calc(100% - 70px));max-height:calc(100% - 110px);overflow:auto;display:grid;gap:10px;background:#fff;border-radius:12px;padding:13px;border:1px solid #cddcd1;box-shadow:0 5px 20px #0024}
+.didactic-board .board-library-actions{display:flex;gap:5px;flex-wrap:wrap}
+.didactic-board .board-library-list{max-height:190px;overflow:auto;display:grid;gap:5px}
+.didactic-board .board-message{position:absolute;right:15px;bottom:15px;z-index:9;background:#fffffff5;color:#164331;padding:8px 12px;max-width:min(350px,65%);border:1px solid #175e4b;border-radius:9px;box-shadow:0 3px 12px #0003;font-size:13px}
+.didactic-board .board-message button{margin-left:10px;min-height:26px}
+.board-map-item[data-phase=off] .signal-traffic-light i{opacity:.12}
+.board-map-item[data-phase=blink] .signal-traffic-light i:nth-child(2){animation:board-blink 1.3s steps(2,start) infinite}
+@keyframes board-blink{0%,49%{opacity:1;box-shadow:0 0 6px #ffba1b}50%,100%{opacity:.12;box-shadow:none}}
+@media(max-width:720px){
+ .didactic-board .board-tools{left:8px;max-width:calc(100% - 58px);max-height:27vh}
+ .didactic-board .board-groups button{font-size:11px;padding:8px 9px}
+ .didactic-board .board-tool-choices{max-height:72px}
+ .didactic-board .board-control-card{left:8px;width:min(280px,calc(100% - 60px))}
+ .didactic-board .board-presenter{bottom:7px;padding:8px}
+ .didactic-board .board-presenter p{font-size:13px}
+ .didactic-board .board-presenter button{font-size:12px}
+ .didactic-board .board-library-toggle{bottom:9px;left:8px}
+}
+
+.didactic-board .board-toggle-signals,.didactic-board .board-solo-vehicle{display:flex;align-items:center;gap:7px;font-size:12px}
+.didactic-board .board-toggle-signals input[type=checkbox],.didactic-board .board-solo-vehicle input[type=checkbox]{width:18px;height:18px;flex:0 0 18px;margin:0}
+.didactic-board .board-is-presenting .board-tools,.didactic-board.board-is-presenting .board-tools,.didactic-board.board-is-presenting .board-footer,.didactic-board.board-is-presenting .board-library-toggle{display:none}
+.didactic-board .board-draw-controls input[type=range],.didactic-board .board-signal-controls input[type=range]{padding:0}
