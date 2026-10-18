@@ -3,6 +3,7 @@
 import React,{useEffect,useReducer,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import './didactic-board.css';
+import {VEHICLE_KINDS,vehicleSvg,vehicleAt,geoFeatures,lineFeatures,loadBoardLibrary,saveBoardLibrary,deleteBoardLibrary,validateBoardImport,downloadBlob,boardFilename,imageOfBoard,pdfOfBoard} from './boardAdvanced.js';
 
 const empty=()=>({items:[],past:[]});
 function historyReducer(state,action){
@@ -11,8 +12,10 @@ function historyReducer(state,action){
  return next===state.items?state:{items:next,past:[...state.past,state.items].slice(-80)};
 }
 const coordinates=point=>[point.lng,point.lat];
-const colorOptions=['#f3b73e','#57b9f4','#ed7373'];
-const tools=[['pointer','Erakuslea','Puntero','◉'],['move','Mapa mugitu','Mover mapa','✥'],['route','Ibilbidea','Trayectoria','⌁'],['arrow','Gezia','Flecha','↗'],['signal','Seinalea','Señal','⚑'],['note','Puntu kritikoa','Punto conflictivo','!'],['edit','Mugitu / editatu','Mover / editar','✎'],['erase','Ezabatu','Borrar','⌫']];
+const colorOptions=['#f3b73e','#57b9f4','#ed7373','#4abf89','#222222'];
+const tools=[['pointer','Erakuslea','Puntero','◉'],['move','Mapa mugitu','Mover mapa','✥'],['route','Ibilbidea','Trayectoria','⌁'],['arrow','Gezia','Flecha','↗'],['signal','Seinalea','Señal','⚑'],['note','Puntu kritikoa','Punto conflictivo','!'],['edit','Mugitu / editatu','Mover / editar','✎'],['erase','Ezabatu','Borrar','⌫'],['vehicle','Ibilgailua','Vehículo','▣'],['path','Ibilgailuaren ibilbidea','Ruta de vehículo','➜'],['ink','Errotuladorea','Rotulador','✎'],['line','Lerroa','Línea','━'],['dashed','Lerro etena','Línea discontinua','┄'],['circle','Zirkulua','Círculo','◯'],['rectangle','Laukizuzena','Rectángulo','▭'],['area','Eremua','Área','▱'],['sight','Ikus-eremua','Visibilidad','◁'],['text','Testua','Texto','T']];
+const groups=[['draw','Marraztu','Dibujar'],['vehicles','Ibilgailuak','Vehículos'],['signals','Seinaleak','Señales'],['explain','Azaldu','Explicar'],['present','Aurkeztu','Presentar']];
+const groupTools={draw:['pointer','move','route','arrow','ink','line','dashed','circle','rectangle','area','sight','text','edit','erase'],vehicles:['pointer','move','vehicle','path','edit','erase'],signals:['pointer','move','signal','edit','erase'],explain:['pointer','move','note','text','sight','edit','erase'],present:['pointer','move']};
 
 // This board owns its map and its in-memory history. It never calls project,
 // storage, backup, microphone or recorder APIs.
@@ -22,11 +25,14 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
  const [state,dispatch]=useReducer(historyReducer,undefined,empty),[tool,setTool]=useState('pointer'),[ready,setReady]=useState(false),[error,setError]=useState('');
  const [draftPath,setDraftPath]=useState(null),[selected,setSelected]=useState(null),[editor,setEditor]=useState(null),[signal,setSignal]=useState({...defaultDraft,signalCode:'R-2',title:''});
  const [color,setColor]=useState(colorOptions[0]),[locating,setLocating]=useState(false),[view,setView]=useState({lat:'',lng:''});
- const markersRef=useRef([]),arrowTipsRef=useRef([]);
+ const [group,setGroup]=useState('draw'),[drawing,setDrawing]=useState(null),[vehicleKind,setVehicleKind]=useState('car'),[vehicleLabel,setVehicleLabel]=useState('A'),[vehicleColor,setVehicleColor]=useState('#57b9f4');
+ const [playing,setPlaying]=useState(false),[playProgress,setPlayProgress]=useState(0),[playDuration,setPlayDuration]=useState(8),[scenes,setScenes]=useState([]),[sceneIndex,setSceneIndex]=useState(-1),[presenting,setPresenting]=useState(false),[revealed,setRevealed]=useState(false);
+ const [question,setQuestion]=useState(''),[answer,setAnswer]=useState(''),[boardName,setBoardName]=useState(''),[libraryOpen,setLibraryOpen]=useState(false),[library,setLibrary]=useState(()=>loadBoardLibrary()),[message,setMessage]=useState('');
+ const markersRef=useRef([]),arrowTipsRef=useRef([]),vehicleMarkersRef=useRef(new Map()),drawingRef=useRef(null),presentationSnapshot=useRef(null),animationRef=useRef(null);
  useEffect(()=>{const bar=panelRef.current.querySelector('.board-tools');const measure=()=>panelRef.current?.style.setProperty('--board-tools-bottom',`${bar.offsetTop+bar.offsetHeight+12}px`);const resize=new ResizeObserver(measure);resize.observe(bar);measure();return()=>resize.disconnect();},[]);
- stateRef.current={items:state.items,tool,draftPath,selected,signal,color,editor};
+ stateRef.current={items:state.items,tool,draftPath,selected,signal,color,editor,vehicleKind,vehicleLabel,vehicleColor,presenting};
  const commit=items=>dispatch({type:'set',items});
- const selectTool=next=>{setTool(next);setDraftPath(null);setLocating(false);if(ringRef.current)ringRef.current.hidden=true;};
+ const selectTool=next=>{setTool(next);setDraftPath(null);drawingRef.current=null;setDrawing(null);setLocating(false);if(ringRef.current)ringRef.current.hidden=true;};
  const remove=id=>{commit(items=>items.filter(i=>i.id!==id));setSelected(null);setDraftPath(null);};
  const close=()=>{if(stateRef.current.items.length&&!confirm(t('Pizarra itxi eta behin-behineko elementuak baztertu?','¿Salir de la pizarra y descartar los elementos temporales?')))return;onClose();};
  const closeRef=useRef(close);closeRef.current=close;
@@ -55,19 +61,30 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
   try{map=createMap(container.current);mapRef.current=map;}catch(e){setError(e.message);return;}
   const load=()=>{
    map.addSource('board-lines',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+   map.addSource('board-polygons',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+   map.addLayer({id:'board-fill',type:'fill',source:'board-polygons',paint:{'fill-color':['get','color'],'fill-opacity':.24}});
+   map.addLayer({id:'board-polygon-border',type:'line',source:'board-polygons',paint:{'line-color':['get','color'],'line-width':3}});
    map.addLayer({id:'board-outline',type:'line',source:'board-lines',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#163b30','line-width':10}});
-   map.addLayer({id:'board-lines',type:'line',source:'board-lines',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':['get','color'],'line-width':5}});
+   map.addLayer({id:'board-lines',type:'line',source:'board-lines',filter:['!=',['get','dashed'],true],layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':['get','color'],'line-width':['get','width']}});
+   map.addLayer({id:'board-dashed',type:'line',source:'board-lines',filter:['==',['get','dashed'],true],layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':['get','color'],'line-width':['get','width'],'line-dasharray':[1.5,2]}});
    setReady(true);
   };
   map.on('load',load);
   const click=event=>{
-   if(draggingRef.current||!map.getLayer('board-lines'))return;
+   if(draggingRef.current||stateRef.current.presenting||!map.getLayer('board-lines'))return;
    const s=stateRef.current,point=coordinates(event.lngLat);if(s.editor)return;
-   if(['move','pointer'].includes(s.tool))return;
-   const hit=map.queryRenderedFeatures(event.point,{layers:['board-lines']})[0];
+   if(['move','pointer','ink','line','dashed','circle','rectangle','area','sight'].includes(s.tool))return;
+   const hit=map.queryRenderedFeatures(event.point,{layers:['board-lines','board-dashed','board-fill','board-polygon-border']})[0];
    if(s.tool==='erase'){if(hit)remove(hit.properties.id);return;}
    if(s.tool==='edit'){if(hit)setSelected(hit.properties.id);return;}
-   if(s.tool==='route'||s.tool==='arrow'){
+   if(s.tool==='path'){
+    const vehicle=s.items.find(i=>i.id===s.selected&&i.type==='vehicle');if(!vehicle){setMessage(t('Hautatu ibilgailu bat lehenik.','Selecciona primero un vehículo.'));return;}
+    commit(items=>items.map(i=>i.id===vehicle.id?{...i,path:[...(s.draftPath===vehicle.id?i.path||[]:[]),point]}:i));setDraftPath(vehicle.id);
+   }else if(s.tool==='vehicle'){
+    const id=crypto.randomUUID();commit(items=>[...items,{id,type:'vehicle',kind:s.vehicleKind,label:s.vehicleLabel,color:s.vehicleColor,coordinates:point,heading:0,path:[]}]);setSelected(id);
+   }else if(s.tool==='text'){
+    setEditor({id:crypto.randomUUID(),type:'text',coordinates:point,title:'',description:''});
+   }else if(s.tool==='route'||s.tool==='arrow'){
     const active=s.items.find(i=>i.id===s.draftPath);
     if(active){commit(items=>items.map(i=>i.id===active.id?{...i,points:[...i.points,point]}:i));if(s.tool==='arrow'){setDraftPath(null);}}
     else {const id=crypto.randomUUID();commit(items=>[...items,{id,type:s.tool,points:[point],color:s.color}]);setDraftPath(id);setSelected(id);}
