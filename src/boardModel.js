@@ -3,7 +3,7 @@
 export const BOARD_CASES_KEY='traza-bizkaia-board-cases';
 export const vehicleTypes=[['car','Autoa','Coche'],['bus','Autobusa','Autobús'],['truck','Kamioia','Camión'],['bike','Bizikleta','Bicicleta'],['person','Oinezkoa','Peatón']];
 const decorate=(document,past=[])=>({...document,items:document.steps[document.activeStep].items,past});
-const documentOf=state=>({steps:state.steps,activeStep:state.activeStep});
+const documentOf=state=>({steps:state.steps,activeStep:state.activeStep,...(state.sourceClip?{sourceClip:state.sourceClip}:{})});
 export const emptyBoard=()=>decorate({steps:[{id:crypto.randomUUID(),name:'',question:'',answer:'',items:[]}],activeStep:0});
 export function boardReducer(state,action){
  if(action.type==='undo')return state.past.length?decorate(state.past.at(-1),state.past.slice(0,-1)):state;
@@ -18,12 +18,12 @@ export function boardReducer(state,action){
  else if(action.type==='step-field')document={...document,steps:state.steps.map((step,n)=>n===state.activeStep?{...step,[action.field]:action.value}:step)};
  else if(action.type==='add-step'){
   if(state.steps.length>=20)return state;
-  const steps=[...state.steps];steps.splice(state.activeStep+1,0,{...structuredClone(steps[state.activeStep]),id:action.id,name:'',question:'',answer:''});document={steps,activeStep:state.activeStep+1};
+  const steps=[...state.steps];steps.splice(state.activeStep+1,0,{...structuredClone(steps[state.activeStep]),id:action.id,name:'',question:'',answer:''});document={...document,steps,activeStep:state.activeStep+1};
  }else if(action.type==='delete-step'){
-  if(state.steps.length===1)return state;document={steps:state.steps.filter((_,n)=>n!==state.activeStep),activeStep:Math.max(0,state.activeStep-1)};
+  if(state.steps.length===1)return state;document={...document,steps:state.steps.filter((_,n)=>n!==state.activeStep),activeStep:Math.max(0,state.activeStep-1)};
  }else if(action.type==='move-step'){
   const target=state.activeStep+action.direction;if(target<0||target>=state.steps.length)return state;
-  const steps=[...state.steps];[steps[target],steps[state.activeStep]]=[steps[state.activeStep],steps[target]];document={steps,activeStep:target};
+  const steps=[...state.steps];[steps[target],steps[state.activeStep]]=[steps[state.activeStep],steps[target]];document={...document,steps,activeStep:target};
  }else return state;
  return decorate(document,[...state.past,documentOf(state)].slice(-80));
 }
@@ -31,6 +31,7 @@ export function boardDocument(state){return structuredClone(documentOf(state));}
 const coordinate=p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)&&Math.abs(p[0])<=180&&Math.abs(p[1])<=85;
 export function validBoardDocument(doc){
  if(!doc||!Array.isArray(doc.steps)||!doc.steps.length||doc.steps.length>20||!Number.isInteger(doc.activeStep)||doc.activeStep<0||doc.activeStep>=doc.steps.length||new Set(doc.steps.map(s=>s?.id)).size!==doc.steps.length)return false;
+ if(doc.sourceClip){const c=doc.sourceClip;if(!Array.isArray(c.points)||c.points.length<2||c.points.length>100000||!c.points.every((p,n)=>coordinate(p.coordinates)&&Number.isFinite(p.time)&&(!n||p.time>=c.points[n-1].time))||c.points.at(-1).time<=c.points[0].time)return false;if(c.media&&(typeof c.media.id!=='string'||typeof c.media.name!=='string'||!Number.isFinite(c.media.size)||!Number.isFinite(c.media.videoStartUtc)))return false;}
  return doc.steps.every(s=>s&&typeof s.id==='string'&&['name','question','answer'].every(k=>typeof s[k]==='string'&&s[k].length<=1000)&&Array.isArray(s.items)&&s.items.length<=1000&&new Set(s.items.map(i=>i?.id)).size===s.items.length&&s.items.every(i=>{
   if(!i||typeof i.id!=='string'||!['route','arrow','drawing','signal','note','vehicle'].includes(i.type))return false;
   if(i.points&&(!Array.isArray(i.points)||i.points.length>5000||!i.points.every(coordinate)))return false;

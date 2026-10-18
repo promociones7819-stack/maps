@@ -1,17 +1,21 @@
+import ClipEditor from './ClipEditor.jsx';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {pointAt,speedAt,timeline} from './reviewTime.js';
 import {loadVideo,saveVideo} from './lessonStore.js';
 import {workspaceMedia,openMovieSink} from './workspace.js';
 import {createFinalMovie,movieIncidents,prepareMovieAudio,releaseMovieVideo,videoDecodeError} from './finalMovie.js';
 
-export default function ReviewStudio({review,onReview,progress,onProgress,playing,onPlaying,speed,language,live,getComposition,onMovieFrame,onMapResize,onEditIncident}){
+export default function ReviewStudio({review,onReview,progress,onProgress,playing,onPlaying,speed,language,live,getComposition,onMovieFrame,onMapResize,onEditIncident,clipRequest,onBoard}){
+ const [clipOpen,setClipOpen]=useState(false),[previewRange,setPreviewRange]=useState(null);
+ useEffect(()=>{if(clipRequest){onPlaying(false);setClipOpen(true);}},[clipRequest]);
+ useEffect(()=>{setClipOpen(false);setPreviewRange(null);},[review.libraryId,review.sessionId]);
  const t=(eu,es)=>language==='eu'?eu:es;
  const clock=useMemo(()=>timeline(review.points),[review.points]);
  const position=pointAt(review.points,live?1:progress,clock),point=position.point;
  const velocity=position.gap?{value:null,estimated:false}:speedAt(review.points,position.index);
  const videoRef=useRef(null),raf=useRef(0),state=useRef(null),urlRef=useRef(null),selectedFile=useRef(null),drag=useRef(null);
  const [videoUrl,setVideoUrl]=useState(''),[duration,setDuration]=useState(0),[message,setMessage]=useState(''),[calibrating,setCalibrating]=useState(false),[layout,setLayout]=useState(()=>{try{return localStorage.getItem('rutasad-pip-layout')==='split'?'split':'large';}catch{return 'large';}}),[corner,setCorner]=useState({x:12,y:58});
- state.current={progress,onProgress,onPlaying,speed,clock,live};
+ state.current={progress,onProgress,onPlaying,speed,clock,live,previewRange};
  useEffect(()=>{
   let cancelled=false;setDuration(0);setMessage('');setVideoUrl('');setCalibrating(false);
   if(urlRef.current){URL.revokeObjectURL(urlRef.current);urlRef.current=null;}
@@ -22,7 +26,7 @@ export default function ReviewStudio({review,onReview,progress,onProgress,playin
  useEffect(()=>{
   if(!playing||live)return;
   let previous=0;
-  const tick=now=>{const s=state.current;if(!previous)previous=now;const dt=Math.min((now-previous)/1000,.25);previous=now;const next=Math.min(1,s.progress+dt*s.speed/s.clock.duration);s.onProgress(next);if(next>=1)s.onPlaying(false);else raf.current=requestAnimationFrame(tick);};
+  const tick=now=>{const s=state.current;if(!previous)previous=now;const dt=Math.min((now-previous)/1000,.25);previous=now;const next=Math.min(s.previewRange?.end??1,s.progress+dt*s.speed/s.clock.duration);s.onProgress(next);if(next>=(s.previewRange?.end??1))s.onPlaying(false);else raf.current=requestAnimationFrame(tick);};
   raf.current=requestAnimationFrame(tick);return()=>cancelAnimationFrame(raf.current);
  },[playing,live,review.sessionId,clock.duration]);
  const [finalView,setFinalView]=useState(false),[exporting,setExporting]=useState(false),[exportProgress,setExportProgress]=useState(0),[result,setResult]=useState('');
@@ -60,6 +64,7 @@ export default function ReviewStudio({review,onReview,progress,onProgress,playin
  const startDrag=e=>{if(layout==='split'||exporting||!e.target.closest('header')||e.target.closest('button,input,video'))return;drag.current={x:e.clientX,y:e.clientY,corner};e.currentTarget.setPointerCapture(e.pointerId);};
  const moveDrag=e=>{if(!drag.current)return;const box=e.currentTarget,parent=box.parentElement;setCorner({x:Math.max(0,Math.min(parent.clientWidth-box.clientWidth,drag.current.corner.x+e.clientX-drag.current.x)),y:Math.max(0,Math.min(parent.clientHeight-box.clientHeight,drag.current.corner.y+e.clientY-drag.current.y))});};
  return <>
+  {clipOpen&&<ClipEditor review={review} progress={progress} onProgress={onProgress} playing={playing} onPlaying={onPlaying} onRange={setPreviewRange} onClose={()=>{onPlaying(false);setPreviewRange(null);setClipOpen(false);}} onBoard={seed=>{setClipOpen(false);onBoard(seed);}} videoUrl={videoUrl} language={language}/>}
   {!live&&review.points.length>0&&<div className="pip-layout-selector" role="group" aria-label={t('Bideoaren tamaina','Tamaño del vídeo')}><button disabled={exporting} aria-pressed={layout==='large'} onClick={()=>changeLayout('large')}>{t('Handia','Grande')}</button><button disabled={exporting} aria-pressed={layout==='split'} onClick={()=>changeLayout('split')}>{t('Pantaila erdia','Media pantalla')}</button></div>}
   {finalView&&<div className="movie-toolbar"><button disabled={exporting} onClick={()=>setFinalView(false)}>{t("Itzuli","Volver")}</button><button disabled={exporting} onClick={()=>{if(progress>=1)onProgress(0);onPlaying(!playing);}}>{playing?'Ⅱ':'▶'}</button><button disabled={exporting||position.gap} onClick={mark}>＋ {t("Puntu kritikoa","Punto crítico")}</button><button disabled={exporting} onClick={exportMovie}>{t("MP4 esportatu","Exportar MP4")}</button>{exporting&&<><span>{Math.round(exportProgress*100)}%</span><button onClick={()=>exportAbort.current?.abort()}>{t("Utzi","Cancelar")}</button></>}{result&&!exporting&&<a download="traza-mapa-pip.mp4" href={result}>{t("MP4 deskargatu","Descargar MP4")}</a>}{message&&<p role="status">{message}</p>}<small>{t("Mapa, ibilbidea, PIP bideoa eta puntu kritikoak. Mantendu pantaila piztuta.","Mapa, recorrido, vídeo PIP y puntos críticos. Mantén la pantalla encendida.")}</small></div>}
   {review.points.length>0&&<aside className="telemetry-hud" aria-label={t('Telemetria','Telemetría')}>

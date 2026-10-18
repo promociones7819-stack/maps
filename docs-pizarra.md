@@ -34,3 +34,11 @@ Los casos utilizan el almacenamiento de la cuenta activa en la web y se incluyen
 - `node tests/desktop-board.mjs`: biblioteca original intacta en Electron.
 
 La pizarra no inicia grabación de audio o vídeo. Continúa desactivada mientras se graba un recorrido o se registra una clase en directo.
+
+## Fragmentos reales desde GPX
+
+En **Revisar recorrido GPX → Recortar tramo → pizarra**, escribe inicio y final `mm:ss`. **Previsualizar tramo** reproduce mapa y vídeo con su sincronización actual y se detiene al final. Puedes pausar y ajustar los tiempos. Un GPX sin tiempos completos no permite esta función; los límites que caen en un hueco de GPS deben ajustarse.
+
+**Crear fragmento** guarda otra entrada independiente en la biblioteca: copia las coordenadas, horas, telemetría e incidencias dentro del intervalo, con identificadores nuevos y sin asignación al alumno o a su clase. No modifica el proyecto ni los archivos originales. El vídeo se referencia, no se recodifica ni duplica: conserva su hora de sincronización original y sigue necesitando el archivo original en su carpeta. Si se mueve la carpeta, vuelve a abrirla. Los vídeos seleccionados temporalmente se pueden volver a seleccionar en la pizarra.
+
+**Enviar a pizarra** abre una copia temporal del tramo, su trazada azul, las señales y los puntos críticos. El reproductor del tramo controla un indicador GPS independiente y el vídeo PIP. El mapa no sigue automáticamente al indicador: se mantiene disponible para explicar, dibujar alternativas y añadir vehículos o señales. **Guardar explicación** conserva el fragmento y sus referencias de vídeo junto a los pasos de la pizarra; las copias de seguridad incluyen estos datos, pero no el archivo de vídeo. Los PNG/PDF de pizarra siguen exportando mapa y elementos, no una película del vídeo PIP. Para MP4, abre el fragmento guardado desde la biblioteca y utiliza la exportación habitual del recorrido con PIP.

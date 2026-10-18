@@ -1,3 +1,4 @@
+import BoardClipPlayer from './BoardClipPlayer.jsx';
 // SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
 // SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
 import React,{useEffect,useReducer,useRef,useState} from 'react';
@@ -25,10 +26,10 @@ function orientVehicle(entry,map,angle=entry.currentAngle??entry.item.angle){
 
 // This board owns its map and its in-memory history. It never calls
 // project, microphone or recorder APIs. Only an explicit Save persists a case.
-export default function DidacticBoard({createMap,Marker,catalog,signalDefinition,signalHtml,SignalFace,arrows,defaultDraft,language,onClose}){
+export default function DidacticBoard({createMap,Marker,catalog,signalDefinition,signalHtml,SignalFace,arrows,defaultDraft,language,onClose,seed}){
  const t=(eu,es)=>language==='eu'?eu:es;
  const container=useRef(null),mapRef=useRef(null),ringRef=useRef(null),panelRef=useRef(null),stateRef=useRef(null),draggingRef=useRef(false);
- const [state,dispatch]=useReducer(boardReducer,undefined,emptyBoard),[tool,setTool]=useState('pointer'),[ready,setReady]=useState(false),[error,setError]=useState('');
+ const [state,dispatch]=useReducer(boardReducer,seed,initial=>initial?.document?{...structuredClone(initial.document),items:structuredClone(initial.document.steps[0].items),past:[]}:emptyBoard()),[tool,setTool]=useState('pointer'),[ready,setReady]=useState(false),[error,setError]=useState('');
  const [draftPath,setDraftPath]=useState(null),[selected,setSelected]=useState(null),[editor,setEditor]=useState(null),[signal,setSignal]=useState({...defaultDraft,signalCode:'R-2',title:''});
  const [color,setColor]=useState(colorOptions[0]),[locating,setLocating]=useState(false),[view,setView]=useState({lat:'',lng:''});
  const markersRef=useRef([]),arrowTipsRef=useRef([]),vehicleMarkersRef=useRef(new Map()),playbackRef=useRef({}),animationRef=useRef(0),drawingRef=useRef(null),suppressClickRef=useRef(0);
@@ -88,6 +89,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    map.addLayer({id:'board-outline',type:'line',source:'board-lines',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#163b30','line-width':['+',4,['get','width']],'line-opacity':['get','opacity']}});
    map.addLayer({id:'board-lines',type:'line',source:'board-lines',layout:{'line-cap':'round','line-join':'round'},filter:['!=',['get','dash'],true],paint:{'line-color':['get','color'],'line-width':['get','width'],'line-opacity':['get','opacity']}});
    map.addLayer({id:'board-dashes',type:'line',source:'board-lines',filter:['==',['get','dash'],true],paint:{'line-color':['get','color'],'line-width':['get','width'],'line-opacity':['get','opacity'],'line-dasharray':[2,2]}});
+   if(seed?.document?.sourceClip?.points.length){const ps=seed.document.sourceClip.points;const bounds=ps.reduce((b,p)=>[[Math.min(b[0][0],p.coordinates[0]),Math.min(b[0][1],p.coordinates[1])],[Math.max(b[1][0],p.coordinates[0]),Math.max(b[1][1],p.coordinates[1])]],[[180,85],[-180,-85]]);map.fitBounds(bounds,{padding:100,maxZoom:18,duration:0});}
    setReady(true);
   };
   map.on('load',load);
@@ -211,6 +213,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
   <header className="board-header"><div><strong>RutasAD <span>/ {t('Arbel didaktikoa','Pizarra didáctica')}</span></strong><small>{caseId?caseName:t('Behin-behinekoa · grabaziorik gabe · proiektutik bereizita','Temporal · sin grabación · independiente del proyecto')}</small></div><div className="board-header-actions board-ui"><button onClick={openCases}>{t('Azalpenak','Mis explicaciones')}</button><button onClick={()=>{setModal('save');if(!caseName)setCaseName(t('Azalpen berria','Nueva explicación'));}}>{t('Gorde azalpena','Guardar explicación')}</button><button aria-pressed={presenting} onClick={()=>{setPresenting(!presenting);setEditor(null);setLocating(false);setDraftPath(null);}}>{presenting?t('Arbela editatu','Editar pizarra'):t('Aurkeztu','Presentar')}</button><button onClick={close}>{t('Pizarratik irten','Salir de pizarra')}</button></div></header>
   <div className="board-stage" onPointerMove={pointerMove} onPointerLeave={()=>{if(ringRef.current)ringRef.current.hidden=true;}}>
    <div className="board-map" ref={container}/>
+   {ready&&state.sourceClip&&<BoardClipPlayer clip={state.sourceClip} initialUrl={seed?.document?.sourceClip?.libraryId===state.sourceClip.libraryId?seed.videoUrl:null} map={mapRef.current} Marker={Marker} language={language}/>}
    <div className="board-pointer" ref={ringRef} hidden/>
    <nav className="board-tools board-ui" aria-label={t('Arbelaren tresnak','Herramientas de pizarra')}>
     <div className="board-groups">{[['basic','Erakuslea','Puntero'],['vehicles','Ibilgailuak','Vehículos'],['draw','Marraztu','Dibujar'],['signals','Seinaleak','Señales'],['explain','Azaldu','Explicar']].map(([id,eu,es])=><button key={id} aria-pressed={group===id} onClick={()=>{setGroup(id);beginTool({basic:'pointer',vehicles:'vehicle',draw:'route',signals:'signal',explain:'pointer'}[id]);}}>{t(eu,es)}</button>)}</div>
