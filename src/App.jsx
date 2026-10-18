@@ -1,3 +1,4 @@
+import DidacticBoard from './DidacticBoard.jsx';
 import {AccountControls,LegacyImport} from './WebAccess.jsx';
 import {recordingContextOptions, drawExplanationPointer} from './mapRecording.js';
 import BackupScreen from './BackupScreen.jsx';
@@ -278,6 +279,7 @@ function interpolateRoute(points, fraction) {
 }
 
 export default function App() {
+  const [boardOpen,setBoardOpen]=useState(false);
   const [language,setLanguage]=useState(()=>localStorage.getItem('traza-bizkaia-language')==='es'?'es':'eu');
   const t=(eu,es)=>language==='eu'?eu:es;
   const [liveLesson,setLiveLesson]=useState(false);
@@ -1263,7 +1265,15 @@ export default function App() {
     try{const opened=JSON.parse(localStorage.getItem('traza-bizkaia-library-opened')||'{}');opened[entry.key]=Date.now();localStorage.setItem('traza-bizkaia-library-opened',JSON.stringify(opened));}catch{}
     setLibraryOpen(false);
   };
+  const createBoardMap=node=>{
+    const original=mapRef.current,center=original.getCenter(),isMapbox=mapProvider==='mapbox';
+    const map=new (isMapbox?MapboxGLMap:MapLibreMap)({container:node,style:isMapbox?'mapbox://styles/mapbox/satellite-streets-v12':{version:8,sources:{'basemap-source':geoEuskadiSource},layers:[{id:'basemap-layer',type:'raster',source:'basemap-source'}]},center:[center.lng,center.lat],zoom:original.getZoom(),bearing:original.getBearing(),pitch:original.getPitch(),attributionControl:false,cooperativeGestures:false,maxZoom:isMapbox?22:20});
+    map.addControl(isMapbox?new MapboxNavigationControl():new NavigationControl(),'top-right');
+    map.addControl(isMapbox?new MapboxAttributionControl({compact:true}):new AttributionControl({compact:true}),'bottom-right');
+    return map;
+  };
   return <main className="app-shell">
+    {boardOpen&&<DidacticBoard createMap={createBoardMap} Marker={mapProvider==='mapbox'?MapboxMarker:MapLibreMarker} catalog={SIGNAL_CATALOG} signalDefinition={signalDefinition} signalHtml={markerFaceHtml} SignalFace={SignalFace} arrows={ARROWS} defaultDraft={defaultMarkerDraft('')} language={language} onClose={()=>setBoardOpen(false)}/>}
     <LegacyImport/><header className="topbar">
       <div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><div className="brand-name">TRAZA<span> / BIZKAIA</span></div><div className="brand-subtitle">Estudio de recorridos aéreos</div></div></div>
       <div className="topbar-right"><AccountControls language={language} disabled={recording||liveLesson}/><button disabled={recording||liveLesson} onClick={()=>{setPlaying(false);stopNarration();mapRef.current?.stop();setStudentsOpen(true);}}>♙ {t("Ikasleak","Alumnos")}</button><button className="library-launch" disabled={recording||liveLesson} onClick={showLibrary}>▤ {t("Liburutegia","Biblioteca")}</button><span className="map-status"><i className={mapReady && !mapError ? 'status-dot ready' : 'status-dot'} />{mapProvider === 'mapbox' ? 'Mapbox Satélite' : 'Ortofoto geoEuskadi'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
@@ -1278,6 +1288,7 @@ export default function App() {
         <div className="location-chip"><span className="pin-icon">⌖</span><div><strong>Bizkaia, Euskadi</strong><small>Vista inicial · mapa real</small></div><span className="chip-live">LIVE</span></div>
         <div className="workspace-switch" role="tablist" aria-label="Modo de trabajo"><button role="tab" aria-selected={workspaceMode === 'routes'} className={workspaceMode === 'routes' ? 'on' : ''} onClick={() => setWorkspace('routes')}>{t("Ibilbideak","Trayectorias")}</button><button role="tab" aria-selected={workspaceMode === 'gpx-review'} className={workspaceMode === 'gpx-review' ? 'on' : ''} onClick={() => setWorkspace('gpx-review')}>{t("GPX / Saioak","Revisar recorrido GPX")}</button></div>
         {workspaceMode === 'routes' ? <>
+        <button className="pizarra-launch" disabled={!mapReady||recording||liveLesson} onClick={()=>{setPlaying(false);stopNarration();mapRef.current?.stop();setBoardOpen(true);}}>◉ {t('Arbel didaktikoa','Pizarra didáctica')}<small style={{display:'block',fontWeight:400,marginTop:4}}>{t('Mapa bakarrik · behin-behinekoa · grabaziorik gabe','Solo mapa · temporal · sin grabación')}</small></button>
         <div className="section-title"><div><span className="eyebrow">CAPAS DE RECORRIDO</span><span className="count-badge">{routes.length}/4</span></div><button className="add-route" onClick={addRoute} disabled={routes.length >= 4} aria-label="Crear trayectoria" title={routes.length >= 4 ? 'Ya tienes las cuatro trayectorias' : 'Crear trayectoria'}>+</button></div>
         <div className="route-list">
           {routes.map((route, index) => <article key={route.id} className={`route-card ${activeId === route.id ? 'selected' : ''}`}>
