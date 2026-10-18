@@ -97,8 +97,32 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
   map.on('click',click);
   map.on('move',()=>{for(const tip of arrowTipsRef.current){const a=map.project(tip.previous),b=map.project(tip.last);tip.element.style.transform=`rotate(${Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI}deg)`;}});
   map.on('error',event=>{if(event.error?.message)setError(event.error.message);});
+  const canvas=map.getCanvas();
+  const locate=e=>{const rect=canvas.getBoundingClientRect(),p=map.unproject([e.clientX-rect.left,e.clientY-rect.top]);return [p.lng,p.lat];};
+  const start=e=>{
+   const s=stateRef.current;
+   if(s.editor||s.presenting||!['ink','line','dashed','circle','rectangle','area','sight'].includes(s.tool)||e.pointerType==='mouse'&&e.button!==0)return;
+   const p=locate(e);
+   drawingRef.current={id:crypto.randomUUID(),type:s.tool,color:s.color,points:[p,p],width:5,aperture:70};
+   setDrawing(drawingRef.current);
+   canvas.setPointerCapture(e.pointerId);
+  };
+  const move=e=>{
+   if(!drawingRef.current)return;
+   const item=drawingRef.current,point=locate(e);
+   drawingRef.current={...item,points:['ink','area'].includes(item.type)?[...item.points.slice(0,-1),point,point]:[item.points[0],point]};
+   setDrawing(drawingRef.current);
+  };
+  const finish=e=>{
+   const item=drawingRef.current;if(!item)return;
+   drawingRef.current=null;setDrawing(null);
+   if(item.points.length>1)commit(items=>[...items,item]);
+   draggingRef.current=true;setTimeout(()=>{draggingRef.current=false;},0);
+   if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);
+  };
+  canvas.addEventListener('pointerdown',start);canvas.addEventListener('pointermove',move);canvas.addEventListener('pointerup',finish);canvas.addEventListener('pointercancel',finish);
   const resize=new ResizeObserver(()=>map.resize());resize.observe(container.current);
-  return()=>{resize.disconnect();markersRef.current.forEach(m=>m.remove());markersRef.current=[];mapRef.current=null;map.remove();};
+  return()=>{canvas.removeEventListener('pointerdown',start);canvas.removeEventListener('pointermove',move);canvas.removeEventListener('pointerup',finish);canvas.removeEventListener('pointercancel',finish);resize.disconnect();markersRef.current.forEach(m=>m.remove());markersRef.current=[];mapRef.current=null;map.remove();};
  },[]);
 
  useEffect(()=>{
@@ -111,8 +135,9 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
 
  useEffect(()=>{
   const map=mapRef.current;if(!ready||!map)return;
-  map.getSource('board-lines').setData({type:'FeatureCollection',features:state.items.filter(i=>i.points?.length>1).map(i=>({type:'Feature',properties:{id:i.id,color:i.color},geometry:{type:'LineString',coordinates:i.points}}))});
-  markersRef.current.forEach(m=>m.remove());markersRef.current=[];arrowTipsRef.current=[];
+  map.getSource('board-lines').setData(lineFeatures([...state.items,...(drawing?[drawing]:[]),...state.items.filter(i=>i.type==='vehicle'&&i.path?.length>1).map(i=>({id:i.id+'-path',type:'vehicle-path',points:i.path,color:i.color,width:4}))]));
+  map.getSource('board-polygons').setData(geoFeatures([...state.items,...(drawing?[drawing]:[])]));
+  markersRef.current.forEach(m=>m.remove());markersRef.current=[];arrowTipsRef.current=[];vehicleMarkersRef.current.clear();
   const add=(element,point,draggable,onDragEnd)=>{
    const marker=new Marker({element,draggable,anchor:'center'}).setLngLat(point).addTo(map);
    marker.on('dragstart',()=>{draggingRef.current=true;});
@@ -120,6 +145,26 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    markersRef.current.push(marker);return marker;
   };
   for(const item of state.items){
+   if(item.type==='vehicle'){
+    const element=document.createElement('button');
+    element.type='button';element.className='board-map-item board-vehicle';
+    element.style.color=item.color||'#57b9f4';element.innerHTML=vehicleSvg(item.kind);
+    const letter=document.createElement('strong');letter.textContent=item.label||'A';element.appendChild(letter);
+    element.setAttribute('aria-label',t('Ibilgailua','Vehículo')+' '+(item.label||'A'));
+    element.onclick=e=>{e.stopPropagation();if(draggingRef.current)return;
+     if(tool==='erase')remove(item.id);
+     else if(tool==='edit')setEditor(structuredClone(item));
+     else setSelected(item.id);
+    };
+    const marker=add(element,item.coordinates,tool==='edit',next=>commit(items=>items.map(i=>i.id===item.id?{...i,coordinates:next}:i)));
+    vehicleMarkersRef.current.set(item.id,marker);
+    marker.setRotation?.(item.heading||0);
+    continue;
+   }
+   if(item.type==='text'){
+    const el=document.createElement('button');el.type='button';el.className='board-map-item board-map-text';el.textContent=item.title||'Texto';el.onclick=e=>{e.stopPropagation();if(tool==='edit')setEditor(structuredClone(item));else if(tool==='erase')remove(item.id);else setSelected(item.id);};
+    add(el,item.coordinates,tool==='edit',next=>commit(items=>items.map(i=>i.id===item.id?{...i,coordinates:next}:i)));continue;
+   }
    if(item.points){
     if(item.id===selected&&(tool==='edit'||item.id===draftPath))item.points.forEach((p,index)=>{
      const element=document.createElement('button');element.type='button';element.className='board-vertex';element.textContent=String(index+1);element.setAttribute('aria-label',t(`Ibilbideko ${index+1}. puntua`,`Punto ${index+1} de la pizarra`));
@@ -145,10 +190,62 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    };
    add(element,item.coordinates,tool==='edit',point=>commit(items=>items.map(i=>i.id===item.id?{...i,coordinates:point}:i)));
   }
- },[ready,state.items,tool,selected,draftPath]);
+ },[ready,state.items,tool,selected,draftPath,drawing]);
 
  const hints={pointer:t('Seinalatu mapan. Sakatu semaforoa kolorea aldatzeko.','Señala sobre el mapa. Toca un semáforo para cambiar su color.'),move:t('Kokatu mapa azaldu nahi duzun lekuan.','Desplaza y acerca el mapa al lugar que quieras explicar.'),route:t('Sakatu puntuak gehitzeko; bukatutakoan amaitu trazua.','Pulsa para añadir puntos; termina el trazo cuando esté listo.'),arrow:t('Sakatu geziaren hasiera eta amaiera.','Pulsa el inicio y el final de la flecha.'),signal:t('Sakatu mapan hautatutako seinalea jartzeko.','Pulsa en el mapa para colocar la señal elegida.'),note:t('Sakatu puntu kritikoa kokatzeko.','Pulsa para situar el punto conflictivo.'),edit:t('Arrastatu elementuak; sakatu seinalea editatzeko edo trazua puntuak mugitzeko.','Arrastra elementos. Pulsa señales o trazos para editarlos.'),erase:t('Sakatu elementua edo trazua ezabatzeko.','Pulsa un elemento o un trazo para borrarlo.')};
  const selectedItem=state.items.find(i=>i.id===selected);
+ useEffect(()=>{
+  if(!playing||!ready||presenting)return;
+  let frame,previous;
+  const run=now=>{
+   if(previous!==undefined)setPlayProgress(p=>Math.min(1,p+(now-previous)/(Math.max(1,playDuration)*1000)));
+   previous=now;frame=requestAnimationFrame(run);
+  };
+  frame=requestAnimationFrame(run);
+  return()=>cancelAnimationFrame(frame);
+ },[playing,ready,playDuration,presenting]);
+ useEffect(()=>{
+  const map=mapRef.current;if(!map||!ready)return;
+  for(const item of state.items.filter(i=>i.type==='vehicle'&&i.path?.length>1)){
+   const marker=vehicleMarkersRef.current.get(item.id);if(!marker)continue;
+   const position=vehicleAt(item,playProgress);
+   marker.setLngLat(position.coordinates);marker.setRotation?.(position.heading||0);
+  }
+  if(playProgress>=1&&playing)setPlaying(false);
+ },[playProgress,playing,ready,state.items]);
+ const startPresentation=()=>{
+  if(!scenes.length){setMessage(t('Gehitu gutxienez eszena bat.','Añade al menos una escena.'));return;}
+  presentationSnapshot.current=structuredClone(state.items);setPresenting(true);setPlaying(false);setSceneIndex(0);setRevealed(false);dispatch({type:'set',items:structuredClone(scenes[0].items)});setGroup('present');selectTool('pointer');
+ };
+ const showScene=index=>{
+  if(index<0||index>=scenes.length)return;
+  setSceneIndex(index);setRevealed(false);dispatch({type:'set',items:structuredClone(scenes[index].items)});
+  const camera=scenes[index].camera;if(camera)mapRef.current?.jumpTo(camera);
+ };
+ const endPresentation=()=>{
+  if(presentationSnapshot.current)dispatch({type:'set',items:presentationSnapshot.current});
+  presentationSnapshot.current=null;setPresenting(false);setRevealed(false);setSceneIndex(-1);setGroup('explain');
+ };
+ const addScene=()=>{
+  const map=mapRef.current;setScenes(s=>[...s,{id:crypto.randomUUID(),name:t('Eszena','Escena')+' '+(s.length+1),items:structuredClone(state.items),question,answer,camera:map?{center:map.getCenter().toArray(),zoom:map.getZoom(),bearing:map.getBearing(),pitch:map.getPitch()}:null}]);
+  setQuestion('');setAnswer('');setMessage(t('Eszena gehituta.','Escena añadida.'));
+ };
+ const saveBoard=()=>{
+  const name=boardName.trim()||t('Azalpena','Explicación');
+  const map=mapRef.current,camera=map?{center:map.getCenter().toArray(),zoom:map.getZoom(),bearing:map.getBearing(),pitch:map.getPitch()}:null;
+  const entry={id:crypto.randomUUID(),name,updatedAt:Date.now(),items:structuredClone(state.items),scenes:structuredClone(scenes),camera};
+  try{saveBoardLibrary(entry);setLibrary(loadBoardLibrary());setBoardName(name);setMessage(t('Azalpena gordeta.','Explicación guardada.'));}catch(e){setMessage(e.message);}
+ };
+ const loadBoard=entry=>{
+  if(state.items.length&&!confirm(t('Orain artekoa ordeztu?','¿Sustituir la pizarra actual?')))return;
+  dispatch({type:'set',items:structuredClone(entry.items)});setScenes(structuredClone(entry.scenes));setBoardName(entry.name);setSelected(null);setDraftPath(null);setLibraryOpen(false);if(entry.camera)mapRef.current?.jumpTo(entry.camera);
+ };
+ const exportBoard=async format=>{
+  try{
+   const png=await imageOfBoard(mapRef.current,state.items);
+   downloadBlob(format==='pdf'?await pdfOfBoard(png):png,boardFilename(boardName)+(format==='pdf'?'.pdf':'.png'));
+  }catch(e){setMessage(e.message);}
+ };
  const pointerMove=event=>{
   const ring=ringRef.current;if(!ring)return;
   if(tool!=='pointer'||editor||event.target.closest('.board-ui,.maplibregl-control-container,.mapboxgl-control-container')){ring.hidden=true;return;}
