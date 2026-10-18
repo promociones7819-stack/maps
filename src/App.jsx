@@ -1269,7 +1269,7 @@ export default function App() {
   };
   const createBoardMap=node=>{
     const original=mapRef.current,center=original.getCenter(),isMapbox=mapProvider==='mapbox';
-    const map=new (isMapbox?MapboxGLMap:MapLibreMap)({container:node,style:isMapbox?'mapbox://styles/mapbox/satellite-streets-v12':{version:8,sources:{'basemap-source':geoEuskadiSource},layers:[{id:'basemap-layer',type:'raster',source:'basemap-source'}]},center:[center.lng,center.lat],zoom:original.getZoom(),bearing:original.getBearing(),pitch:original.getPitch(),attributionControl:false,cooperativeGestures:false,maxZoom:isMapbox?22:20});
+    const map=new (isMapbox?MapboxGLMap:MapLibreMap)({container:node,style:isMapbox?'mapbox://styles/mapbox/satellite-streets-v12':{version:8,sources:{'basemap-source':geoEuskadiSource},layers:[{id:'basemap-layer',type:'raster',source:'basemap-source'}]},center:[center.lng,center.lat],zoom:original.getZoom(),bearing:original.getBearing(),pitch:original.getPitch(),preserveDrawingBuffer:true,attributionControl:false,cooperativeGestures:false,maxZoom:isMapbox?22:20});
     map.addControl(isMapbox?new MapboxNavigationControl():new NavigationControl(),'top-right');
     map.addControl(isMapbox?new MapboxAttributionControl({compact:true}):new AttributionControl({compact:true}),'bottom-right');
     return map;
