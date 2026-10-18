@@ -1,0 +1,35 @@
+name: Pizarra didáctica (rama de revisión)
+on:
+  pull_request:
+    paths:
+      - 'src/DidacticBoard.jsx'
+      - 'src/boardAdvanced.js'
+      - 'src/didactic-board.css'
+      - 'src/App.jsx'
+      - 'tests/*board*.mjs'
+      - '.github/workflows/board-checks.yml'
+  workflow_dispatch:
+jobs:
+  board:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Compile app
+        run: npm run build
+      - name: Board helper tests
+        run: node tests/board-advanced.mjs
+      - name: Browser dependencies
+        run: npx playwright install --with-deps chromium webkit
+      - name: Browser integration checks
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/rutasad-vite.log 2>&1 &
+          for n in $(seq 1 50); do curl -fsS http://127.0.0.1:5173/ >/dev/null && break || sleep 1; done
+          node tests/didactic-board.mjs
+          node tests/didactic-board-mobile.mjs
+          node tests/didactic-board-advanced.mjs
