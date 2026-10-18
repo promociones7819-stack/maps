@@ -42,7 +42,7 @@ export function geoFeatures(items){
  return {type:'FeatureCollection',features};
 }
 export function lineFeatures(items) {
- return {type:'FeatureCollection',features:items.filter(i=>['route','arrow','ink','dashed','line','vehicle-path'].includes(i.type)&&i.points?.length>1).map(i=>({type:'Feature',properties:{id:i.id,color:i.color||'#f3b73e',dashed:i.type==='dashed',width:i.width||5},geometry:{type:'LineString',coordinates:i.points}}))};
+ return {type:'FeatureCollection',features:items.filter(i=>['route','arrow','ink','dashed','line','stopline','yieldline','crosswalk','vehicle-path'].includes(i.type)&&i.points?.length>1).map(i=>({type:'Feature',properties:{id:i.id,color:['stopline','yieldline','crosswalk'].includes(i.type)?'#ffffff':i.color||'#f3b73e',dashed:['dashed','yieldline','crosswalk'].includes(i.type),width:i.type==='stopline'||i.type==='yieldline'?9:i.type==='crosswalk'?16:i.width||5},geometry:{type:'LineString',coordinates:i.points}}))};
 }
 export function loadBoardLibrary(){try{const a=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(a)?a.filter(x=>x&&typeof x.id==='string'&&Array.isArray(x.items)&&Array.isArray(x.scenes)):[];}catch{return [];}}
 export function saveBoardLibrary(entry){const items=loadBoardLibrary().filter(e=>e.id!==entry.id);items.unshift(structuredClone(entry));localStorage.setItem(KEY,JSON.stringify(items.slice(0,100)));return entry;}
