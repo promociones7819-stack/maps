@@ -1,3 +1,4 @@
+import {BOARD_CASES_KEY,validBoardCases} from './boardModel.js';
 import {listLessons,listLibraryReviews,replaceBackupRecords} from './lessonStore.js';
 import {validateTrack} from './racebox.js';
 import {FICHA_KEY,validateStudents,mergeStudents} from './students.js';
@@ -33,6 +34,7 @@ export function parseBackup(input){
  }
  storage[`${prefix}projects`]=JSON.stringify({...index,projects:index.projects.map(({legacy,...project})=>project)});
  if(storage[`${prefix}students`]){const students=json(storage[`${prefix}students`]);if(!array(students,10000)||students.some(s=>!s||!text(s.id)||['__proto__','constructor','prototype'].includes(s.id)||!text(s.name)))fail();}
+ if(storage[BOARD_CASES_KEY]&&!validBoardCases(json(storage[BOARD_CASES_KEY])))fail();
  if(storage[FICHA_KEY])validateStudents(json(storage[FICHA_KEY]));
  const sessions=input.version===2?input.sessions||[]:[],library=input.version===2?input.library||[]:[];
  if(!array(sessions,1000)||!array(library,10000))fail();
@@ -46,7 +48,7 @@ export function backupSummary(backup){
  const add=(r,key)=>{if(r.points.length)reviews.add(r.sessionId?`session:${r.sessionId}`:r.libraryId?`library:${r.libraryId}`:key);};
  for(const p of index.projects){const key=`${prefix}project-${p.id}`;if(backup.storage[key])trajectories+=json(backup.storage[key]).filter(r=>r.points.length).length;if(backup.storage[`${key}-gpx-review`])add(json(backup.storage[`${key}-gpx-review`]),`project:${p.id}`);}
  for(const item of backup.library)add(item.review,`library:${item.id}`);for(const session of backup.sessions)if(session.points.length)reviews.add(`session:${session.id}`);
- return {projects:index.projects.length,trajectories,reviews:reviews.size,sessions:backup.sessions.length,students:backup.storage[FICHA_KEY]?Object.keys(json(backup.storage[FICHA_KEY]).students).length:0,classes:backup.storage[FICHA_KEY]?Object.values(json(backup.storage[FICHA_KEY]).students).reduce((n,s)=>n+Object.values(s.permits).reduce((a,p)=>a+p.history.length,0),0):0};
+ return {explanations:backup.storage[BOARD_CASES_KEY]?json(backup.storage[BOARD_CASES_KEY]).length:0,projects:index.projects.length,trajectories,reviews:reviews.size,sessions:backup.sessions.length,students:backup.storage[FICHA_KEY]?Object.keys(json(backup.storage[FICHA_KEY]).students).length:0,classes:backup.storage[FICHA_KEY]?Object.values(json(backup.storage[FICHA_KEY]).students).reduce((n,s)=>n+Object.values(s.permits).reduce((a,p)=>a+p.history.length,0),0):0};
 }
 export async function createBackup(){const [sessions,library]=await Promise.all([listLessons(),listLibraryReviews()]);return parseBackup({format:'rutasad-backup',version:2,createdAt:new Date().toISOString(),storage:backupStorage(),sessions,library});}
 const mergeItems=(current,incoming,update)=>{const map=new Map(current.map(item=>[item.id,item]));for(const item of incoming)if(update||!map.has(item.id))map.set(item.id,item);return [...map.values()];};
@@ -54,10 +56,11 @@ export function mergeBackupStorage(current,incoming,update=false){
  const next={...current},oldIndex=current[`${prefix}projects`]?json(current[`${prefix}projects`]):{projects:[]},newIndex=json(incoming[`${prefix}projects`]);
  const oldIds=new Set(oldIndex.projects.map(p=>p.id));
  for(const [key,value] of Object.entries(incoming)){
-  if(key===`${prefix}projects`||key===`${prefix}students`||key===FICHA_KEY)continue;
+  if(key===`${prefix}projects`||key===`${prefix}students`||key===FICHA_KEY||key===BOARD_CASES_KEY)continue;
   const project=newIndex.projects.find(p=>key===`${prefix}project-${p.id}`||key===`${prefix}project-${p.id}-markers`||key===`${prefix}project-${p.id}-gpx-review`);
   if(project){if(!oldIds.has(project.id)||update)next[key]=value;}else if(!(key in current))next[key]=value;
  }
+ if(current[BOARD_CASES_KEY]||incoming[BOARD_CASES_KEY]){const mergedCases=mergeItems(current[BOARD_CASES_KEY]?json(current[BOARD_CASES_KEY]):[],incoming[BOARD_CASES_KEY]?json(incoming[BOARD_CASES_KEY]):[],update);if(!validBoardCases(mergedCases))throw Error('La biblioteca resultante supera el límite de 60 explicaciones o contiene datos no válidos.');next[BOARD_CASES_KEY]=JSON.stringify(mergedCases);}
  const projects=mergeItems(oldIndex.projects,newIndex.projects,update);
  next[`${prefix}projects`]=JSON.stringify({activeProjectId:oldIndex.activeProjectId||newIndex.activeProjectId,projects});
  const oldStudents=current[`${prefix}students`]?json(current[`${prefix}students`]):[],newStudents=incoming[`${prefix}students`]?json(incoming[`${prefix}students`]):[];

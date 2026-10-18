@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {emptyBoard,boardReducer,boardDocument,validBoardDocument,validBoardCases,positionAlong,shapePoints,vehicleSvg} from '../src/boardModel.js';
+let state=emptyBoard();const original=boardDocument(state);
+const route={id:'route',type:'route',color:'#f3b73e',points:[[0,0],[0,1],[1,1]]},vehicle={id:'car',type:'vehicle',vehicleType:'car',coordinates:[0,0],angle:0,size:88,label:'A',color:'#f3b73e',routeId:'route'};
+state=boardReducer(state,{type:'set',items:[route,vehicle]});state=boardReducer(state,{type:'add-step',id:'second'});
+state=boardReducer(state,{type:'set',items:items=>items.map(i=>i.id==='car'?{...i,angle:90}:i)});
+assert.equal(state.steps[0].items[1].angle,0);assert.equal(state.steps[1].items[1].angle,90);assert.equal(original.steps[0].items.length,0);
+state=boardReducer(state,{type:'move-step',direction:-1});assert.equal(state.steps[0].id,'second');assert.equal(state.activeStep,0);
+state=boardReducer(state,{type:'undo'});assert.equal(state.activeStep,1);assert.equal(state.items[1].angle,90);assert.equal(validBoardDocument(boardDocument(state)),true);
+state=boardReducer(state,{type:'delete-step'});assert.equal(state.steps.length,1);assert.equal(state.items[1].angle,0);
+const p=positionAlong([[0,0],[0,1],[1,1]],.25);assert.ok(Math.abs(p.coordinates[1]-.5)<.01);assert.equal(p.angle,0);assert.equal(positionAlong([[0,0],[0,0]],.5).coordinates[0],0);
+const map={project:p=>({x:p[0],y:p[1]}),unproject:p=>({lng:p[0],lat:p[1]})};const ellipse=shapePoints('circle',[0,0],[10,20],map);assert.equal(ellipse.length,65);assert.deepEqual(ellipse[0],ellipse.at(-1));assert.ok(ellipse.every(p=>p[0]>=0&&p[0]<=10&&p[1]>=0&&p[1]<=20));
+const bound=boardReducer(state,{type:'set',items:items=>items.filter(i=>i.id!=='route')});assert.equal(bound.items[0].routeId,null);
+const doc=boardDocument(state);assert.equal(validBoardDocument({...doc,activeStep:20}),false);const bad=structuredClone(doc);bad.steps[0].items[0].points[0]=[999,0];assert.equal(validBoardDocument(bad),false);assert.equal(validBoardCases([{id:'a',name:'Caso',document:doc}]),true);assert.equal(validBoardCases([{id:'a',name:'Caso',document:doc},{id:'a',name:'Duplicado',document:doc}]),false);assert.equal(vehicleSvg({...vehicle,label:'<img src=x>'}).includes('<img'),false);
+console.log('Board model PASS: independent steps, reorder/delete/undo, bounded validated cases, path interpolation and anchored shapes.');
