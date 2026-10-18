@@ -159,7 +159,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
     };
     const marker=add(element,item.coordinates,tool==='edit',next=>commit(items=>items.map(i=>i.id===item.id?{...i,coordinates:next}:i)));
     vehicleMarkersRef.current.set(item.id,marker);
-    marker.setRotation?.(item.heading||0);
+    marker.setRotationAlignment?.('map');marker.setRotation?.(item.heading||0);
     continue;
    }
    if(item.type==='text'){
@@ -248,7 +248,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
  };
  const exportBoard=async format=>{
   try{
-   const png=await imageOfBoard(mapRef.current,state.items);
+   const png=await imageOfBoard(mapRef.current,state.items,playProgress);
    downloadBlob(format==='pdf'?await pdfOfBoard(png):png,boardFilename(boardName)+(format==='pdf'?'.pdf':'.png'));
   }catch(e){setMessage(e.message);}
  };
