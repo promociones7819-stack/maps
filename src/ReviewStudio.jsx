@@ -86,6 +86,7 @@ export default function ReviewStudio({review,onReview,progress,onProgress,playin
    {review.media?.stored===false&&!review.media?.workspace&&<p>{t('Bideoa ez da lokalean gorde; berriro hautatu beharko duzu aplikazioa irekitzean.','El vídeo no se ha guardado localmente; tendrás que seleccionarlo de nuevo al abrir la app.')}</p>}{message&&<p role="status">{message}</p>}
   </div>}
   {!live&&review.points.length>0&&<div className="review-clock">
+   <button className="map-cut-open" onClick={()=>{onPlaying(false);setClipOpen(true);}}>{t("✂ Moztu","✂ Recortar")}</button>
    <button onClick={()=>{if(progress>=1)onProgress(0);onPlaying(!playing);}} aria-label={t(playing?'Gelditu berrikuspena':'Erreproduzitu berrikuspena',playing?'Pausar revisión':'Reproducir revisión')}>{playing?'Ⅱ':'▶'}</button>
    <input aria-label={t('Berrikuspenaren posizioa','Posición de revisión')} type="range" min="0" max="10000" value={Math.round(progress*10000)} onChange={e=>{onPlaying(false);setCalibrating(false);onProgress(Number(e.target.value)/10000);}}/>
    <button disabled={position.gap} onClick={mark}>＋ {t('Puntu kritikoa','Punto crítico')}</button>
