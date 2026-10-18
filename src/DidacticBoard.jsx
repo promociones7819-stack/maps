@@ -13,9 +13,9 @@ function historyReducer(state,action){
 }
 const coordinates=point=>[point.lng,point.lat];
 const colorOptions=['#f3b73e','#57b9f4','#ed7373','#4abf89','#222222'];
-const tools=[['pointer','Erakuslea','Puntero','◉'],['move','Mapa mugitu','Mover mapa','✥'],['route','Ibilbidea','Trayectoria','⌁'],['arrow','Gezia','Flecha','↗'],['signal','Seinalea','Señal','⚑'],['note','Puntu kritikoa','Punto conflictivo','!'],['edit','Mugitu / editatu','Mover / editar','✎'],['erase','Ezabatu','Borrar','⌫'],['vehicle','Ibilgailua','Vehículo','▣'],['path','Ibilgailuaren ibilbidea','Ruta de vehículo','➜'],['ink','Errotuladorea','Rotulador','✎'],['line','Lerroa','Línea','━'],['dashed','Lerro etena','Línea discontinua','┄'],['circle','Zirkulua','Círculo','◯'],['rectangle','Laukizuzena','Rectángulo','▭'],['area','Eremua','Área','▱'],['sight','Ikus-eremua','Visibilidad','◁'],['text','Testua','Texto','T']];
+const tools=[['pointer','Erakuslea','Puntero','◉'],['move','Mapa mugitu','Mover mapa','✥'],['route','Ibilbidea','Trayectoria','⌁'],['arrow','Gezia','Flecha','↗'],['signal','Seinalea','Señal','⚑'],['note','Puntu kritikoa','Punto conflictivo','!'],['edit','Mugitu / editatu','Mover / editar','✎'],['erase','Ezabatu','Borrar','⌫'],['vehicle','Ibilgailua','Vehículo','▣'],['path','Ibilgailuaren ibilbidea','Ruta de vehículo','➜'],['ink','Errotuladorea','Rotulador','✎'],['line','Lerroa','Línea','━'],['dashed','Lerro etena','Línea discontinua','┄'],['circle','Zirkulua','Círculo','◯'],['rectangle','Laukizuzena','Rectángulo','▭'],['area','Eremua','Área','▱'],['sight','Ikus-eremua','Visibilidad','◁'],['text','Testua','Texto','T'],['stopline','STOP lerroa','Línea STOP','▰'],['yieldline','Utzi pasatzen lerroa','Línea ceda','┅'],['crosswalk','Oinezkoen pasabidea','Paso de peatones','▤']];
 const groups=[['draw','Marraztu','Dibujar'],['vehicles','Ibilgailuak','Vehículos'],['signals','Seinaleak','Señales'],['explain','Azaldu','Explicar'],['present','Aurkeztu','Presentar']];
-const groupTools={draw:['pointer','move','route','arrow','signal','note','ink','line','dashed','circle','rectangle','area','sight','text','edit','erase'],vehicles:['pointer','move','vehicle','path','edit','erase'],signals:['pointer','move','signal','edit','erase'],explain:['pointer','move','note','text','sight','edit','erase'],present:['pointer','move']};
+const groupTools={draw:['pointer','move','route','arrow','signal','note','ink','line','dashed','circle','rectangle','area','sight','text','edit','erase'],vehicles:['pointer','move','vehicle','path','edit','erase'],signals:['pointer','move','signal','stopline','yieldline','crosswalk','edit','erase'],explain:['pointer','move','note','text','sight','edit','erase'],present:['pointer','move']};
 
 // This board owns its map and its in-memory history. It never calls project,
 // storage, backup, microphone or recorder APIs.
@@ -25,7 +25,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
  const [state,dispatch]=useReducer(historyReducer,undefined,empty),[tool,setTool]=useState('pointer'),[ready,setReady]=useState(false),[error,setError]=useState('');
  const [draftPath,setDraftPath]=useState(null),[selected,setSelected]=useState(null),[editor,setEditor]=useState(null),[signal,setSignal]=useState({...defaultDraft,signalCode:'R-2',title:''});
  const [color,setColor]=useState(colorOptions[0]),[locating,setLocating]=useState(false),[view,setView]=useState({lat:'',lng:''});
- const [group,setGroup]=useState('draw'),[drawing,setDrawing]=useState(null),[vehicleKind,setVehicleKind]=useState('car'),[vehicleLabel,setVehicleLabel]=useState('A'),[vehicleColor,setVehicleColor]=useState('#57b9f4');
+ const [group,setGroup]=useState('draw'),[showSignals,setShowSignals]=useState(true),[drawing,setDrawing]=useState(null),[vehicleKind,setVehicleKind]=useState('car'),[vehicleLabel,setVehicleLabel]=useState('A'),[vehicleColor,setVehicleColor]=useState('#57b9f4');
  const [playing,setPlaying]=useState(false),[soloVehicle,setSoloVehicle]=useState(false),[playProgress,setPlayProgress]=useState(0),[playDuration,setPlayDuration]=useState(8),[scenes,setScenes]=useState([]),[sceneIndex,setSceneIndex]=useState(-1),[presenting,setPresenting]=useState(false),[revealed,setRevealed]=useState(false);
  const [question,setQuestion]=useState(''),[answer,setAnswer]=useState(''),[boardName,setBoardName]=useState(''),[libraryOpen,setLibraryOpen]=useState(false),[library,setLibrary]=useState(()=>loadBoardLibrary()),[message,setMessage]=useState('');
  const markersRef=useRef([]),arrowTipsRef=useRef([]),vehicleMarkersRef=useRef(new Map()),drawingRef=useRef(null),presentationSnapshot=useRef(null),animationRef=useRef(null);
@@ -73,7 +73,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
   const click=event=>{
    if(draggingRef.current||stateRef.current.presenting||!map.getLayer('board-lines'))return;
    const s=stateRef.current,point=coordinates(event.lngLat);if(s.editor)return;
-   if(['move','pointer','ink','line','dashed','circle','rectangle','area','sight'].includes(s.tool))return;
+   if(['move','pointer','ink','line','dashed','circle','rectangle','area','sight','stopline','yieldline','crosswalk'].includes(s.tool))return;
    const hit=map.queryRenderedFeatures(event.point,{layers:['board-lines','board-dashed','board-fill','board-polygon-border']})[0];
    if(s.tool==='erase'){if(hit)remove(hit.properties.id);return;}
    if(s.tool==='edit'){if(hit)setSelected(hit.properties.id);return;}
@@ -101,7 +101,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
   const locate=e=>{const rect=canvas.getBoundingClientRect(),p=map.unproject([e.clientX-rect.left,e.clientY-rect.top]);return [p.lng,p.lat];};
   const start=e=>{
    const s=stateRef.current;
-   if(s.editor||s.presenting||!['ink','line','dashed','circle','rectangle','area','sight'].includes(s.tool)||e.pointerType==='mouse'&&e.button!==0)return;
+   if(s.editor||s.presenting||!['ink','line','dashed','circle','rectangle','area','sight','stopline','yieldline','crosswalk'].includes(s.tool)||e.pointerType==='mouse'&&e.button!==0)return;
    const p=locate(e);
    drawingRef.current={id:crypto.randomUUID(),type:s.tool,color:s.color,points:[p,p],width:5,aperture:70};
    setDrawing(drawingRef.current);
@@ -135,7 +135,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
 
  useEffect(()=>{
   const map=mapRef.current;if(!ready||!map)return;
-  map.getSource('board-lines').setData(lineFeatures([...state.items,...(drawing?[drawing]:[]),...state.items.filter(i=>i.type==='vehicle'&&i.path?.length>1).map(i=>({id:i.id+'-path',type:'vehicle-path',points:i.path,color:i.color,width:4}))]));
+  map.getSource('board-lines').setData(lineFeatures([...state.items.filter(i=>showSignals||!['stopline','yieldline','crosswalk'].includes(i.type)),...(drawing?[drawing]:[]),...state.items.filter(i=>i.type==='vehicle'&&i.path?.length>1).map(i=>({id:i.id+'-path',type:'vehicle-path',points:i.path,color:i.color,width:4}))]));
   map.getSource('board-polygons').setData(geoFeatures([...state.items,...(drawing?[drawing]:[])]));
   markersRef.current.forEach(m=>m.remove());markersRef.current=[];arrowTipsRef.current=[];vehicleMarkersRef.current.clear();
   const add=(element,point,draggable,onDragEnd)=>{
@@ -145,13 +145,14 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    markersRef.current.push(marker);return marker;
   };
   for(const item of state.items){
+   if(!showSignals&&item.type==='signal')continue;
    if(item.type==='vehicle'){
     const element=document.createElement('button');
     element.type='button';element.className='board-map-item board-vehicle';
     element.style.color=item.color||'#57b9f4';element.innerHTML=vehicleSvg(item.kind);
     const letter=document.createElement('strong');letter.textContent=item.label||'A';element.appendChild(letter);
     element.setAttribute('aria-label',t('Ibilgailua','Vehículo')+' '+(item.label||'A'));
-    element.onclick=e=>{e.stopPropagation();if(draggingRef.current)return;
+    element.onclick=e=>{e.stopPropagation();if(draggingRef.current||presenting)return;
      if(tool==='erase')remove(item.id);
      else if(tool==='edit')setEditor(structuredClone(item));
      else setSelected(item.id);
@@ -182,7 +183,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    if(item.type==='signal'){element.innerHTML=`<div class="signal-face-wrap">${signalHtml(item)}</div>`;element.dataset.phase=item.phase||'red';}
    else {element.textContent='!';}
    element.onclick=e=>{
-    e.stopPropagation();if(draggingRef.current)return;
+    e.stopPropagation();if(draggingRef.current||presenting)return;
     if(tool==='erase')remove(item.id);
     else if(tool==='edit')setEditor(structuredClone(item));
     else if(item.signalCode==='SEMÁFORO')commit(items=>items.map(i=>i.id===item.id?{...i,phase:{red:'amber',amber:'green',green:'off',off:'blink',blink:'red'}[i.phase||'red']}:i));
@@ -190,14 +191,14 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    };
    add(element,item.coordinates,tool==='edit',point=>commit(items=>items.map(i=>i.id===item.id?{...i,coordinates:point}:i)));
   }
- },[ready,state.items,tool,selected,draftPath]);
+ },[ready,state.items,tool,selected,draftPath,showSignals]);
  useEffect(()=>{
   const map=mapRef.current;if(!map||!ready||!drawing)return;
-  map.getSource('board-lines')?.setData(lineFeatures([...state.items,drawing,...state.items.filter(i=>i.type==='vehicle'&&i.path?.length>1).map(i=>({id:i.id+'-path',type:'vehicle-path',points:i.path,color:i.color,width:4}))]));
+  map.getSource('board-lines')?.setData(lineFeatures([...state.items.filter(i=>showSignals||!['stopline','yieldline','crosswalk'].includes(i.type)),drawing,...state.items.filter(i=>i.type==='vehicle'&&i.path?.length>1).map(i=>({id:i.id+'-path',type:'vehicle-path',points:i.path,color:i.color,width:4}))]));
   map.getSource('board-polygons')?.setData(geoFeatures([...state.items,drawing]));
- },[drawing,ready,state.items]);
+ },[drawing,ready,state.items,showSignals]);
 
- const hints={vehicle:t('Sakatu mapan ibilgailua jartzeko.','Pulsa en el mapa para colocar un vehículo.'),path:t('Hautatu ibilgailua eta sakatu mapan haren ibilbidea markatzeko.','Selecciona un vehículo y pulsa puntos de su recorrido.'),ink:t('Marraztu hatzarekin, arkatzez edo saguaz.','Dibuja con el dedo, lápiz o ratón.'),line:t('Arrastatu lerroa marrazteko.','Arrastra para dibujar una línea.'),dashed:t('Arrastatu lerro eten bat sortzeko.','Arrastra para crear una línea discontinua.'),circle:t('Arrastatu zirkuluaren erradioa zehazteko.','Arrastra para definir el radio del círculo.'),rectangle:t('Arrastatu laukizuzena marrazteko.','Arrastra para dibujar un rectángulo.'),area:t('Arrastatu eremu bat margotzeko.','Arrastra para sombrear un área.'),sight:t('Arrastatu ikus-eremua zehazteko.','Arrastra para dibujar un cono de visión.'),text:t('Sakatu mapan testua gehitzeko.','Pulsa en el mapa para añadir texto.'),pointer:t('Seinalatu mapan. Sakatu semaforoa kolorea aldatzeko.','Señala sobre el mapa. Toca un semáforo para cambiar su color.'),move:t('Kokatu mapa azaldu nahi duzun lekuan.','Desplaza y acerca el mapa al lugar que quieras explicar.'),route:t('Sakatu puntuak gehitzeko; bukatutakoan amaitu trazua.','Pulsa para añadir puntos; termina el trazo cuando esté listo.'),arrow:t('Sakatu geziaren hasiera eta amaiera.','Pulsa el inicio y el final de la flecha.'),signal:t('Sakatu mapan hautatutako seinalea jartzeko.','Pulsa en el mapa para colocar la señal elegida.'),note:t('Sakatu puntu kritikoa kokatzeko.','Pulsa para situar el punto conflictivo.'),edit:t('Arrastatu elementuak; sakatu seinalea editatzeko edo trazua puntuak mugitzeko.','Arrastra elementos. Pulsa señales o trazos para editarlos.'),erase:t('Sakatu elementua edo trazua ezabatzeko.','Pulsa un elemento o un trazo para borrarlo.')};
+ const hints={stopline:t('Marraztu gelditzeko lerroa.','Arrastra para marcar la línea STOP.'),yieldline:t('Marraztu utzi pasatzen lerroa.','Arrastra para marcar la línea ceda.'),crosswalk:t('Marraztu pasabidearen kokapena.','Arrastra para marcar un paso de peatones.'),vehicle:t('Sakatu mapan ibilgailua jartzeko.','Pulsa en el mapa para colocar un vehículo.'),path:t('Hautatu ibilgailua eta sakatu mapan haren ibilbidea markatzeko.','Selecciona un vehículo y pulsa puntos de su recorrido.'),ink:t('Marraztu hatzarekin, arkatzez edo saguaz.','Dibuja con el dedo, lápiz o ratón.'),line:t('Arrastatu lerroa marrazteko.','Arrastra para dibujar una línea.'),dashed:t('Arrastatu lerro eten bat sortzeko.','Arrastra para crear una línea discontinua.'),circle:t('Arrastatu zirkuluaren erradioa zehazteko.','Arrastra para definir el radio del círculo.'),rectangle:t('Arrastatu laukizuzena marrazteko.','Arrastra para dibujar un rectángulo.'),area:t('Arrastatu eremu bat margotzeko.','Arrastra para sombrear un área.'),sight:t('Arrastatu ikus-eremua zehazteko.','Arrastra para dibujar un cono de visión.'),text:t('Sakatu mapan testua gehitzeko.','Pulsa en el mapa para añadir texto.'),pointer:t('Seinalatu mapan. Sakatu semaforoa kolorea aldatzeko.','Señala sobre el mapa. Toca un semáforo para cambiar su color.'),move:t('Kokatu mapa azaldu nahi duzun lekuan.','Desplaza y acerca el mapa al lugar que quieras explicar.'),route:t('Sakatu puntuak gehitzeko; bukatutakoan amaitu trazua.','Pulsa para añadir puntos; termina el trazo cuando esté listo.'),arrow:t('Sakatu geziaren hasiera eta amaiera.','Pulsa el inicio y el final de la flecha.'),signal:t('Sakatu mapan hautatutako seinalea jartzeko.','Pulsa en el mapa para colocar la señal elegida.'),note:t('Sakatu puntu kritikoa kokatzeko.','Pulsa para situar el punto conflictivo.'),edit:t('Arrastatu elementuak; sakatu seinalea editatzeko edo trazua puntuak mugitzeko.','Arrastra elementos. Pulsa señales o trazos para editarlos.'),erase:t('Sakatu elementua edo trazua ezabatzeko.','Pulsa un elemento o un trazo para borrarlo.')};
  const selectedItem=state.items.find(i=>i.id===selected);
  useEffect(()=>{
   if(!playing||!ready||presenting)return;
@@ -267,7 +268,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    <button type="button" disabled={value.destinations.length>=6} onClick={()=>update({...value,destinations:[...(value.destinations||[]),{text:'',arrow:'right'}]})}>{t('Helmuga gehitu','Añadir destino')}</button>
   </>}
  </>;
- return createPortal(<section ref={panelRef} className="didactic-board" role="dialog" aria-modal="true" aria-label={t('Arbel didaktikoa','Pizarra didáctica')}>
+ return createPortal(<section ref={panelRef} className={"didactic-board"+(presenting?" board-is-presenting":"")} role="dialog" aria-modal="true" aria-label={t('Arbel didaktikoa','Pizarra didáctica')}>
   <header className="board-header"><div><strong>RutasAD <span>/ {t('Arbel didaktikoa','Pizarra didáctica')}</span></strong><small>{t('Behin-behinekoa · grabaziorik gabe · proiektutik bereizita','Temporal · sin grabación · independiente del proyecto')}</small></div><button onClick={close}>{t('Pizarratik irten','Salir de pizarra')}</button></header>
   <div className="board-stage" onPointerMove={pointerMove} onPointerLeave={()=>{if(ringRef.current)ringRef.current.hidden=true;}}>
    <div className="board-map" ref={container}/>
@@ -278,6 +279,11 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
     {!presenting&&<button onClick={()=>{setSignal(s=>({...s,signalCode:'SEMÁFORO',title:t('Semaforoa','Semáforo')}));selectTool('signal');}}>{t('Semaforoa','Semáforo')}</button>}
     {!presenting&&<button aria-expanded={locating} onClick={()=>{const p=mapRef.current?.getCenter();if(!p)return;setView({lat:p.lat.toFixed(6),lng:p.lng.toFixed(6)});setLocating(!locating);}}>{t('Koordenatuak','Coordenadas')}</button>}
    </nav>
+   {!presenting&&group==='signals'&&<section className="board-control-card board-ui board-signal-controls">
+    <strong>{t('Seinaleak eta galtzadako markak','Señales y marcas viales')}</strong>
+    <label className="board-toggle-signals"><input type="checkbox" checked={showSignals} onChange={e=>setShowSignals(e.target.checked)}/> {t('Seinaleak eta markak erakutsi','Mostrar señales y marcas')}</label>
+    <small>{t('Aldaketa honek ez ditu jatorrizko seinaleak kentzen.','Este interruptor no borra los elementos originales.')}</small>
+   </section>}
    {!presenting&&group==='vehicles'&&<section className="board-control-card board-ui board-vehicle-controls">
     <strong>{t('Ibilgailuak','Vehículos')}</strong>
     <label>{t('Mota','Tipo')}<select value={vehicleKind} onChange={e=>setVehicleKind(e.target.value)}>{VEHICLE_KINDS.map(([id,es,eu])=><option key={id} value={id}>{t(eu,es)}</option>)}</select></label>
