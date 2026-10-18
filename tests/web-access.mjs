@@ -6,6 +6,7 @@ try{
  const manifest=JSON.parse(await readFile('dist/.vite/manifest.json','utf8'));const app=Object.values(manifest).find(v=>v.name==='App');
  assert.equal((await admin.request.get(base+'/'+app.file)).status(),401);
  assert.equal((await request(admin,'admin/users')).status(),401);
+ for(const legalPath of ['/licencia.html','/licencia','/LICENSE.txt','/THIRD-PARTY-NOTICES.txt'])assert.equal((await admin.request.get(base+legalPath)).status(),200);
  await page.addInitScript(()=>{localStorage.setItem('traza-bizkaia-language','es');localStorage.setItem('traza-bizkaia-pointer-test','legacy-private');localStorage.setItem('traza-bizkaia-projects',JSON.stringify({activeProjectId:'legacy',projects:[{id:'legacy',name:'Mi biblioteca anterior'}]}));localStorage.setItem('traza-bizkaia-project-legacy',JSON.stringify([{id:'legacy-route',name:'Ruta anterior',points:[[-2.93,43.26],[-2.94,43.27]],color:'#c7522a'}]));});
  await page.goto(base);await page.getByRole('combobox').selectOption('es');
  await page.getByLabel('Correo electrónico',{exact:true}).fill('admin@example.test');await page.getByLabel('Contraseña o PIN',{exact:true}).fill('Test-only-admin-8527');await page.getByRole('button',{name:'Entrar',exact:true}).click();

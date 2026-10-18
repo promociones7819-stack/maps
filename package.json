@@ -1,12 +1,12 @@
 {
   "name": "bizkaia-aerial-routes",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/sync-legal.mjs && vite build",
     "preview": "vite preview",
     "desktop:dev": "node scripts/electron-dev.cjs",
     "icon:mac": "node scripts/make-icon.cjs",
@@ -90,5 +90,7 @@
         }
       ]
     }
-  }
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Aitor Delgado Martínez (AD Mobility)"
 }

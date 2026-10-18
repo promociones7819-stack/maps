@@ -1,9 +1,17 @@
+// SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
+// SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
 import manifest from '../dist/.vite/manifest.json';
 import {digest,passwordHash,verifyPassword} from './password.js';
 const DAY=86400000;
 const loginAssets=new Set();
 function allowEntry(key){const entry=manifest[key];if(!entry||loginAssets.has('/'+entry.file))return;loginAssets.add('/'+entry.file);for(const css of entry.css||[])loginAssets.add('/'+css);for(const dep of entry.imports||[])allowEntry(dep);}
-allowEntry('index.html');allowEntry('src/WebAccess.jsx');
+allowEntry('index.html');
+// Vite can rename shared chunks when a new component is introduced.
+const loginEntry=Object.entries(manifest).find(([,entry])=>entry.name==='WebAccess'&&entry.file.endsWith('.js'))?.[0];
+if(!loginEntry)throw Error('No se encuentra el arranque de identificación en el manifiesto.');
+allowEntry(loginEntry);
+const privateApp=Object.values(manifest).find(entry=>entry.name==='App'&&entry.file.endsWith('.js'));
+if(!privateApp||loginAssets.has('/'+privateApp.file))throw Error('La aplicación debe permanecer separada de los archivos públicos de acceso.');
 const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store',...headers}});
 const cookie=(token,expired=false)=>`__Host-rutasad=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${expired?0:604800}`;
 const publicUser=u=>({id:u.id,email:u.email,role:u.role,active:!!u.active,createdAt:u.created_at});
@@ -82,7 +90,7 @@ export default {async fetch(request,env){
   const url=new URL(request.url),path=url.pathname;
   if(path.startsWith('/api/'))return await api(request,env,path);
   // The entry and login assets are public; application code and ficha require a session.
-  const publicPath=['/','/index.html','/sw.js','/account-storage.js'].includes(path)||loginAssets.has(path)||path==='/ad-mobility-logo.png';
+  const publicPath=['/','/index.html','/sw.js','/account-storage.js','/licencia.html','/licencia','/LICENSE.txt','/THIRD-PARTY-NOTICES.txt'].includes(path)||loginAssets.has(path)||path==='/ad-mobility-logo.png';
   const u=publicPath?null:await identity(request,env);
   if(!publicPath&&!u)return new Response('Inicia sesión en RutasAD.',{status:401,headers:{'Cache-Control':'no-store'}});
   let response=await env.ASSETS.fetch(request);

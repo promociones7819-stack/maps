@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
+// SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
 import DidacticBoard from './DidacticBoard.jsx';
 import {AccountControls,LegacyImport} from './WebAccess.jsx';
 import {recordingContextOptions, drawExplanationPointer} from './mapRecording.js';

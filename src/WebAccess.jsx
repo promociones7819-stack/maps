@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
+// SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
+import LegalNotice from './LegalNotice.jsx';
 import React,{useEffect,useState} from 'react';
 import {createPortal} from 'react-dom';
 import './web-access.css';
@@ -15,7 +18,7 @@ export function Login({onLogin}){
  <label>{t('Pasahitza edo PINa','Contraseña o PIN')}<input name="password" type="password" autoComplete="current-password" required maxLength={128}/></label>
  {error&&<p role="alert">{error}</p>}<button disabled={busy} type="submit">{busy?t('Sartzen…','Accediendo…'):t('Sartu','Entrar')}</button>
  <small>{t('Sarbiderik ez baduzu edo pasahitza ahaztu baduzu, jarri administratzailearekin harremanetan.','Si necesitas acceso o has olvidado tu contraseña, contacta con el administrador.')}</small>
- </form></main>;
+ <LegalNotice language={language}/></form></main>;
 }
 export function AccountControls({language='eu',disabled=false}){
  const user=window.rutasAccount;const [open,setOpen]=useState(false),[users,setUsers]=useState([]),[error,setError]=useState(''),[busy,setBusy]=useState(false),[reset,setReset]=useState(null),[change,setChange]=useState(false);const t=(eu,es)=>language==='eu'?eu:es;

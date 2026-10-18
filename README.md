@@ -1,4 +1,12 @@
-# Traza · Bizkaia
+# RutasAD · Traza Bizkaia
+
+> **© 2026 Aitor Delgado Martínez · AD Mobility. Todos los derechos reservados.**
+> Reutilización del código **solo para pruebas y enseñanza sin beneficio material**,
+> con **atribución obligatoria**. Prohibida su explotación comercial sin autorización
+> previa por escrito. Los usos no autorizados serán denunciados por las vías legales
+> procedentes. Véanse [LICENSE](LICENSE), [COPYRIGHT.md](COPYRIGHT.md) y
+> [avisos de terceros](THIRD-PARTY-NOTICES.txt). Estas restricciones no sustituyen
+> las licencias de los componentes ajenos ni afectan a los datos de los usuarios.
 
 Aplicación web para diseñar cuatro recorridos aéreos, previsualizarlos y grabar un MP4. GeoEuskadi es la fuente inicial y funciona sin token. También se puede seleccionar Mapbox Satellite.
 

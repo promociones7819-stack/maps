@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
+// SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
 const { app, BrowserWindow, ipcMain, protocol, net, shell, session, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
