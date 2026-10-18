@@ -16,3 +16,5 @@ tests/*-final.mp4
 /public/LICENSE.txt
 /public/THIRD-PARTY-NOTICES.txt
 /public/licencia.html
+
+!build/icon.ico

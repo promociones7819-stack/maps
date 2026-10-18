@@ -19,7 +19,8 @@
     "test:workspace": "node tests/movie-writer.mjs && node tests/workspace-ui.mjs",
     "test:desktop-workspace": "node tests/desktop-workspace.mjs",
     "test:bluetooth": "node tests/racebox.mjs && node tests/ble-connection.mjs && node tests/desktop-bluetooth.mjs",
-    "test:map-recording": "node tests/map-recording.mjs"
+    "test:map-recording": "node tests/map-recording.mjs",
+    "package:win": "npm run build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^8.3.0",
@@ -89,8 +90,31 @@
           "path": "/Applications"
         }
       ]
+    },
+    "copyright": "Copyright © 2026 Aitor Delgado Martínez · AD Mobility",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "signExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "RutasAD-${version}-Windows-x64-Setup.${ext}",
+      "deleteAppDataOnUninstall": false
     }
   },
   "license": "SEE LICENSE IN LICENSE",
-  "author": "Aitor Delgado Martínez (AD Mobility)"
+  "author": "Aitor Delgado Martínez (AD Mobility)",
+  "description": "RutasAD: recorridos, vídeo y pizarra didáctica para formación vial"
 }
