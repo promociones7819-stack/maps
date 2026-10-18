@@ -26,7 +26,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
  const [draftPath,setDraftPath]=useState(null),[selected,setSelected]=useState(null),[editor,setEditor]=useState(null),[signal,setSignal]=useState({...defaultDraft,signalCode:'R-2',title:''});
  const [color,setColor]=useState(colorOptions[0]),[locating,setLocating]=useState(false),[view,setView]=useState({lat:'',lng:''});
  const [group,setGroup]=useState('draw'),[drawing,setDrawing]=useState(null),[vehicleKind,setVehicleKind]=useState('car'),[vehicleLabel,setVehicleLabel]=useState('A'),[vehicleColor,setVehicleColor]=useState('#57b9f4');
- const [playing,setPlaying]=useState(false),[playProgress,setPlayProgress]=useState(0),[playDuration,setPlayDuration]=useState(8),[scenes,setScenes]=useState([]),[sceneIndex,setSceneIndex]=useState(-1),[presenting,setPresenting]=useState(false),[revealed,setRevealed]=useState(false);
+ const [playing,setPlaying]=useState(false),[soloVehicle,setSoloVehicle]=useState(false),[playProgress,setPlayProgress]=useState(0),[playDuration,setPlayDuration]=useState(8),[scenes,setScenes]=useState([]),[sceneIndex,setSceneIndex]=useState(-1),[presenting,setPresenting]=useState(false),[revealed,setRevealed]=useState(false);
  const [question,setQuestion]=useState(''),[answer,setAnswer]=useState(''),[boardName,setBoardName]=useState(''),[libraryOpen,setLibraryOpen]=useState(false),[library,setLibrary]=useState(()=>loadBoardLibrary()),[message,setMessage]=useState('');
  const markersRef=useRef([]),arrowTipsRef=useRef([]),vehicleMarkersRef=useRef(new Map()),drawingRef=useRef(null),presentationSnapshot=useRef(null),animationRef=useRef(null);
  useEffect(()=>{const bar=panelRef.current.querySelector('.board-tools');const measure=()=>panelRef.current?.style.setProperty('--board-tools-bottom',`${bar.offsetTop+bar.offsetHeight+12}px`);const resize=new ResizeObserver(measure);resize.observe(bar);measure();return()=>resize.disconnect();},[]);
@@ -190,7 +190,12 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    };
    add(element,item.coordinates,tool==='edit',point=>commit(items=>items.map(i=>i.id===item.id?{...i,coordinates:point}:i)));
   }
- },[ready,state.items,tool,selected,draftPath,drawing]);
+ },[ready,state.items,tool,selected,draftPath]);
+ useEffect(()=>{
+  const map=mapRef.current;if(!map||!ready||!drawing)return;
+  map.getSource('board-lines')?.setData(lineFeatures([...state.items,drawing,...state.items.filter(i=>i.type==='vehicle'&&i.path?.length>1).map(i=>({id:i.id+'-path',type:'vehicle-path',points:i.path,color:i.color,width:4}))]));
+  map.getSource('board-polygons')?.setData(geoFeatures([...state.items,drawing]));
+ },[drawing,ready,state.items]);
 
  const hints={vehicle:t('Sakatu mapan ibilgailua jartzeko.','Pulsa en el mapa para colocar un vehículo.'),path:t('Hautatu ibilgailua eta sakatu mapan haren ibilbidea markatzeko.','Selecciona un vehículo y pulsa puntos de su recorrido.'),ink:t('Marraztu hatzarekin, arkatzez edo saguaz.','Dibuja con el dedo, lápiz o ratón.'),line:t('Arrastatu lerroa marrazteko.','Arrastra para dibujar una línea.'),dashed:t('Arrastatu lerro eten bat sortzeko.','Arrastra para crear una línea discontinua.'),circle:t('Arrastatu zirkuluaren erradioa zehazteko.','Arrastra para definir el radio del círculo.'),rectangle:t('Arrastatu laukizuzena marrazteko.','Arrastra para dibujar un rectángulo.'),area:t('Arrastatu eremu bat margotzeko.','Arrastra para sombrear un área.'),sight:t('Arrastatu ikus-eremua zehazteko.','Arrastra para dibujar un cono de visión.'),text:t('Sakatu mapan testua gehitzeko.','Pulsa en el mapa para añadir texto.'),pointer:t('Seinalatu mapan. Sakatu semaforoa kolorea aldatzeko.','Señala sobre el mapa. Toca un semáforo para cambiar su color.'),move:t('Kokatu mapa azaldu nahi duzun lekuan.','Desplaza y acerca el mapa al lugar que quieras explicar.'),route:t('Sakatu puntuak gehitzeko; bukatutakoan amaitu trazua.','Pulsa para añadir puntos; termina el trazo cuando esté listo.'),arrow:t('Sakatu geziaren hasiera eta amaiera.','Pulsa el inicio y el final de la flecha.'),signal:t('Sakatu mapan hautatutako seinalea jartzeko.','Pulsa en el mapa para colocar la señal elegida.'),note:t('Sakatu puntu kritikoa kokatzeko.','Pulsa para situar el punto conflictivo.'),edit:t('Arrastatu elementuak; sakatu seinalea editatzeko edo trazua puntuak mugitzeko.','Arrastra elementos. Pulsa señales o trazos para editarlos.'),erase:t('Sakatu elementua edo trazua ezabatzeko.','Pulsa un elemento o un trazo para borrarlo.')};
  const selectedItem=state.items.find(i=>i.id===selected);
@@ -208,11 +213,11 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
   const map=mapRef.current;if(!map||!ready)return;
   for(const item of state.items.filter(i=>i.type==='vehicle'&&i.path?.length>1)){
    const marker=vehicleMarkersRef.current.get(item.id);if(!marker)continue;
-   const position=vehicleAt(item,playProgress);
+   const position=vehicleAt(item,soloVehicle&&selected!==item.id?0:playProgress);
    marker.setLngLat(position.coordinates);marker.setRotation?.(position.heading||0);
   }
   if(playProgress>=1&&playing)setPlaying(false);
- },[playProgress,playing,ready,state.items]);
+ },[playProgress,playing,ready,state.items,selected,soloVehicle]);
  const startPresentation=()=>{
   if(!scenes.length){setMessage(t('Gehitu gutxienez eszena bat.','Añade al menos una escena.'));return;}
   presentationSnapshot.current=structuredClone(state.items);setPresenting(true);setPlaying(false);setSceneIndex(0);setRevealed(false);dispatch({type:'set',items:structuredClone(scenes[0].items)});setGroup('present');selectTool('pointer');
@@ -279,6 +284,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
     <label>{t('Izena','Identificador')}<input maxLength="6" value={vehicleLabel} onChange={e=>setVehicleLabel(e.target.value)}/></label>
     <label>{t('Kolorea','Color')}<input type="color" value={vehicleColor} onChange={e=>setVehicleColor(e.target.value)}/></label>
     {selectedItem?.type==='vehicle'&&<><small>{t('Hautatua','Seleccionado')}: {selectedItem.label}</small><label>{t('Norabidea','Orientación')}<input type="range" min="0" max="359" step="1" value={selectedItem.heading||0} onChange={e=>commit(items=>items.map(i=>i.id===selectedItem.id?{...i,heading:Number(e.target.value)}:i))}/></label><button onClick={()=>{setGroup('vehicles');selectTool('path');}}>{t('Ibilbidea marraztu','Dibujar recorrido')}</button><button onClick={()=>commit(items=>items.map(i=>i.id===selectedItem.id?{...i,path:[]}:i))}>{t('Ibilbidea garbitu','Borrar recorrido')}</button></>}
+    <label className="board-solo-vehicle"><input type="checkbox" checked={soloVehicle} onChange={e=>{setPlaying(false);setSoloVehicle(e.target.checked);setPlayProgress(0);}}/> {t('Hautatutako ibilgailua bakarrik','Solo vehículo seleccionado')}</label>
     <div className="board-play-controls"><button disabled={!state.items.some(i=>i.type==='vehicle'&&i.path?.length>1)} onClick={()=>{if(playProgress>=1)setPlayProgress(0);setPlaying(!playing);}}>{playing?'Ⅱ': '▶'} {t('Erreproduzitu','Reproducir')}</button><button onClick={()=>{setPlaying(false);setPlayProgress(0);}}>↺</button><input aria-label={t('Animazioaren aurrerapena','Progreso de animación')} type="range" min="0" max="100" value={Math.round(playProgress*100)} onChange={e=>{setPlaying(false);setPlayProgress(Number(e.target.value)/100);}}/><label>{t('Iraupena (s)','Duración (s)')}<input type="number" min="1" max="60" value={playDuration} onChange={e=>setPlayDuration(Math.max(1,Math.min(60,Number(e.target.value)||8)))}/></label></div>
    </section>}
    {!presenting&&group==='explain'&&<section className="board-control-card board-ui board-explain-controls">
