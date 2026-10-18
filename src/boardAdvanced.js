@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
 // SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
 // Advanced didactic-board helpers; saved lessons never modify route projects.
-const KEY='rutasad-didactic-boards-v1';
+const KEY='traza-bizkaia-didactic-boards-v1';
 export const VEHICLE_KINDS=[['car','Coche','Autoa'],['bus','Autobús','Autobusa'],['truck','Camión','Kamioia'],['motorcycle','Moto','Motoa'],['bicycle','Bicicleta','Bizikleta'],['pedestrian','Peatón','Oinezkoa']];
 export const BOARD_COLORS=['#f3b73e','#57b9f4','#ed7373','#4abf89','#ffffff','#222222'];
 const rad=Math.PI/180;
@@ -37,7 +37,7 @@ export function geoFeatures(items){
  const features=[];
  for(const item of items){
   const polygon=polygonFor(item);
-  if(polygon)features.push({type:'Feature',properties:{id:item.id,color:item.color||'#f3b73e',opacity:Number(item.opacity)??.25},geometry:{type:'Polygon',coordinates:[polygon]}});
+  if(polygon)features.push({type:'Feature',properties:{id:item.id,color:item.color||'#f3b73e',opacity:Number.isFinite(Number(item.opacity))?Number(item.opacity):.25},geometry:{type:'Polygon',coordinates:[polygon]}});
  }
  return {type:'FeatureCollection',features};
 }
