@@ -50,3 +50,8 @@
  .didactic-board .board-presenter button{font-size:12px}
  .didactic-board .board-library-toggle{bottom:9px;left:8px}
 }
+
+.didactic-board .board-toggle-signals,.didactic-board .board-solo-vehicle{display:flex;align-items:center;gap:7px;font-size:12px}
+.didactic-board .board-toggle-signals input[type=checkbox],.didactic-board .board-solo-vehicle input[type=checkbox]{width:18px;height:18px;flex:0 0 18px;margin:0}
+.didactic-board .board-is-presenting .board-tools,.didactic-board.board-is-presenting .board-tools,.didactic-board.board-is-presenting .board-footer,.didactic-board.board-is-presenting .board-library-toggle{display:none}
+.didactic-board .board-draw-controls input[type=range],.didactic-board .board-signal-controls input[type=range]{padding:0}
