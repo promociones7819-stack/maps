@@ -1,0 +1,6 @@
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict'),prepare=require('../electron/data-directory.cjs');
+const docs=fs.mkdtempSync(path.join(os.tmpdir(),'rutasad-migration-'));try{
+ const old=path.join(docs,'Traza Bizkaia');fs.mkdirSync(path.join(old,'.datos-de-la-aplicacion'),{recursive:true});fs.writeFileSync(path.join(old,'Biblioteca de recorridos.json'),'OLD');fs.writeFileSync(path.join(old,'.datos-de-la-aplicacion','data'),'DATABASE');
+ const target=prepare(docs);assert.equal(path.basename(target),'RutasAD');assert.equal(fs.readFileSync(path.join(target,'Biblioteca de recorridos.json'),'utf8'),'OLD');assert.equal(fs.readFileSync(path.join(target,'.datos-de-la-aplicacion','data'),'utf8'),'DATABASE');assert.ok(fs.existsSync(old));
+ fs.writeFileSync(path.join(target,'Biblioteca de recorridos.json'),'CURRENT');prepare(docs);assert.equal(fs.readFileSync(path.join(target,'Biblioteca de recorridos.json'),'utf8'),'CURRENT');assert.equal(fs.readFileSync(path.join(old,'Biblioteca de recorridos.json'),'utf8'),'OLD');console.log('PASS Documents/RutasAD default, legacy copy retained, existing new library untouched');
+}finally{fs.rmSync(docs,{recursive:true,force:true});}

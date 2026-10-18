@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('trazaDesktop', Object.freeze({
   writeMovie:(id,bytes)=>ipcRenderer.invoke('movie:write',id,bytes),
   finishMovie:id=>ipcRenderer.invoke('movie:finish',id),
   abortMovie:id=>ipcRenderer.invoke('movie:abort',id),
+  checkWorkspaceMedia:(name,size)=>ipcRenderer.invoke('workspace:check-media',name,size),
   dataDirectory: ipcRenderer.sendSync('files:get-data-directory'),
   loadLibrary: () => ipcRenderer.invoke('library:load'),
   saveLibrary: storage => ipcRenderer.invoke('library:save', storage),

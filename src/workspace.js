@@ -16,8 +16,8 @@ export async function workspaceText(name){if(!active)throw Error('Abre primero l
 export async function workspaceMedia(media){
  if(!active)throw Error('Abre la carpeta de esta clase para recuperar el vídeo.');
  if(!active.files.some(f=>f.name===media.name&&f.size===media.size))throw Error('El vídeo original no está en esta carpeta o su tamaño ha cambiado.');
- if(active.native)return {url:`traza://app/__workspace/${encodeURIComponent(media.name)}`};
- return {file:await(await active.handle.getFileHandle(media.name)).getFile()};
+ if(active.native){await window.trazaDesktop.checkWorkspaceMedia?.(media.name,media.size);return {url:`traza://app/__workspace/${encodeURIComponent(media.name)}`};}
+ try{return {file:await(await active.handle.getFileHandle(media.name)).getFile()};}catch{throw Error('No se encuentra el vídeo original. Si has renombrado o movido la carpeta, pulsa Abrir carpeta y selecciona su ubicación actual.');}
 }
 export async function saveWorkspaceProject(review){
  if(!active)throw Error('Abre primero una carpeta.');const text=JSON.stringify({format:'rutasad-project',version:1,review},null,2);

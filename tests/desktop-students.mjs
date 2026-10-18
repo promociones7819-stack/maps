@@ -14,7 +14,7 @@ const app=await _electron.launch({args:[harness],timeout:20000});try{
  await screen.getByRole('button',{name:'PDF',exact:true}).click();await ficha.locator('#pdfFilled').waitFor();
  assert.equal(await ficha.locator('body').evaluate(async()=>{const r=await fetch('./pdf/B.pdf');return r.ok&&new Uint8Array(await r.arrayBuffer()).slice(0,4).every((b,i)=>b===[37,80,68,70][i]);}),true);
  await screen.getByRole('button',{name:'Volver a clases',exact:false}).click();await screen.getByRole('button',{name:'Volver al mapa',exact:false}).click();
- const file=path.join(docs,'Traza Bizkaia','Biblioteca de recorridos.json');await page.waitForFunction(async()=>{const value=localStorage.getItem('traza-bizkaia-ficha-autoescuela-v2');return value&&JSON.parse(value).students;});
+ const file=path.join(docs,'RutasAD','Biblioteca de recorridos.json');await page.waitForFunction(async()=>{const value=localStorage.getItem('traza-bizkaia-ficha-autoescuela-v2');return value&&JSON.parse(value).students;});
  await app.close();const library=JSON.parse(await fs.readFile(file,'utf8')),db=JSON.parse(library.storage['traza-bizkaia-ficha-autoescuela-v2']);const student=Object.values(db.students)[0];assert.equal(student.name,'Alumno Mac');assert.equal(student.permits.B.history.length,1);assert.ok(Object.values(student.permits.B.history[0].ratings).includes(3));assert.deepEqual(errors,[]);
  console.log('PASS packaged Mac: embedded registration, same class official grading, bundled PDF fetch, native persistence on close');
 }finally{try{await app.close();}catch{}}

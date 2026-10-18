@@ -17,7 +17,7 @@ Abre la dirección local que indique Vite. En Cloudflare, abre la dirección pub
 
 Descarga `Traza-Bizkaia-0.1.0-arm64.dmg`, ábrelo y arrastra **Traza Bizkaia** a **Aplicaciones**. Está preparado para Mac con Apple Silicon, incluido M5. La primera vez, si macOS bloquea la app porque no está firmada por un desarrollador registrado, haz clic derecho sobre ella en Aplicaciones, elige **Abrir** y confirma.
 
-La aplicación de escritorio guarda la biblioteca automáticamente en `Documentos/Traza Bizkaia/`:
+La aplicación de escritorio guarda la biblioteca automáticamente en `Documentos/RutasAD/`:
 
 - `Biblioteca de recorridos.json`: proyectos, trayectorias, señales, notas, preferencias y recorridos GPX editados.
 - `Archivos GPX/`: copias de los archivos GPX originales que importes.
@@ -25,7 +25,7 @@ La aplicación de escritorio guarda la biblioteca automáticamente en `Documento
 
 Pulsa **Abrir carpeta de datos** en **Biblioteca y copias** para ver esos archivos. Haz copias de esa carpeta para conservar o trasladar todo el trabajo. Los MP4 y GPX originales se guardan como archivos separados para que la biblioteca siga siendo ligera.
 
-Para llevar los proyectos de la versión web al Mac, abre la web en el mismo navegador donde los guardaste, pulsa **Descargar copia** en **Biblioteca y copias**, abre la app de escritorio e importa ese archivo con **Importar copia**. La copia transfiere los proyectos y sus datos; los MP4 descargados anteriormente y los GPX originales deben copiarse manualmente a sus respectivas carpetas dentro de `Documentos/Traza Bizkaia/`.
+Para llevar los proyectos de la versión web al Mac, abre la web en el mismo navegador donde los guardaste, pulsa **Descargar copia** en **Biblioteca y copias**, abre la app de escritorio e importa ese archivo con **Importar copia**. La copia transfiere los proyectos y sus datos; los MP4 descargados anteriormente y los GPX originales deben copiarse manualmente a sus respectivas carpetas dentro de `Documentos/RutasAD/`.
 
 ## Guardar una zona para trabajar sin conexión
 
@@ -109,3 +109,6 @@ La app Mac conserva la gestión en su biblioteca local y los tracks en su almace
 La exportación reutiliza el vídeo visible del PIP, sin abrir un segundo decodificador ni recargar el original. Durante el montaje, la reproducción pertenece al exportador: los cambios de progreso del mapa no provocan pausas ni búsquedas simultáneas en el vídeo. Se conserva una sola fuente de audio por elemento para permitir cancelar y volver a exportar; se libera al cambiar o cerrar el vídeo. La salida sigue escribiéndose por bloques a disco. La carga y la búsqueda inicial admiten cancelación y tiempo máximo de espera.
 
 Las pruebas verifican un solo elemento de vídeo durante la exportación, cancelación y reintento, imagen y sonido en Chromium/WebKit. La prueba de escritorio usa un MP4 válido con una caja `free` dispersa hasta 1.800 MiB para comprobar lectura por rangos y exportación sin cargarlo entero. El relleno no representa 50 minutos de metraje ni sustituye la comprobación del vídeo concreto del usuario.
+
+La carpeta predeterminada del escritorio es **Documentos/RutasAD**. Si no contiene una biblioteca, se copia la anterior de Documentos/Traza Bizkaia conservando el original. Si ambas contienen datos, se abre RutasAD y no se mezclan ni sobrescriben automáticamente. Al exportar desde carpeta se comprueba que el original sigue accesible; si se ha movido o renombrado, se indica que hay que volver a abrir la carpeta.
+Las copias JSON del escritorio también proponen Documentos/RutasAD como destino inicial; el diálogo permite elegir otra carpeta.

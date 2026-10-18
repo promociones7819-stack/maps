@@ -7,7 +7,7 @@ const attachBluetooth=require('./bluetooth.cjs');
 protocol.registerSchemesAsPrivileged([{ scheme: 'traza', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
 app.setName('RutasAD');
 
-const dataDirectory = path.join(app.getPath('documents'), 'Traza Bizkaia');
+const dataDirectory = require('./data-directory.cjs')(app.getPath('documents'));
 const libraryPath = path.join(dataDirectory, 'Biblioteca de recorridos.json');
 const gpxDirectory = path.join(dataDirectory, 'Archivos GPX');
 const videoDirectory = path.join(dataDirectory, 'Vídeos MP4');
@@ -57,7 +57,7 @@ ipcMain.on('library:save-sync', (event, storage) => {
 
 ipcMain.handle('backup:save',async(event,{name,data}={})=>{
   if(typeof data!=='string'||Buffer.byteLength(data,'utf8')>256*1024*1024)throw Error('La copia no tiene un tamaño válido.');
-  const result=await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender),{title:'Guardar copia de seguridad',defaultPath:path.join(app.getPath('downloads'),cleanFileName(name||'RutasAD-copia','.json')),filters:[{name:'Copia RutasAD',extensions:['json']}]});
+  const result=await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender),{title:'Guardar copia de seguridad',defaultPath:path.join(dataDirectory,cleanFileName(name||'RutasAD-copia','.json')),filters:[{name:'Copia RutasAD',extensions:['json']}]});
   if(result.canceled||!result.filePath)return {saved:false};
   const temporary=`${result.filePath}.${require('node:crypto').randomUUID()}.tmp`;
   try{await fs.promises.writeFile(temporary,data,'utf8');await fs.promises.rename(temporary,result.filePath);}catch(error){await fs.promises.rm(temporary,{force:true}).catch(()=>{});throw error;}
@@ -88,6 +88,7 @@ let workspaceDirectory=null;
 const movieWrites=new Map();
 function workspaceFile(name){if(!workspaceDirectory||typeof name!=='string'||name!==path.basename(name)||name.includes('\\'))throw Error('Archivo fuera de la carpeta de trabajo.');return path.join(workspaceDirectory,name);}
 ipcMain.handle('workspace:choose',async()=>{const result=await dialog.showOpenDialog({title:'Carpeta de la clase · RutasAD',properties:['openDirectory']});if(result.canceled)return null;workspaceDirectory=result.filePaths[0];const entries=await fs.promises.readdir(workspaceDirectory,{withFileTypes:true});const files=[];for(const e of entries)if(e.isFile())files.push({name:e.name,size:(await fs.promises.stat(path.join(workspaceDirectory,e.name))).size});return {name:path.basename(workspaceDirectory),files};});
+ipcMain.handle('workspace:check-media',async(_event,name,size)=>{try{const info=await fs.promises.stat(workspaceFile(name));if(!info.isFile()||info.size!==size)throw Error('changed');return true;}catch{throw Error('No se encuentra el vídeo original o ha cambiado. Si has renombrado o movido la carpeta, pulsa Abrir carpeta y selecciona su ubicación actual.');}});
 ipcMain.handle('workspace:read-text',async(_event,name)=>{if(!/\.(gpx|json)$/i.test(name))throw Error('Solo se leen proyectos JSON y tracks GPX.');return fs.promises.readFile(workspaceFile(name),'utf8');});
 ipcMain.handle('workspace:write-project',async(_event,text)=>{const target=workspaceFile('RutasAD-proyecto.json');const parsed=JSON.parse(text);if(parsed.format!=='rutasad-project')throw Error('Proyecto inválido.');const temporary=target+'.tmp';await fs.promises.writeFile(temporary,text,'utf8');await fs.promises.rename(temporary,target);});
 ipcMain.handle('movie:begin',async()=>{const result=await dialog.showSaveDialog({title:'Guardar montaje MP4',defaultPath:path.join(workspaceDirectory||videoDirectory,'RutasAD-mapa-pip.mp4'),filters:[{name:'MP4',extensions:['mp4']}]});if(result.canceled)return null;const id=require('node:crypto').randomUUID(),temporary=result.filePath+'.'+id+'.partial';const handle=await fs.promises.open(temporary,'wx');movieWrites.set(id,{handle,temporary,target:result.filePath});return {id,name:path.basename(result.filePath)};});
