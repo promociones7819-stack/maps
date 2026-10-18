@@ -20,3 +20,12 @@ export async function deleteLibraryReview({libraryId,sessionId}){
 export async function replaceBackupRecords({sessions,library}){
  const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction(['sessions','library'],'readwrite');for(const [name,items] of [['sessions',sessions],['library',library]]){const store=tx.objectStore(name);store.clear();for(const item of items)store.put(structuredClone(item));}tx.oncomplete=()=>{window.dispatchEvent(new Event('rutasad:metadata-changed'));resolve();};tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
 }
+
+// Atomic cascade, including cached videos. No original disk files are touched.
+export async function commitStudentDeletion({sessionIds,libraryIds,libraryItems,videoIds}){
+ const db=await open();return new Promise((resolve,reject)=>{
+  const tx=db.transaction(['sessions','library','videos'],'readwrite');
+  tx.oncomplete=()=>{window.dispatchEvent(new Event('rutasad:metadata-changed'));resolve();};tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('No se pudo completar el borrado.'));
+  try{for(const id of sessionIds)tx.objectStore('sessions').delete(id);for(const id of libraryIds)tx.objectStore('library').delete(id);for(const item of libraryItems)tx.objectStore('library').put(structuredClone(item));for(const id of videoIds)tx.objectStore('videos').delete(id);}catch(error){tx.abort();reject(error);}
+ });
+}

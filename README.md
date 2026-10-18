@@ -112,3 +112,11 @@ Las pruebas verifican un solo elemento de vídeo durante la exportación, cancel
 
 La carpeta predeterminada del escritorio es **Documentos/RutasAD**. Si no contiene una biblioteca, se copia la anterior de Documentos/Traza Bizkaia conservando el original. Si ambas contienen datos, se abre RutasAD y no se mezclan ni sobrescriben automáticamente. Al exportar desde carpeta se comprueba que el original sigue accesible; si se ha movido o renombrado, se indica que hay que volver a abrir la carpeta.
 Las copias JSON del escritorio también proponen Documentos/RutasAD como destino inicial; el diálogo permite elegir otra carpeta.
+
+### 0.7.2 · Eliminar alumnos
+
+En **Alumnos**, selecciona la ficha y pulsa **Eliminar alumno**. La confirmación identifica a la persona y explica el alcance: se eliminan ficha, permisos, clases, valoraciones, sesiones personales, revisiones guardadas y vídeos almacenados dentro de la app que no use otro recorrido. También se limpian la selección activa y las representaciones del recorrido que podrían reaparecer al recargar. Los antiguos identificadores vinculados al alumno se incluyen en el borrado.
+
+Las trayectorias reutilizables y los recorridos compartidos con otros alumnos se conservan. Un track personal que otra clase también utiliza pasa a ser un recorrido de biblioteca sin el vínculo de propiedad del alumno eliminado. Los originales en carpetas y las copias de seguridad ya exportadas no se borran. Una copia antigua que se importe expresamente puede recuperar datos antiguos.
+
+Los fallos de escritura en disco o en IndexedDB conservan la ficha anterior; la eliminación de sesiones, biblioteca y vídeos internos usa una transacción. La copia de la carpeta conectada se actualiza antes de recargar la vista. Las pruebas comprueban cancelar/confirmar, identificadores frente a nombres iguales, clases, sesiones, cachés, vídeos privados/compartidos, copia exportada y errores de almacenamiento.

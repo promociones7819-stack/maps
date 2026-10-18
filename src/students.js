@@ -20,8 +20,8 @@ export function validateStudents(db){
 export function readStudents(){return validateStudents(JSON.parse(localStorage.getItem(FICHA_KEY)||'{"students":{}}'));}
 export function writeStudents(db){validateStudents(db);localStorage.setItem(FICHA_KEY,JSON.stringify(db));window.dispatchEvent(new Event('rutasad:students-changed'));}
 export function migrateStudents(){
- const db=readStudents();if(localStorage.getItem('traza-bizkaia-ficha-migrated'))return db;let changed=false;
- for(const s of JSON.parse(localStorage.getItem('traza-bizkaia-students')||'[]'))if(safeId(s.id)&&s.name&&!Object.hasOwn(db.students,s.id)){db.students[s.id]={...s,teacher:'',school:'',notes:'',permits:{},updatedAt:new Date().toISOString()};changed=true;}
+ const db=readStudents();if(localStorage.getItem('traza-bizkaia-ficha-migrated'))return db;let changed=false;const aliases=new Set(Object.values(db.students).flatMap(s=>s.rutasadPreviousIds||[]));
+ for(const s of JSON.parse(localStorage.getItem('traza-bizkaia-students')||'[]'))if(safeId(s.id)&&s.name&&!aliases.has(s.id)&&!Object.hasOwn(db.students,s.id)){db.students[s.id]={...s,teacher:'',school:'',notes:'',permits:{},updatedAt:new Date().toISOString()};changed=true;}
  if(changed)writeStudents(db);localStorage.setItem('traza-bizkaia-ficha-migrated','1');return db;
 }
 export function mergeStudents(current,incoming,update=false){

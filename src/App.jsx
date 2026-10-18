@@ -292,7 +292,8 @@ export default function App() {
   const [routes, setRoutes] = useState(() => loadProjectRoutes(currentProject));
   const [workspaceMode, setWorkspaceMode] = useState('routes');
   const [backupOpen,setBackupOpen]=useState(false);
-  const [studentsOpen,setStudentsOpen]=useState(false);
+  const [studentsOpen,setStudentsOpen]=useState(()=>sessionStorage.getItem('rutasad-after-student-delete')==='1');
+  useEffect(()=>{sessionStorage.removeItem('rutasad-after-student-delete');},[]);
   const [libraryOpen,setLibraryOpen]=useState(false),[libraryEntries,setLibraryEntries]=useState([]),[libraryError,setLibraryError]=useState(''),[libraryBusy,setLibraryBusy]=useState(false);
   const librarySaveTimer=useRef(null);
   const [gpxReview, setGpxReview] = useState(() => loadProjectGpxReview(currentProject));
@@ -1250,7 +1251,7 @@ export default function App() {
       <div className="topbar-right"><button disabled={recording||liveLesson} onClick={()=>{setPlaying(false);stopNarration();mapRef.current?.stop();setStudentsOpen(true);}}>♙ {t("Ikasleak","Alumnos")}</button><button className="library-launch" disabled={recording||liveLesson} onClick={showLibrary}>▤ {t("Liburutegia","Biblioteca")}</button><span className="map-status"><i className={mapReady && !mapError ? 'status-dot ready' : 'status-dot'} />{mapProvider === 'mapbox' ? 'Mapbox Satélite' : 'Ortofoto geoEuskadi'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
     </header>
     {libraryOpen&&<RouteLibrary entries={libraryEntries} language={language} onLanguage={setLanguage} error={libraryError} onClose={()=>setLibraryOpen(false)} onOpen={openLibraryEntry} onDelete={removeLibraryEntry} onBackups={openBackupScreen} busy={libraryBusy} onNavigate={next=>{setLibraryOpen(false);if(next==='students')setStudentsOpen(true);else setWorkspace(next);}} onNew={next=>{setLibraryOpen(false);createProject();if(next==='gpx-review')setWorkspaceMode('gpx-review');}}/>}
-    {studentsOpen&&<StudentsScreen language={language} onBeforeSave={flushBackup} onClose={()=>setStudentsOpen(false)} onBackups={openBackupScreen} onOpenRoute={entry=>{setStudentsOpen(false);openLibraryEntry(entry);}} onMap={next=>{setStudentsOpen(false);setWorkspaceMode('gpx-review');setPlaying(false);requestAnimationFrame(()=>document.querySelector(next==='racebox'?'.racebox-panel':'.folder-workspace')?.scrollIntoView({block:'start'}));}}/>}
+    {studentsOpen&&<StudentsScreen language={language} onBeforeSave={flushBackup} onBeforeDelete={async()=>{await flushBackup();clearTimeout(librarySaveTimer.current);}} onDeleted={()=>{sessionStorage.setItem('rutasad-after-student-delete','1');window.location.reload();}} onClose={()=>setStudentsOpen(false)} onBackups={openBackupScreen} onOpenRoute={entry=>{setStudentsOpen(false);openLibraryEntry(entry);}} onMap={next=>{setStudentsOpen(false);setWorkspaceMode('gpx-review');setPlaying(false);requestAnimationFrame(()=>document.querySelector(next==='racebox'?'.racebox-panel':'.folder-workspace')?.scrollIntoView({block:'start'}));}}/>}
     {backupOpen&&<BackupScreen language={language} onClose={()=>{setBackupOpen(false);showLibrary();}} onBeforeExport={flushBackup} onBeforeRestore={()=>clearTimeout(librarySaveTimer.current)}/>}
     <section className="workspace">
       <aside className="sidebar">

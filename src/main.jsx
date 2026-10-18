@@ -51,7 +51,7 @@ async function start() {
     const { default: App } = await import('./App.jsx');
     root.render(<React.StrictMode><App /></React.StrictMode>);
   };
-  if (window.trazaDesktop) {
+  if (window.trazaDesktop || sessionStorage.getItem('rutasad-after-student-delete')==='1') {
     await openApp();
   } else {
     const { default: Welcome } = await import('./Welcome.jsx');
