@@ -26,24 +26,43 @@ export function drawMovie(ctx,video,incidents,second,composition){
  const shown=lines.slice(0,5);if(lines.length>5)shown[4]+='…';const box=shown.length*font*1.35+pad*2;
  ctx.fillStyle='rgba(10,15,22,.88)';ctx.fillRect(0,h-box,captionWidth,box);ctx.fillStyle='#ffb74d';ctx.fillRect(0,h-box,6,box);ctx.fillStyle='#fff';shown.forEach((text,i)=>ctx.fillText(text,pad,h-box+pad+font+i*font*1.35,captionWidth-pad*2));
 }
-export async function createFinalMovie({url,incidents,onProgress,signal,composition,startSecond=0,endSecond,audioContext,sink}){
+const movieAudio=new WeakMap();
+export function prepareMovieAudio(video,context){
+ if(!video)throw Error('Abre el vídeo antes de exportar.');
+ let route=movieAudio.get(video);if(!route){const audio=context||new (window.AudioContext||window.webkitAudioContext)();route={audio,source:audio.createMediaElementSource(video)};movieAudio.set(video,route);}return route.audio;
+}
+export async function releaseMovieVideo(video){const route=movieAudio.get(video);if(!route)return;route.source.disconnect();if(route.audio.state!=='closed')await route.audio.close();movieAudio.delete(video);}
+export function videoDecodeError(video){const code=video.error?.code,message=video.error?.message;return Error(code===2?'No se pudo leer el vídeo. Comprueba que su carpeta o disco sigue disponible.':`No se puede decodificar el vídeo${code?' (código '+code+')':''}.${message?' '+message:''}`);}
+function waitForVideo(video,event,signal){
+ return new Promise((resolve,reject)=>{
+  let timer;const clean=()=>{clearTimeout(timer);video.removeEventListener(event,ready);video.removeEventListener('error',error);signal?.removeEventListener('abort',abort);};
+  const ready=()=>{clean();resolve();},error=()=>{clean();reject(videoDecodeError(video));},abort=()=>{clean();reject(new DOMException('Exportación cancelada.','AbortError'));};
+  video.addEventListener(event,ready,{once:true});video.addEventListener('error',error,{once:true});signal?.addEventListener('abort',abort,{once:true});
+  timer=setTimeout(()=>{clean();reject(Error('El vídeo no responde. Comprueba que la carpeta o disco del original sigue disponible.'));},30000);if(signal?.aborted)abort();
+ });
+}
+
+export async function createFinalMovie({videoElement,url,incidents,onProgress,signal,composition,startSecond=0,endSecond,audioContext,sink}){
  const mime=['video/mp4;codecs="avc1.42E01E,mp4a.40.2"','video/mp4;codecs=avc1,mp4a.40.2','video/mp4'].find(m=>globalThis.MediaRecorder?.isTypeSupported(m));
  if(!mime)throw Error('Este navegador no permite exportar MP4. Usa Safari o Chrome actualizado.');
- const video=document.createElement('video');video.src=url;video.muted=true;video.playsInline=true;video.preload='auto';video.style.cssText='position:fixed;left:-2px;bottom:0;width:1px;height:1px;opacity:.01;pointer-events:none';document.body.append(video);
- let stream,audio,recorder,frame,wake,completed=false;const writer=sink?movieWriter(sink):null;let failed=null;
+ const borrowed=!!videoElement,video=videoElement||document.createElement('video'),original={muted:video.muted,rate:video.playbackRate};
+ if(!borrowed){video.muted=true;video.playsInline=true;video.preload='auto';video.style.cssText='position:fixed;left:-2px;bottom:0;width:1px;height:1px;opacity:.01;pointer-events:none';document.body.append(video);video.src=url;}
+ let stream,audio,destination,recorder,frame,wake,source,completed=false;const writer=sink?movieWriter(sink):null;let failed=null;
  try{
-  await new Promise((resolve,reject)=>{video.onloadeddata=resolve;video.onerror=()=>reject(Error('No se puede decodificar el vídeo.'));video.load();});
+  if(video.error)throw videoDecodeError(video);
+  if(video.readyState<2)await waitForVideo(video,'loadeddata',signal);
+  video.pause();video.playbackRate=1;
   if(signal.aborted)throw Error('Exportación cancelada.');
-  const canvas=document.createElement('canvas'),width=composition?.stageRect?.().width*devicePixelRatio||composition?.mapCanvas.width||video.videoWidth,height=composition?.stageRect?.().height*devicePixelRatio||composition?.mapCanvas.height||video.videoHeight,scale=Math.min(1,1280/width,720/height);canvas.width=Math.max(2,Math.round(width*scale/2)*2);canvas.height=Math.max(2,Math.round(height*scale/2)*2);const end=Math.min(video.duration,endSecond??video.duration);if(startSecond>=end)throw Error('El vídeo y el GPX no coinciden en el tiempo. Ajusta la sincronización.');if(startSecond>0){video.currentTime=startSecond;await new Promise(ok=>video.onseeked=ok);}const ctx=canvas.getContext('2d');drawMovie(ctx,video,incidents,startSecond,composition);stream=canvas.captureStream(30);
-  audio=audioContext||new (window.AudioContext||window.webkitAudioContext)();const source=audio.createMediaElementSource(video),destination=audio.createMediaStreamDestination();source.connect(destination);video.muted=false;await audio.resume();destination.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
+  const canvas=document.createElement('canvas'),width=composition?.stageRect?.().width*devicePixelRatio||composition?.mapCanvas.width||video.videoWidth,height=composition?.stageRect?.().height*devicePixelRatio||composition?.mapCanvas.height||video.videoHeight,scale=Math.min(1,1280/width,720/height);canvas.width=Math.max(2,Math.round(width*scale/2)*2);canvas.height=Math.max(2,Math.round(height*scale/2)*2);const end=Math.min(video.duration,endSecond??video.duration);if(startSecond>=end)throw Error('El vídeo y el GPX no coinciden en el tiempo. Ajusta la sincronización.');if(Math.abs(video.currentTime-startSecond)>.001){const sought=waitForVideo(video,'seeked',signal);video.currentTime=startSecond;await sought;}const ctx=canvas.getContext('2d');drawMovie(ctx,video,incidents,startSecond,composition);stream=canvas.captureStream(30);
+  audio=prepareMovieAudio(video,audioContext);source=movieAudio.get(video).source;destination=audio.createMediaStreamDestination();source.connect(destination);video.muted=false;await audio.resume();destination.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
   recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:4000000});const chunks=[];recorder.ondataavailable=e=>{if(!e.data.size)return;if(!writer){chunks.push(e.data);return;}try{writer.write(e.data).catch(error=>{failed=error;stop();});}catch(error){failed=error;stop();}};
   const stop=()=>{if(recorder.state!=='inactive')recorder.stop();};const abort=()=>{failed=Error('Exportación cancelada.');stop();};const hidden=()=>{if(document.hidden){failed=Error('Exportación interrumpida: mantén la app visible y vuelve a intentarlo.');stop();}};
   const done=new Promise((resolve,reject)=>{recorder.onstop=async()=>{try{if(failed)throw failed;resolve(writer?await writer.close():new Blob(chunks,{type:recorder.mimeType}));}catch(e){reject(e);}};recorder.onerror=e=>{failed=e.error||Error('No se pudo generar el MP4.');stop();};});
-  signal.addEventListener('abort',abort);document.addEventListener('visibilitychange',hidden);video.onended=stop;video.onerror=()=>{failed=Error('La reproducción del vídeo falló.');stop();};
+  signal.addEventListener('abort',abort);document.addEventListener('visibilitychange',hidden);video.onended=stop;video.onerror=()=>{failed=videoDecodeError(video);stop();};
   try{
    wake=await navigator.wakeLock?.request('screen').catch(()=>null);recorder.start(1000);
    const paint=()=>{onProgress((video.currentTime-startSecond)/(end-startSecond),video.currentTime);drawMovie(ctx,video,incidents,video.currentTime,composition);if(video.currentTime>=end){stop();return;}frame=requestAnimationFrame(paint);};paint();
    try{await video.play();}catch(e){failed=e;stop();}const blob=await done;if((blob.saved?blob.bytes:blob.size)<100)throw Error('El MP4 está vacío.');completed=true;return blob;
   }finally{signal.removeEventListener('abort',abort);document.removeEventListener('visibilitychange',hidden);}
- }finally{if(writer&&!completed)await writer.abort().catch(()=>{});cancelAnimationFrame(frame);video.pause();stream?.getTracks().forEach(t=>t.stop());await audio?.close();await wake?.release();video.removeAttribute('src');video.load();video.remove();}
+ }finally{if(writer&&!completed)await writer.abort().catch(()=>{});cancelAnimationFrame(frame);video.pause();stream?.getTracks().forEach(t=>t.stop());if(source&&destination)source.disconnect(destination);await wake?.release();video.onended=null;video.onerror=null;video.muted=original.muted;video.playbackRate=original.rate;if(!borrowed){await releaseMovieVideo(video);video.removeAttribute('src');video.load();video.remove();}}
 }
