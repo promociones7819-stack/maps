@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const attachBluetooth=require('./bluetooth.cjs');
+const organized=require('./organized-storage.cjs');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'traza', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
 app.setName('RutasAD');
@@ -11,19 +12,18 @@ const dataDirectory = require('./data-directory.cjs')(app.getPath('documents'));
 const libraryPath = path.join(dataDirectory, 'Biblioteca de recorridos.json');
 const gpxDirectory = path.join(dataDirectory, 'Archivos GPX');
 const videoDirectory = path.join(dataDirectory, 'Vídeos MP4');
+const backupDirectory=organized.folders(dataDirectory).backups;
 const appDataDirectory = path.join(dataDirectory, '.datos-de-la-aplicacion');
 
 app.setPath('userData', appDataDirectory);
 
 function ensureDataDirectories() {
-  for (const directory of [dataDirectory, gpxDirectory, videoDirectory, appDataDirectory]) fs.mkdirSync(directory, { recursive: true });
+  organized.ensure(dataDirectory);
+  for (const directory of [appDataDirectory]) fs.mkdirSync(directory, { recursive: true });
 }
 
 function writeLibrary(storage) {
-  ensureDataDirectories();
-  const temporaryPath = `${libraryPath}.tmp`;
-  fs.writeFileSync(temporaryPath, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), storage }, null, 2), 'utf8');
-  fs.renameSync(temporaryPath, libraryPath);
+  ensureDataDirectories();organized.writeLibrary(dataDirectory,storage);
 }
 
 function cleanFileName(value, extension) {
@@ -37,10 +37,10 @@ ipcMain.handle('library:load', () => {
   ensureDataDirectories();
   try {
     const library = JSON.parse(fs.readFileSync(libraryPath, 'utf8'));
-    return library?.storage && typeof library.storage === 'object' ? library.storage : {};
+    return organized.loadStudentsFallback(dataDirectory,library?.storage && typeof library.storage === 'object' ? library.storage : {});
   } catch (error) {
     if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) console.error('No se pudo leer la biblioteca local:', error);
-    return {};
+    return organized.loadStudentsFallback(dataDirectory,{});
   }
 });
 
@@ -57,7 +57,7 @@ ipcMain.on('library:save-sync', (event, storage) => {
 
 ipcMain.handle('backup:save',async(event,{name,data}={})=>{
   if(typeof data!=='string'||Buffer.byteLength(data,'utf8')>256*1024*1024)throw Error('La copia no tiene un tamaño válido.');
-  const result=await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender),{title:'Guardar copia de seguridad',defaultPath:path.join(dataDirectory,cleanFileName(name||'RutasAD-copia','.json')),filters:[{name:'Copia RutasAD',extensions:['json']}]});
+  const result=await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender),{title:'Guardar copia de seguridad',defaultPath:path.join(backupDirectory,cleanFileName(name||'RutasAD-copia','.json')),filters:[{name:'Copia RutasAD',extensions:['json']}]});
   if(result.canceled||!result.filePath)return {saved:false};
   const temporary=`${result.filePath}.${require('node:crypto').randomUUID()}.tmp`;
   try{await fs.promises.writeFile(temporary,data,'utf8');await fs.promises.rename(temporary,result.filePath);}catch(error){await fs.promises.rm(temporary,{force:true}).catch(()=>{});throw error;}
@@ -67,15 +67,15 @@ ipcMain.handle('backup:save',async(event,{name,data}={})=>{
 ipcMain.handle('files:save-gpx', async (_event, fileName, contents) => {
   ensureDataDirectories();
   const safeName = cleanFileName(fileName, '.gpx');
-  await fs.promises.writeFile(path.join(gpxDirectory, safeName), String(contents), 'utf8');
-  return path.join('Archivos GPX', safeName);
+  const target=organized.uniqueFile(gpxDirectory,safeName);await fs.promises.writeFile(target,String(contents),'utf8');
+  return path.join('Archivos GPX',path.basename(target));
 });
 
 ipcMain.handle('files:save-video', async (_event, fileName, bytes) => {
   ensureDataDirectories();
   const safeName = cleanFileName(fileName, '.mp4');
-  await fs.promises.writeFile(path.join(videoDirectory, safeName), Buffer.from(bytes));
-  return path.join('Vídeos MP4', safeName);
+  const target=organized.uniqueFile(videoDirectory,safeName);await fs.promises.writeFile(target,Buffer.from(bytes));
+  return path.join('Vídeos MP4',path.basename(target));
 });
 
 ipcMain.handle('files:open-data-folder', async () => {
@@ -91,7 +91,7 @@ ipcMain.handle('workspace:choose',async()=>{const result=await dialog.showOpenDi
 ipcMain.handle('workspace:check-media',async(_event,name,size)=>{try{const info=await fs.promises.stat(workspaceFile(name));if(!info.isFile()||info.size!==size)throw Error('changed');return true;}catch{throw Error('No se encuentra el vídeo original o ha cambiado. Si has renombrado o movido la carpeta, pulsa Abrir carpeta y selecciona su ubicación actual.');}});
 ipcMain.handle('workspace:read-text',async(_event,name)=>{if(!/\.(gpx|json)$/i.test(name))throw Error('Solo se leen proyectos JSON y tracks GPX.');return fs.promises.readFile(workspaceFile(name),'utf8');});
 ipcMain.handle('workspace:write-project',async(_event,text)=>{const target=workspaceFile('RutasAD-proyecto.json');const parsed=JSON.parse(text);if(parsed.format!=='rutasad-project')throw Error('Proyecto inválido.');const temporary=target+'.tmp';await fs.promises.writeFile(temporary,text,'utf8');await fs.promises.rename(temporary,target);});
-ipcMain.handle('movie:begin',async()=>{const result=await dialog.showSaveDialog({title:'Guardar montaje MP4',defaultPath:path.join(workspaceDirectory||videoDirectory,'RutasAD-mapa-pip.mp4'),filters:[{name:'MP4',extensions:['mp4']}]});if(result.canceled)return null;const id=require('node:crypto').randomUUID(),temporary=result.filePath+'.'+id+'.partial';const handle=await fs.promises.open(temporary,'wx');movieWrites.set(id,{handle,temporary,target:result.filePath});return {id,name:path.basename(result.filePath)};});
+ipcMain.handle('movie:begin',async()=>{const result=await dialog.showSaveDialog({title:'Guardar montaje MP4',defaultPath:path.join(videoDirectory,'RutasAD-mapa-pip.mp4'),filters:[{name:'MP4',extensions:['mp4']}]});if(result.canceled)return null;const id=require('node:crypto').randomUUID(),temporary=result.filePath+'.'+id+'.partial';const handle=await fs.promises.open(temporary,'wx');movieWrites.set(id,{handle,temporary,target:result.filePath});return {id,name:path.basename(result.filePath)};});
 ipcMain.handle('movie:write',async(_event,id,bytes)=>{const entry=movieWrites.get(id);if(!entry)throw Error('La exportación no está abierta.');if(!(bytes instanceof ArrayBuffer)||bytes.byteLength>32*1024*1024)throw Error('Bloque de vídeo inválido.');await entry.handle.writeFile(Buffer.from(bytes));});
 ipcMain.handle('movie:finish',async(_event,id)=>{const entry=movieWrites.get(id);if(!entry)throw Error('La exportación no está abierta.');await entry.handle.sync();await entry.handle.close();entry.closed=true;await fs.promises.rename(entry.temporary,entry.target);movieWrites.delete(id);});
 ipcMain.handle('movie:abort',async(_event,id)=>{const entry=movieWrites.get(id);if(!entry)return;if(!entry.closed)await entry.handle.close().catch(()=>{});await fs.promises.unlink(entry.temporary).catch(()=>{});movieWrites.delete(id);});
@@ -129,6 +129,7 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  session.defaultSession.on('will-download',(_event,item)=>{const raw=item.getFilename(),directory=organized.downloadFolder(dataDirectory,raw);if(!directory)return;organized.ensure(dataDirectory);const extension=path.extname(raw).toLowerCase(),name=cleanFileName(raw,extension);item.setSavePath(organized.uniqueFile(directory,name));});
   protocol.handle('traza', async request => {
     if(new URL(request.url).hostname==='app'&&new URL(request.url).pathname.startsWith('/__workspace/')){
       try{

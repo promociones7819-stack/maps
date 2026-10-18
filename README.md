@@ -120,3 +120,17 @@ En **Alumnos**, selecciona la ficha y pulsa **Eliminar alumno**. La confirmació
 Las trayectorias reutilizables y los recorridos compartidos con otros alumnos se conservan. Un track personal que otra clase también utiliza pasa a ser un recorrido de biblioteca sin el vínculo de propiedad del alumno eliminado. Los originales en carpetas y las copias de seguridad ya exportadas no se borran. Una copia antigua que se importe expresamente puede recuperar datos antiguos.
 
 Los fallos de escritura en disco o en IndexedDB conservan la ficha anterior; la eliminación de sesiones, biblioteca y vídeos internos usa una transacción. La copia de la carpeta conectada se actualiza antes de recargar la vista. Las pruebas comprueban cancelar/confirmar, identificadores frente a nombres iguales, clases, sesiones, cachés, vídeos privados/compartidos, copia exportada y errores de almacenamiento.
+
+### 0.7.3 · Carpetas del Mac
+
+El guardado del escritorio utiliza **Documentos local/RutasAD**:
+
+- `Archivos GPX/`: copias de GPX importados y exportaciones GPX.
+- `Vídeos MP4/`: grabaciones de la app, montajes MP4 y descargas de vídeo. El diálogo de exportación propone esta carpeta incluso si el original se abrió desde otra ubicación.
+- `Alumnos/Alumnos.json`: copia automática actualizada de fichas, permisos y clases, compatible con el formato FichaAutoescuela. Se actualiza también al eliminar alumnos. Las exportaciones JSON de alumnado/historial y los PDF generados se guardan en esta carpeta.
+- `App/Copias de seguridad/`: destino inicial de las copias completas JSON; el diálogo permite elegir otro.
+- `Biblioteca de recorridos.json`: permanece en la raíz como instantánea completa y fuente principal de recuperación. El JSON de Alumnos es una copia adicional, no una base independiente que haya que sincronizar manualmente.
+
+Los archivos originales abiertos mediante Carpeta de la clase continúan en la carpeta elegida. Las descargas automáticas de la app añaden un número si el nombre ya existe. Los archivos `Alumnos.json` anteriores que no hayan sido generados por esta función se conservan como `Alumnos-anterior*.json` antes de escribir la copia automática. La app no mueve ni sustituye el contenido que el usuario ya tenga dentro de `App`.
+
+Pruebas: `tests/organized-storage.cjs` verifica los archivos y su recuperación; `tests/desktop-folders.mjs` ejecuta descargas reales en una carpeta aislada de Documentos, comprueba destinos GPX/MP4/PDF/JSON, la actualización tras borrar alumnos y las sugerencias de los diálogos de copias y vídeo.
