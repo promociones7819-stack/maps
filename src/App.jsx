@@ -1,4 +1,4 @@
-import {recordingContextOptions} from './mapRecording.js';
+import {recordingContextOptions, drawExplanationPointer} from './mapRecording.js';
 import BackupScreen from './BackupScreen.jsx';
 import StudentsScreen from './StudentsScreen.jsx';
 import RouteLibrary from './RouteLibrary.jsx';
@@ -285,6 +285,19 @@ export default function App() {
   useEffect(()=>{document.documentElement.lang=language;try{localStorage.setItem('traza-bizkaia-language',language);}catch{}},[language]);
 
   const mapNode = useRef(null), mapRef = useRef(null), mapViewRef = useRef(null), routesRef = useRef([]), activeRef = useRef('');
+  const explanationPointer = useRef(null);
+  useEffect(() => {
+    const move = event => { explanationPointer.current = { x: event.clientX, y: event.clientY }; };
+    const clear = () => { explanationPointer.current = null; };
+    document.addEventListener('pointermove', move, { passive: true });
+    document.addEventListener('pointerleave', clear);
+    window.addEventListener('blur', clear);
+    return () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerleave', clear);
+      window.removeEventListener('blur', clear);
+    };
+  }, []);
   const progressRef = useRef(0), rafRef = useRef(0), lastFrameRef = useRef(0);
   const recorderRef = useRef(null), chunksRef = useRef([]), folderRef = useRef(null), recordFrameRef = useRef(0), audioResourcesRef = useRef(null), mediaStreamRef = useRef(null), audioInputRef = useRef(null), narrationUtteranceRef = useRef(null);
   const [projectState, setProjectState] = useState(loadProjectState);
@@ -1006,6 +1019,10 @@ export default function App() {
           const state=recordingMarkers.current;const teachingMarker = distanceToMarker(framePosition, state.markers, videoRoute.id);
           if (teachingMarker) drawTeachingCard(context, teachingMarker, videoCanvas.width);
         }
+        // Hit-test every frame: a dialog/control may cover a stationary pointer.
+        if (!isGpxReview && !recordingMarkers.current.playing) {
+          drawExplanationPointer(context, canvas, explanationPointer.current);
+        }
         recordFrameRef.current = requestAnimationFrame(composeFrame);
       };
       composeFrame();
@@ -1297,7 +1314,7 @@ export default function App() {
           <div className="video-actions"><button className="folder-button" onClick={chooseOutputFolder}>▰ {folderName || 'Elegir carpeta…'}</button><button className="export-button" disabled={!recording && (!folderName || !activeRoute || activeRoute.points.length < 2)} onClick={exportVideo}>{recording ? '■ Finalizar y guardar' : '● Grabar vídeo'}</button></div>
           <div className="recording-pause-controls"><button aria-label="Pausar imagen" disabled={!recording||!playing} onClick={togglePlayback}>Ⅱ {t('Irudia pausatu','Pausar imagen')}</button><button aria-label="Reanudar recorrido" disabled={!recording||playing} onClick={togglePlayback}>▶ {t('Ibilbidea jarraitu','Reanudar recorrido')}</button></div>
           <button className="recording-add-incident" disabled={!recording||playing} onClick={openNewMarkerDialog}>＋ {t('Gatazka-puntua gehitu','Añadir punto conflictivo en pausa')}</button>
-          <p className="recording-pause-status" role="status">{recording?(playing?t('Ibilbidea grabatzen. Irudia pausa dezakezu; audioak jarraitzen du.','Grabando recorrido. Puedes pausar la imagen; el audio continúa.'):t('Irudia pausatuta. Audioak grabatzen jarraitzen du.','Imagen pausada. El audio sigue grabándose.')):t('Grabazioa hasi ondoren aktibatuko dira.','Se activan al iniciar la grabación.')}</p>
+          <p className="recording-pause-status" role="status">{recording?(playing?t('Ibilbidea grabatzen. Irudia pausa dezakezu; audioak jarraitzen du.','Grabando recorrido. Puedes pausar la imagen; el audio continúa.'):t('Irudia pausatuta. Audioak jarraitzen du. Maparen gaineko erakuslea bideoan agertzen da.','Imagen pausada. El audio sigue grabándose. Señala sobre el mapa: el puntero aparece en el vídeo.')):t('Grabazioa hasi ondoren aktibatuko dira.','Se activan al iniciar la grabación.')}</p>
           <small>{exportMessage || (folderName ? `Se guardará en «${folderName}».` : 'Selecciona una trayectoria y elige dónde guardar su vídeo MP4.')}</small>
         </div>
         <div className="audio-card">
