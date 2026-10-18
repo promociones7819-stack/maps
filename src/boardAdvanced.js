@@ -30,7 +30,7 @@ function polygonFor(item){
  if(item.type==='area')return p.length>=3?[...p,p[0]]:null;
  if(item.type==='rectangle')return [a,[b[0],a[1]],b,[a[0],b[1]],a];
  if(item.type==='circle'){const radius=Math.max(.5,meters(a,b));return Array.from({length:49},(_,i)=>offset(a,radius,i*7.5));}
- if(item.type==='sight'){const radius=Math.max(.5,meters(a,b)),bearing=Number(item.heading)||Math.atan2((b[0]-a[0])*Math.cos(a[1]*rad),b[1]-a[1])/rad,spread=clamp(Number(item.aperture)||70,10,180);return [a,...Array.from({length:25},(_,i)=>offset(a,radius,bearing-spread/2+spread*i/24)),a];}
+ if(item.type==='sight'){const radius=Math.max(.5,meters(a,b)),bearing=Number.isFinite(item.heading)?item.heading:Math.atan2((b[0]-a[0])*Math.cos(a[1]*rad),b[1]-a[1])/rad,spread=clamp(Number(item.aperture)||70,10,180);return [a,...Array.from({length:25},(_,i)=>offset(a,radius,bearing-spread/2+spread*i/24)),a];}
  return null;
 }
 export function geoFeatures(items){
