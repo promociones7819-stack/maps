@@ -1,5 +1,6 @@
 import {chromium} from '@playwright/test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 
 const browser=await chromium.launch();
 try {
@@ -51,6 +52,17 @@ try {
  assert.equal(saved[0].name,'Caso 01');
  assert.equal(saved[0].scenes.length,1);
  assert.ok(saved[0].items.some(i=>i.type==='vehicle'));
+ const pngWait=page.waitForEvent('download');
+ await board.getByRole('button',{name:'PNG',exact:true}).click();
+ const png=await pngWait;
+ assert.match(png.suggestedFilename(),/\.png$/);
+ const pngBytes=await readFile(await png.path());
+ assert.equal(pngBytes.subarray(1,4).toString('ascii'),'PNG');
+ const pdfWait=page.waitForEvent('download');
+ await board.getByRole('button',{name:'PDF',exact:true}).click();
+ const pdf=await pdfWait;
+ const pdfBytes=await readFile(await pdf.path());
+ assert.equal(pdfBytes.subarray(0,5).toString('ascii'),'%PDF-');
  assert.deepEqual(errors,[]);
  console.log('didactic-board-advanced PASS: place vehicle, draw path, animate slider, freehand, scene presentation, save independently.');
 } finally {await browser.close();}
