@@ -1,26 +1,12 @@
-const APP_CACHE = 'traza-bizkaia-shell-v2';
 const ORTHO_CACHE = 'ortofoto-euskadi-v1';
 const ORTHO_PATH = '/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/';
 
-self.addEventListener('install', event => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(APP_CACHE);
-    const response = await fetch('/');
-    const html = await response.text();
-    await cache.put('/', new Response(html, { headers: { 'Content-Type': 'text/html' } }));
-    await cache.put('/index.html', new Response(html, { headers: { 'Content-Type': 'text/html' } }));
-    const assets = [...html.matchAll(/(?:src|href)="([^\"]*\/assets\/[^\"]+)"/g)].map(match => match[1]);
-    await Promise.allSettled(assets.map(async asset => {
-      const assetResponse = await fetch(asset);
-      if (assetResponse.ok) await cache.put(asset, assetResponse);
-    }));
-    await self.skipWaiting();
-  })());
-});
-
-self.addEventListener('activate', event => {
-  event.waitUntil(self.clients.claim());
-});
+// Private web sessions must always reach the server; retain only public map tiles.
+self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
+self.addEventListener('activate', event => event.waitUntil((async()=>{
+  for(const key of await caches.keys())if(key.startsWith('traza-bizkaia-shell'))await caches.delete(key);
+  await self.clients.claim();
+})()));
 
 self.addEventListener('fetch', event => {
   const request = event.request;
@@ -43,32 +29,5 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/ficha/')) {event.respondWith((async()=>{const cache=await caches.open(APP_CACHE);try{const r=await fetch(request);if(r.ok)await cache.put(request,r.clone());return r;}catch{return (await cache.match(request))||new Response('Abre esta ficha con conexión la primera vez.',{status:503});}})());return;}
-  if (request.mode === 'navigate') {
-    event.respondWith((async () => {
-      try {
-        const response = await fetch(request);
-        const cache = await caches.open(APP_CACHE);
-        await cache.put('/', response.clone());
-        await cache.put('/index.html', response.clone());
-        return response;
-      } catch {
-        const cache = await caches.open(APP_CACHE);
-        return (await cache.match(request)) || (await cache.match('/')) || (await cache.match('/index.html'));
-      }
-    })());
-    return;
-  }
-
-  if (url.pathname.startsWith('/assets/')) {
-    event.respondWith((async () => {
-      const cache = await caches.open(APP_CACHE);
-      const cached = await cache.match(request);
-      if (cached) return cached;
-      const response = await fetch(request);
-      if (response.ok) await cache.put(request, response.clone());
-      return response;
-    })());
-  }
+  if (url.origin === self.location.origin) event.respondWith(fetch(request, {cache:'no-store'}));
 });

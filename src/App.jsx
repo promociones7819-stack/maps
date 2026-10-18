@@ -1,3 +1,4 @@
+import {AccountControls,LegacyImport} from './WebAccess.jsx';
 import {recordingContextOptions, drawExplanationPointer} from './mapRecording.js';
 import BackupScreen from './BackupScreen.jsx';
 import StudentsScreen from './StudentsScreen.jsx';
@@ -1263,9 +1264,9 @@ export default function App() {
     setLibraryOpen(false);
   };
   return <main className="app-shell">
-    <header className="topbar">
+    <LegacyImport/><header className="topbar">
       <div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><div className="brand-name">TRAZA<span> / BIZKAIA</span></div><div className="brand-subtitle">Estudio de recorridos aéreos</div></div></div>
-      <div className="topbar-right"><button disabled={recording||liveLesson} onClick={()=>{setPlaying(false);stopNarration();mapRef.current?.stop();setStudentsOpen(true);}}>♙ {t("Ikasleak","Alumnos")}</button><button className="library-launch" disabled={recording||liveLesson} onClick={showLibrary}>▤ {t("Liburutegia","Biblioteca")}</button><span className="map-status"><i className={mapReady && !mapError ? 'status-dot ready' : 'status-dot'} />{mapProvider === 'mapbox' ? 'Mapbox Satélite' : 'Ortofoto geoEuskadi'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
+      <div className="topbar-right"><AccountControls language={language} disabled={recording||liveLesson}/><button disabled={recording||liveLesson} onClick={()=>{setPlaying(false);stopNarration();mapRef.current?.stop();setStudentsOpen(true);}}>♙ {t("Ikasleak","Alumnos")}</button><button className="library-launch" disabled={recording||liveLesson} onClick={showLibrary}>▤ {t("Liburutegia","Biblioteca")}</button><span className="map-status"><i className={mapReady && !mapError ? 'status-dot ready' : 'status-dot'} />{mapProvider === 'mapbox' ? 'Mapbox Satélite' : 'Ortofoto geoEuskadi'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
     </header>
     {libraryOpen&&<RouteLibrary entries={libraryEntries} language={language} onLanguage={setLanguage} error={libraryError} onClose={()=>setLibraryOpen(false)} onOpen={openLibraryEntry} onDelete={removeLibraryEntry} onBackups={openBackupScreen} busy={libraryBusy} onNavigate={next=>{setLibraryOpen(false);if(next==='students')setStudentsOpen(true);else setWorkspace(next);}} onNew={next=>{setLibraryOpen(false);createProject();if(next==='gpx-review')setWorkspaceMode('gpx-review');}}/>}
     {studentsOpen&&<StudentsScreen language={language} onBeforeSave={flushBackup} onBeforeDelete={async()=>{await flushBackup();clearTimeout(librarySaveTimer.current);}} onDeleted={()=>{sessionStorage.setItem('rutasad-after-student-delete','1');window.location.reload();}} onClose={()=>setStudentsOpen(false)} onBackups={openBackupScreen} onOpenRoute={entry=>{setStudentsOpen(false);openLibraryEntry(entry);}} onMap={next=>{setStudentsOpen(false);setWorkspaceMode('gpx-review');setPlaying(false);requestAnimationFrame(()=>document.querySelector(next==='racebox'?'.racebox-panel':'.folder-workspace')?.scrollIntoView({block:'start'}));}}/>}

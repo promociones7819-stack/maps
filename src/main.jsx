@@ -1,6 +1,6 @@
 import React from 'react';
 import {watchDataFolder} from './dataFolder.js';
-watchDataFolder();
+
 import {Capacitor} from '@capacitor/core';
 import { createRoot } from 'react-dom/client';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -37,6 +37,21 @@ function connectDesktopLibrary() {
 
 async function start() {
   const root = createRoot(document.getElementById('root'));
+  if (import.meta.env.PROD && 'serviceWorker' in navigator && !window.trazaDesktop && !Capacitor.isNativePlatform()) navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+  if (import.meta.env.PROD && !window.trazaDesktop && !Capacitor.isNativePlatform()) {
+    const {Login,accountRequest,monitorAccount}=await import('./WebAccess.jsx');
+    let user;
+    try { user=(await accountRequest('me')).user; } catch(error) {
+      if(error.status!==401){root.render(<main className="access-page"><p>No se pudo comprobar el acceso. Comprueba tu conexión y recarga la página.</p></main>);return;}
+      user=await new Promise(resolve=>root.render(<Login onLogin={(user,language)=>resolve({...user,loginLanguage:language})}/>));
+    }
+    await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/account-storage.js';script.onload=resolve;script.onerror=reject;document.head.append(script);});
+    window.installRutasAccount(user);
+    if(user.loginLanguage)localStorage.setItem('traza-bizkaia-language',user.loginLanguage);
+    monitorAccount(user);
+  }
+  watchDataFolder();
   if (window.trazaDesktop) {
     try {
       const library = await window.trazaDesktop.loadLibrary();
@@ -46,7 +61,6 @@ async function start() {
     } catch (error) { console.error('No se pudo abrir la biblioteca local:', error); }
     connectDesktopLibrary();
   }
-  if (import.meta.env.PROD && 'serviceWorker' in navigator && !window.trazaDesktop && !Capacitor.isNativePlatform()) navigator.serviceWorker.register('/sw.js').catch(() => {});
   const openApp = async () => {
     const { default: App } = await import('./App.jsx');
     root.render(<React.StrictMode><App /></React.StrictMode>);
