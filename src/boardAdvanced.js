@@ -54,22 +54,50 @@ export function validateBoardImport(entry) {
 }
 export function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 export function boardFilename(name){return String(name||'pizarra').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'-').slice(0,60)||'pizarra';}
-export async function imageOfBoard(map,items) {
- const base=map.getCanvas(),out=document.createElement('canvas'),scale=1;out.width=base.width*scale;out.height=base.height*scale;
+export async function imageOfBoard(map,items,progress=0) {
+ const base=map.getCanvas(),out=document.createElement('canvas');
+ out.width=base.width;out.height=base.height;
+ if(!out.width||!out.height)throw Error('La imagen del mapa no está disponible.');
  const ctx=out.getContext('2d');ctx.drawImage(base,0,0,out.width,out.height);
  const sx=out.width/base.clientWidth,sy=out.height/base.clientHeight;
- for(const item of items) {
+ for(const item of items){
   if(!item.coordinates)continue;
-  const p=map.project(item.coordinates),x=p.x*sx,y=p.y*sy;
+  const v=item.type==='vehicle'?vehicleAt(item,progress):null;
+  const p=map.project(v?.coordinates||item.coordinates),x=p.x*sx,y=p.y*sy;
   ctx.save();ctx.translate(x,y);
   if(item.type==='vehicle'){
-   const v=vehicleAt(item,0);const rot=((v.heading||0)-map.getBearing())*rad;ctx.rotate(rot);ctx.fillStyle=item.color||'#57b9f4';ctx.strokeStyle='#fff';ctx.lineWidth=2;
-   if(item.kind==='pedestrian'){ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);ctx.fill();ctx.stroke();}else{ctx.fillRect(-11,-21,22,42);ctx.strokeRect(-11,-21,22,42);}
-   ctx.rotate(-rot);ctx.fillStyle='#fff';ctx.strokeStyle='#111';ctx.lineWidth=3;ctx.font='bold 17px sans-serif';ctx.strokeText(item.label||'A',13,-10);ctx.fillText(item.label||'A',13,-10);
-  }else{ctx.fillStyle=item.type==='note'?'#d9483c':'#fff';ctx.strokeStyle='#173f36';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,14,0,2*Math.PI);ctx.fill();ctx.stroke();ctx.fillStyle=item.type==='note'?'#fff':'#173f36';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText(item.type==='note'?'!':String(item.signalCode||'S').slice(0,4),0,4);}
+   ctx.rotate(((v.heading||0)-map.getBearing())*rad);
+   ctx.fillStyle=item.color||'#57b9f4';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;
+   if(item.kind==='pedestrian'){ctx.beginPath();ctx.arc(0,0,10,0,2*Math.PI);ctx.fill();ctx.stroke();}
+   else{const width=item.kind==='bus'||item.kind==='truck'?26:20,height=item.kind==='bus'?55:item.kind==='truck'?49:39;ctx.beginPath();ctx.roundRect(-width/2,-height/2,width,height,5);ctx.fill();ctx.stroke();ctx.fillStyle='#c5e1ec';ctx.fillRect(-width/2+4,-height/2+8,width-8,10);}
+   ctx.rotate(-((v.heading||0)-map.getBearing())*rad);
+   ctx.fillStyle='#fff';ctx.strokeStyle='#172d22';ctx.lineWidth=3;ctx.font='bold 17px sans-serif';ctx.strokeText(item.label||'A',16,-10);ctx.fillText(item.label||'A',16,-10);
+  }else if(item.type==='text'){
+   const label=String(item.title||'').slice(0,90);ctx.font='bold 17px sans-serif';const w=Math.min(370,ctx.measureText(label).width+20);
+   ctx.fillStyle='#fffffff0';ctx.strokeStyle='#264c3b';ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(-3,-20,w,26,5);ctx.fill();ctx.stroke();ctx.fillStyle='#263c2e';ctx.fillText(label,5,0);
+  }else if(item.type==='note'){
+   ctx.fillStyle='#d44138';ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,15,0,2*Math.PI);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='bold 21px sans-serif';ctx.fillText('!',0,7);ctx.textAlign='left';
+   if(item.title){const label=String(item.title).slice(0,70);ctx.font='bold 14px sans-serif';const w=ctx.measureText(label).width+14;ctx.fillStyle='#fffffff5';ctx.fillRect(19,-18,w,24);ctx.fillStyle='#182e24';ctx.fillText(label,26,-1);}
+  }else if(item.type==='signal'){
+   const code=item.signalCode||'';
+   if(code==='R-2'){
+    ctx.beginPath();for(let i=0;i<8;i++){const a=Math.PI/8+Math.PI*i/4;const xx=Math.sin(a)*21,yy=Math.cos(a)*21;i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);}ctx.closePath();ctx.fillStyle='#ca3130';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.stroke();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='bold 12px sans-serif';ctx.fillText('STOP',0,4);
+   }else if(code==='R-1'){
+    ctx.beginPath();ctx.moveTo(-22,-15);ctx.lineTo(22,-15);ctx.lineTo(0,23);ctx.closePath();ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#d53d38';ctx.lineWidth=5;ctx.stroke();
+   }else if(code==='R-301'){
+    ctx.beginPath();ctx.arc(0,0,19,0,2*Math.PI);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#d53d38';ctx.lineWidth=5;ctx.stroke();ctx.fillStyle='#111';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText(String(item.speed||''),0,6);
+   }else if(code==='SEMÁFORO'){
+    ctx.fillStyle='#1a201c';ctx.beginPath();ctx.roundRect(-11,-28,22,56,5);ctx.fill();
+    const active=item.phase||'red';
+    for(const [i,name,col] of [[0,'red','#ec3433'],[1,'amber','#ffb81e'],[2,'green','#30c962']]){ctx.beginPath();ctx.arc(0,-18+18*i,6,0,2*Math.PI);ctx.fillStyle=active===name||active==='blink'&&name==='amber'?col:'#525a55';ctx.fill();}
+   }else{
+    ctx.fillStyle='#fff';ctx.strokeStyle='#213f35';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(-29,-19,58,38,6);ctx.fill();ctx.stroke();ctx.fillStyle='#213f35';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(code.slice(0,9),0,5);
+   }
+  }
   ctx.restore();
  }
- ctx.fillStyle='rgba(255,255,255,.88)';ctx.fillRect(8,out.height-27,270,22);ctx.fillStyle='#1d392f';ctx.font='12px sans-serif';ctx.fillText('RutasAD · © geoEuskadi / Mapbox',14,out.height-12);
+ const label='RutasAD · © geoEuskadi / Mapbox';ctx.font='12px sans-serif';
+ const w=ctx.measureText(label).width+18;ctx.fillStyle='rgba(255,255,255,.9)';ctx.fillRect(8,out.height-28,w,22);ctx.fillStyle='#1d392f';ctx.fillText(label,17,out.height-12);
  return new Promise((resolve,reject)=>out.toBlob(blob=>blob?resolve(blob):reject(Error('No se pudo generar la imagen.')),'image/png'));
 }
 export async function pdfOfBoard(pngBlob){
