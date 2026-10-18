@@ -1,4 +1,5 @@
 import React,{useEffect,useState} from 'react';
+import {createPortal} from 'react-dom';
 import './web-access.css';
 export async function accountRequest(path,options={}){
  const response=await fetch('/api/'+path,{credentials:'same-origin',cache:'no-store',...options,headers:{'Content-Type':'application/json',...options.headers}});
@@ -21,9 +22,17 @@ export function AccountControls({language='eu',disabled=false}){
  const refresh=async()=>{try{setUsers((await accountRequest('admin/users')).users);}catch(e){setError(e.message);}};
  const action=async fn=>{setBusy(true);setError('');try{await fn();await refresh();}catch(e){setError(e.message);}finally{setBusy(false);}};
  useEffect(()=>{if(open&&user?.role==='admin')void refresh();},[open]);
+ useEffect(()=>{
+  if(!open)return;
+  const root=document.getElementById('root'),previous=document.activeElement;
+  root.inert=true;
+  const key=event=>{if(event.key==='Escape'&&!busy)setOpen(false);if(event.key==='Tab'){const nodes=[...document.querySelectorAll('.account-overlay button:not(:disabled),.account-overlay input')];const first=nodes[0],last=nodes.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}};
+  document.addEventListener('keydown',key);document.querySelector('.account-overlay button')?.focus();
+  return()=>{root.inert=false;document.removeEventListener('keydown',key);previous?.focus();};
+ },[open,busy]);
  if(!user)return null;
  const leave=async()=>{setBusy(true);try{await accountRequest('logout',{method:'POST'});announce();location.reload();}catch(e){setError(e.message);setBusy(false);}};
- return <><button disabled={disabled} onClick={()=>setOpen(true)}>{user.role==='admin'?t('Administrazioa','Administración'):t('Nire kontua','Mi cuenta')}</button>{open&&<section className="account-overlay" role="dialog" aria-modal="true" aria-label={t('Kontua eta erabiltzaileak','Cuenta y usuarios')}><div className="account-panel"><header><div><span className="access-brand">RutasAD</span><h2>{user.role==='admin'?t('Erabiltzaileak','Usuarios'):t('Nire kontua','Mi cuenta')}</h2><p>{user.email}</p></div><button onClick={()=>{setOpen(false);setChange(false);setReset(null);}} disabled={busy}>{t('Itxi','Cerrar')}</button></header>
+ return <><button disabled={disabled} onClick={()=>setOpen(true)}>{user.role==='admin'?t('Administrazioa','Administración'):t('Nire kontua','Mi cuenta')}</button>{open&&createPortal(<section className="account-overlay" role="dialog" aria-modal="true" aria-label={t('Kontua eta erabiltzaileak','Cuenta y usuarios')}><div className="account-panel"><header><div><span className="access-brand">RutasAD</span><h2>{user.role==='admin'?t('Erabiltzaileak','Usuarios'):t('Nire kontua','Mi cuenta')}</h2><p>{user.email}</p></div><button onClick={()=>{setOpen(false);setChange(false);setReset(null);}} disabled={busy}>{t('Itxi','Cerrar')}</button></header>
  <p>{t('Kontu bakoitzak bere ikasleak, klaseak eta ibilbideak ditu. Datuak gailu honetan gordetzen dira.','Cada cuenta tiene sus propios alumnos, clases y recorridos. Los datos se guardan en este dispositivo.')}</p>
  {user.role==='admin'&&<><form className="account-create" onSubmit={e=>{e.preventDefault();const form=e.currentTarget,data=Object.fromEntries(new FormData(form));void action(async()=>{await accountRequest('admin/users',{method:'POST',body:JSON.stringify(data)});form.reset();});}}><h3>{t('Erabiltzaile berria','Nuevo usuario')}</h3><label>{t('Posta elektronikoa','Correo electrónico')}<input name="email" type="email" required maxLength={254}/></label><label>{t('Hasierako pasahitza edo PINa','Contraseña o PIN inicial')}<input name="password" type="password" required minLength={8} maxLength={128} autoComplete="new-password" placeholder={t('Gutxienez 8 karaktere','Mínimo 8 caracteres')}/></label><button disabled={busy}>{t('Erabiltzailea sortu','Crear usuario')}</button><small>{t('Eman sarbide-datuak pertsona horri. Ez da mezu automatikorik bidaltzen.','Entrega los datos de acceso a esa persona. No se envía un correo automático.')}</small></form>
  <div className="account-user-list">{users.map(u=><article key={u.id}><div><strong>{u.email}</strong><small>{u.role==='admin'?t('Administratzailea','Administrador'):u.active?t('Sarbide aktiboa','Acceso activo'):t('Sarbidea blokeatuta','Acceso bloqueado')}</small></div>{u.role!=='admin'&&<div className="account-actions"><button disabled={busy} onClick={()=>void action(()=>accountRequest('admin/users/'+u.id,{method:'PATCH',body:JSON.stringify({active:!u.active})}))}>{u.active?t('Blokeatu','Bloquear'):t('Aktibatu','Activar')}</button><button disabled={busy} onClick={()=>setReset(u)}>{t('PINa aldatu','Restablecer acceso')}</button><button disabled={busy} onClick={()=>{if(confirm(t('Kontu hau ezabatu? Sarbidea galduko du. Bere gailuan gordetako fitxategiak ez dira ezabatuko.','¿Eliminar esta cuenta? Perderá el acceso. Los archivos guardados en su dispositivo no se borrarán.')))void action(()=>accountRequest('admin/users/'+u.id,{method:'DELETE'}));}}>{t('Ezabatu','Eliminar')}</button></div>}</article>)}</div></>}
@@ -31,7 +40,7 @@ export function AccountControls({language='eu',disabled=false}){
  <footer><button disabled={busy} onClick={()=>setChange(!change)}>{t('Nire pasahitza aldatu','Cambiar mi contraseña')}</button><button disabled={busy} onClick={leave}>{t('Saioa itxi','Cerrar sesión')}</button></footer>
  {change&&<form className="account-create" onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');try{await accountRequest('password',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget)))});announce();location.reload();}catch(e){setError(e.message);setBusy(false);}}}><label>{t('Oraingo pasahitza','Contraseña actual')}<input name="currentPassword" type="password" autoComplete="current-password" required/></label><label>{t('Pasahitz berria','Nueva contraseña')}<input name="password" type="password" minLength={8} maxLength={128} autoComplete="new-password" required/></label><button disabled={busy}>{t('Aldatu eta saioa itxi','Cambiar y cerrar sesión')}</button></form>}
  {error&&<p role="alert">{error}</p>}
- </div></section>}</>;
+ </div></section>,document.body)}</>;
 }
 export function LegacyImport(){
  const [available,setAvailable]=useState(window.rutasLegacyAvailable),[error,setError]=useState('');if(!available)return null;
