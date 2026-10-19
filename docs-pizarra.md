@@ -51,7 +51,7 @@ Desde **Trayectorias → Abrir trazadas en pizarra** se copian todas las trazada
 
 ## Grabación de las explicaciones en clase
 
-La barra **Grabar clase** permite grabar la pizarra como MP4. Con **Voz del micrófono** activada se solicita permiso al comenzar; si se deniega, la grabación no empieza. Puede desactivarse explícitamente para vídeo sin voz. **Pausar grabación / Reanudar grabación** pausa tanto imagen como sonido; **Finalizar y guardar MP4** cierra el archivo y libera el micrófono.
+La barra **Grabar clase** permite grabar la pizarra como MP4. Con **Voz del micrófono** activada se solicita permiso al comenzar; si se deniega, la grabación no empieza. Puede desactivarse explícitamente para vídeo sin voz. **Pausar imagen / Reanudar imagen** detiene y reanuda el vídeo del tramo y los vehículos, manteniendo la grabación de voz y el tiempo real de la clase; el puntero y las anotaciones siguen registrándose mientras explicas; **Finalizar y guardar MP4** cierra el archivo y libera el micrófono.
 
 La captura compone el mapa, trazadas, señales, vehículos en movimiento, puntero sobre el mapa y vídeo PIP si lo hay. No graba los botones ni el escritorio. Añade el nombre, la pregunta y un extracto de las notas como pie, con atribución del mapa. Los textos completos siguen en la explicación editable y los PNG/PDF. La salida es de hasta 1280×720 a 15 fps; el vídeo PIP aporta imagen y la voz procede del micrófono (no se mezcla el audio de la dashcam). Cambiar de paso, dibujar, añadir señales y mover vehículos sigue disponible durante la grabación.
 
