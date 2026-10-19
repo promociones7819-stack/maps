@@ -3,7 +3,7 @@
 export const BOARD_CASES_KEY='traza-bizkaia-board-cases';
 export const vehicleTypes=[['car','Autoa','Coche'],['bus','Autobusa','Autobús'],['truck','Kamioia','Camión'],['bike','Bizikleta','Bicicleta'],['person','Oinezkoa','Peatón']];
 const decorate=(document,past=[])=>({...document,items:document.steps[document.activeStep].items,past});
-const documentOf=state=>({steps:state.steps,activeStep:state.activeStep,...(state.sourceClip?{sourceClip:state.sourceClip}:{})});
+const documentOf=state=>({steps:state.steps,activeStep:state.activeStep,...(state.sourceClip?{sourceClip:state.sourceClip}:{}),...(state.recording?{recording:state.recording}:{})});
 export const emptyBoard=()=>decorate({steps:[{id:crypto.randomUUID(),name:'',question:'',answer:'',items:[]}],activeStep:0});
 export function boardReducer(state,action){
  if(action.type==='undo')return state.past.length?decorate(state.past.at(-1),state.past.slice(0,-1)):state;
@@ -15,6 +15,7 @@ export function boardReducer(state,action){
   if(items===state.items)return state;
   document={...document,steps:state.steps.map((step,n)=>n===state.activeStep?{...step,items}:step)};
  }else if(action.type==='replace')document=action.document;
+ else if(action.type==='recording')document={...document,recording:action.value};
  else if(action.type==='step-field')document={...document,steps:state.steps.map((step,n)=>n===state.activeStep?{...step,[action.field]:action.value}:step)};
  else if(action.type==='add-step'){
   if(state.steps.length>=20)return state;
@@ -31,6 +32,7 @@ export function boardDocument(state){return structuredClone(documentOf(state));}
 const coordinate=p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)&&Math.abs(p[0])<=180&&Math.abs(p[1])<=85;
 export function validBoardDocument(doc){
  if(!doc||!Array.isArray(doc.steps)||!doc.steps.length||doc.steps.length>20||!Number.isInteger(doc.activeStep)||doc.activeStep<0||doc.activeStep>=doc.steps.length||new Set(doc.steps.map(s=>s?.id)).size!==doc.steps.length)return false;
+ if(doc.recording&&(typeof doc.recording.name!=='string'||doc.recording.name.length>255||!Number.isFinite(doc.recording.seconds)||doc.recording.seconds<0||typeof doc.recording.withAudio!=='boolean'))return false;
  if(doc.sourceClip){const c=doc.sourceClip;if(!Array.isArray(c.points)||c.points.length<2||c.points.length>100000||!c.points.every((p,n)=>coordinate(p.coordinates)&&Number.isFinite(p.time)&&(!n||p.time>=c.points[n-1].time))||c.points.at(-1).time<=c.points[0].time)return false;if(c.media&&(typeof c.media.id!=='string'||typeof c.media.name!=='string'||!Number.isFinite(c.media.size)||!Number.isFinite(c.media.videoStartUtc)))return false;}
  return doc.steps.every(s=>s&&typeof s.id==='string'&&['name','question','answer'].every(k=>typeof s[k]==='string'&&s[k].length<=1000)&&Array.isArray(s.items)&&s.items.length<=1000&&new Set(s.items.map(i=>i?.id)).size===s.items.length&&s.items.every(i=>{
   if(!i||typeof i.id!=='string'||!['route','arrow','drawing','signal','note','vehicle'].includes(i.type))return false;

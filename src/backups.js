@@ -1,3 +1,4 @@
+import {validBoardDocument} from './boardModel.js';
 import {BOARD_CASES_KEY,validBoardCases} from './boardModel.js';
 import {listLessons,listLibraryReviews,replaceBackupRecords} from './lessonStore.js';
 import {validateTrack} from './racebox.js';
@@ -29,6 +30,7 @@ export function parseBackup(input){
   const key=`${prefix}project-${project.id}`;
   if(!storage[key]&&storage[`${prefix}routes`]&&(project.legacy||index.projects.length===1))storage[key]=storage[`${prefix}routes`];
   if(storage[key])routesValid(json(storage[key]));
+  if(storage[`${key}-board`]&&!validBoardDocument(json(storage[`${key}-board`]).document))fail();
   if(storage[`${key}-markers`])markersValid(json(storage[`${key}-markers`]));
   if(storage[`${key}-gpx-review`])reviewValid(json(storage[`${key}-gpx-review`]));
  }
@@ -57,7 +59,7 @@ export function mergeBackupStorage(current,incoming,update=false){
  const oldIds=new Set(oldIndex.projects.map(p=>p.id));
  for(const [key,value] of Object.entries(incoming)){
   if(key===`${prefix}projects`||key===`${prefix}students`||key===FICHA_KEY||key===BOARD_CASES_KEY)continue;
-  const project=newIndex.projects.find(p=>key===`${prefix}project-${p.id}`||key===`${prefix}project-${p.id}-markers`||key===`${prefix}project-${p.id}-gpx-review`);
+  const project=newIndex.projects.find(p=>key===`${prefix}project-${p.id}`||key===`${prefix}project-${p.id}-markers`||key===`${prefix}project-${p.id}-gpx-review`||key===`${prefix}project-${p.id}-board`);
   if(project){if(!oldIds.has(project.id)||update)next[key]=value;}else if(!(key in current))next[key]=value;
  }
  if(current[BOARD_CASES_KEY]||incoming[BOARD_CASES_KEY]){const mergedCases=mergeItems(current[BOARD_CASES_KEY]?json(current[BOARD_CASES_KEY]):[],incoming[BOARD_CASES_KEY]?json(incoming[BOARD_CASES_KEY]):[],update);if(!validBoardCases(mergedCases))throw Error('La biblioteca resultante supera el límite de 60 explicaciones o contiene datos no válidos.');next[BOARD_CASES_KEY]=JSON.stringify(mergedCases);}

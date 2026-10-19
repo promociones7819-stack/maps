@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('trazaDesktop', Object.freeze({
   chooseWorkspace:()=>ipcRenderer.invoke('workspace:choose'),
   readWorkspaceText:name=>ipcRenderer.invoke('workspace:read-text',name),
   writeWorkspaceProject:text=>ipcRenderer.invoke('workspace:write-project',text),
-  beginMovie:()=>ipcRenderer.invoke('movie:begin'),
+  beginMovie:name=>ipcRenderer.invoke('movie:begin',name),
   writeMovie:(id,bytes)=>ipcRenderer.invoke('movie:write',id,bytes),
   finishMovie:id=>ipcRenderer.invoke('movie:finish',id),
   abortMovie:id=>ipcRenderer.invoke('movie:abort',id),

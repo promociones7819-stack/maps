@@ -7,7 +7,9 @@ function pdfLibrary(){
  if(!pdfPromise)pdfPromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/ficha/pdf-lib.min.js';script.onload=()=>window.PDFLib?resolve(window.PDFLib):reject(Error('No se pudo cargar el exportador PDF.'));script.onerror=()=>reject(Error('No se pudo cargar el exportador PDF.'));document.head.append(script);}).catch(e=>{pdfPromise=null;throw e;});
  return pdfPromise;
 }
-const loadImage=url=>new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('No se pudo preparar un elemento de la pizarra.'));image.src=url;});
+const imageCache=new Map();
+const readImage=url=>new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('No se pudo preparar un elemento de la pizarra.'));image.src=url;});
+const loadImage=url=>{if(!imageCache.has(url)){if(imageCache.size>=128)imageCache.delete(imageCache.keys().next().value);imageCache.set(url,readImage(url).catch(e=>{imageCache.delete(url);throw e;}));}return imageCache.get(url);};
 function textLines(ctx,text,width){
  const lines=[];for(const paragraph of String(text||'').split('\n')){let line='';for(const char of paragraph){if(ctx.measureText(line+char).width>width&&line){lines.push(line);line='';}line+=char;}lines.push(line);}return lines;
 }
@@ -21,10 +23,10 @@ async function signal(ctx,item,kind,w,h,signalHtml){
  else{ctx.fillStyle='#286c9e';ctx.fillRect(-r,-r,r*2,r*2);ctx.fillStyle='#fff';ctx.font=`bold ${r*.5}px sans-serif`;const div=document.createElement('div');div.innerHTML=signalHtml(item);const icon=div.querySelector('svg');if(icon){icon.setAttribute('xmlns','http://www.w3.org/2000/svg');const image=await loadImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(icon)));ctx.drawImage(image,-r*.8,-r*.8,r*1.6,r*1.6);}else ctx.fillText(item.signalCode,0,0);}
  ctx.restore();
 }
-export async function exportBoard({map,items,markers,name,step,answerVisible,showSignals,signalDefinition,signalHtml,format}){
- if(!map?.loaded())throw Error('Espera a que termine de cargar el mapa antes de exportar.');
- await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
- const source=map.getCanvas(),rect=source.getBoundingClientRect(),scale=Math.min(2,2400/rect.width),width=Math.round(rect.width*scale),height=Math.round(rect.height*scale);
+export async function renderBoardCanvas({map,items,markers,name,step,answerVisible,showSignals,signalDefinition,signalHtml,frame=false}){
+ if(!map||(frame?!map.getLayer('board-lines'):!map.loaded()))throw Error('Espera a que termine de cargar el mapa antes de exportar.');
+ if(!frame)await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+ const source=map.getCanvas(),rect=source.getBoundingClientRect(),scale=frame?Math.min(1,1280/rect.width,540/rect.height):Math.min(2,2400/rect.width),width=Math.round(rect.width*scale),height=Math.round(rect.height*scale);
  const notes=[step.question,answerVisible?step.answer:'',...items.filter(i=>i.type==='note').map(i=>`${i.title||''}: ${i.description||''}`)].filter(Boolean).join('\n');
  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height+180;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(source,0,0,width,height);
  for(const item of items){if(item.points||(item.type==='signal'&&!showSignals))continue;const marker=markers.find(m=>m.boardItemId===item.id);if(!marker)continue;const p=map.project(marker.getLngLat()),element=marker.getElement(),bounds=element.getBoundingClientRect(),x=p.x*scale,y=p.y*scale;
@@ -35,9 +37,13 @@ export async function exportBoard({map,items,markers,name,step,answerVisible,sho
  }
  ctx.fillStyle='#fff';ctx.fillRect(0,height,width,180);ctx.fillStyle='#193e31';ctx.font='bold 20px sans-serif';ctx.fillText(String(name).slice(0,100),18,height+28);ctx.font='13px sans-serif';
  // Allocate room for all notes instead of silently clipping an explanation.
- const lines=textLines(ctx,notes,width-36);const footerHeight=Math.max(180,lines.length*20+92);
+ const lines=textLines(ctx,notes,width-36);const footerHeight=frame?180:Math.max(180,lines.length*20+92);
  let output=canvas;if(footerHeight>180){output=document.createElement('canvas');output.width=width;output.height=height+footerHeight;const c=output.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,width,output.height);c.drawImage(canvas,0,0);}
- const c=output.getContext('2d');c.fillStyle='#193e31';c.font='13px sans-serif';lines.forEach((line,n)=>c.fillText(line,18,height+56+n*20));const end=height+56+lines.length*20;c.fillStyle='#536e60';c.font='11px sans-serif';c.fillText('RutasAD · © Aitor Delgado Martínez · Mapa: '+(map.getStyle().sources['basemap-source']?'Gobierno Vasco · geoEuskadi':'Mapbox · © OpenStreetMap'),18,Math.max(end+20,output.height-18));
+ const c=output.getContext('2d');c.fillStyle='#193e31';c.font='13px sans-serif';(frame?lines.slice(0,5):lines).forEach((line,n)=>c.fillText(line,18,height+56+n*20));const end=height+56+(frame?Math.min(5,lines.length):lines.length)*20;c.fillStyle='#536e60';c.font='11px sans-serif';c.fillText('RutasAD · © Aitor Delgado Martínez · Mapa: '+(map.getStyle().sources['basemap-source']?'Gobierno Vasco · geoEuskadi':'Mapbox · © OpenStreetMap'),18,Math.max(end+20,output.height-18));
+ return output;
+}
+export async function exportBoard(options){
+ const {name,format}=options,output=await renderBoardCanvas(options);
  const png=await new Promise((resolve,reject)=>{try{output.toBlob(blob=>blob?resolve(blob):reject(Error('No se pudo crear la imagen.')),'image/png');}catch{reject(Error('El mapa no permite exportar esta imagen. Prueba con GeoEuskadi y espera a que cargue.'));}});
  let blob=png;if(format==='pdf'){const {PDFDocument}=await pdfLibrary(),pdf=await PDFDocument.create(),image=await pdf.embedPng(await png.arrayBuffer()),page=pdf.addPage([841.89,595.28]),ratio=Math.min((page.getWidth()-32)/image.width,(page.getHeight()-32)/image.height);page.drawImage(image,{x:(page.getWidth()-image.width*ratio)/2,y:(page.getHeight()-image.height*ratio)/2,width:image.width*ratio,height:image.height*ratio});blob=new Blob([await pdf.save()],{type:'application/pdf'});}
  const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=(name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'-').slice(0,80)||'RutasAD-pizarra')+'.'+format;link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);

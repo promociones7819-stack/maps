@@ -1,6 +1,6 @@
 {
   "name": "bizkaia-aerial-routes",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -21,7 +21,8 @@
     "test:bluetooth": "node tests/racebox.mjs && node tests/ble-connection.mjs && node tests/desktop-bluetooth.mjs",
     "test:map-recording": "node tests/map-recording.mjs",
     "package:win": "npm run build && electron-builder --win nsis --x64 --publish never",
-    "test:board": "node tests/board-model.mjs && node tests/board-expanded.mjs && node tests/didactic-board.mjs && node tests/didactic-board-mobile.mjs"
+    "test:board": "node tests/board-model.mjs && node tests/board-expanded.mjs && node tests/didactic-board.mjs && node tests/didactic-board-mobile.mjs",
+    "test:board-recording": "node tests/board-recording.mjs && BOARD_DISK=1 node tests/board-recording.mjs && node tests/desktop-board-recording.mjs"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^8.3.0",

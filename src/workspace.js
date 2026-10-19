@@ -34,8 +34,8 @@ export async function loadWorkspaceSelection(gpx,video){
  else if(review.media)review.media={...review.media,id:crypto.randomUUID(),workspace:true};
  return review;
 }
-export async function openMovieSink(){
- if(window.trazaDesktop?.beginMovie){const token=await window.trazaDesktop.beginMovie();if(!token)throw new DOMException('Cancelado','AbortError');return {name:token.name,write:async blob=>window.trazaDesktop.writeMovie(token.id,await blob.arrayBuffer()),close:()=>window.trazaDesktop.finishMovie(token.id),abort:()=>window.trazaDesktop.abortMovie(token.id)};}
+export async function openMovieSink({suggestedName='RutasAD-mapa-pip.mp4'}={}){
+ if(window.trazaDesktop?.beginMovie){const token=await window.trazaDesktop.beginMovie(suggestedName);if(!token)throw new DOMException('Cancelado','AbortError');return {name:token.name,write:async blob=>window.trazaDesktop.writeMovie(token.id,await blob.arrayBuffer()),close:()=>window.trazaDesktop.finishMovie(token.id),abort:()=>window.trazaDesktop.abortMovie(token.id)};}
  if(!window.showSaveFilePicker)return null;
- const h=await window.showSaveFilePicker({suggestedName:'RutasAD-mapa-pip.mp4',id:'rutasad-export',...(active?.handle?{startIn:active.handle}:{}),types:[{description:'Vídeo MP4',accept:{'video/mp4':['.mp4']}}]});const writable=await h.createWritable();return {name:h.name,write:b=>writable.write(b),close:()=>writable.close(),abort:()=>writable.abort()};
+ const h=await window.showSaveFilePicker({suggestedName,id:'rutasad-export',...(active?.handle?{startIn:active.handle}:{}),types:[{description:'Vídeo MP4',accept:{'video/mp4':['.mp4']}}]});const writable=await h.createWritable();return {name:h.name,handle:h,write:b=>writable.write(b),close:()=>writable.close(),abort:()=>writable.abort(),file:()=>h.getFile()};
 }

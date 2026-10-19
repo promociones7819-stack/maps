@@ -48,3 +48,19 @@ En **Revisar recorrido GPX → Recortar tramo → pizarra**, escribe inicio y fi
 Desde **Trayectorias → Abrir trazadas en pizarra** se copian todas las trazadas no vacías del proyecto actual y sus señales o puntos conflictivos. Se conserva la vista del mapa. La copia tiene identificadores y objetos independientes: modificarla o descartarla no altera el proyecto de origen. La opción **Pizarra didáctica** continúa abriendo un mapa vacío.
 
 **Mover mapa** está disponible en cualquier grupo de herramientas. Cambiar de herramienta conserva el trazo por puntos en curso; **Continuar trazo** vuelve a ese mismo trazo. También puedes volver a **Dibujar → Trayectoria**. Para empezar una trayectoria nueva, pulsa **Terminar trazo** antes de colocar el siguiente punto. Los cambios de paso o de explicación conservan su separación habitual.
+
+## Grabación de las explicaciones en clase
+
+La barra **Grabar clase** permite grabar la pizarra como MP4. Con **Voz del micrófono** activada se solicita permiso al comenzar; si se deniega, la grabación no empieza. Puede desactivarse explícitamente para vídeo sin voz. **Pausar grabación / Reanudar grabación** pausa tanto imagen como sonido; **Finalizar y guardar MP4** cierra el archivo y libera el micrófono.
+
+La captura compone el mapa, trazadas, señales, vehículos en movimiento, puntero sobre el mapa y vídeo PIP si lo hay. No graba los botones ni el escritorio. Añade el nombre, la pregunta y un extracto de las notas como pie, con atribución del mapa. Los textos completos siguen en la explicación editable y los PNG/PDF. La salida es de hasta 1280×720 a 15 fps; el vídeo PIP aporta imagen y la voz procede del micrófono (no se mezcla el audio de la dashcam). Cambiar de paso, dibujar, añadir señales y mover vehículos sigue disponible durante la grabación.
+
+En Chrome y RutasAD se elige el archivo MP4 antes de comenzar y se escribe por bloques, sin acumular una clase de 50 minutos en memoria. En navegadores sin guardado directo, la descarga en memoria está limitada a cinco minutos. Al ocultar la ventana la grabación se pausa y requiere pulsar Reanudar. Se espera a que el mapa esté cargado antes de empezar; durante una recarga de teselas se conserva el último fotograma completo. No se mantiene una grabación si falla la escritura o se pierde el micrófono: se cancela el archivo parcial.
+
+**Ver grabación** permite reproducir y descargar el MP4. Chrome recuerda el permiso del archivo cuando el navegador lo permite. En Mac, los archivos guardados en `Documentos/RutasAD/Vídeos MP4` se abren directamente. Si cambias de carpeta, equipo o navegador, vuelve a seleccionar el MP4 guardado. Las copias JSON incluyen la explicación y la referencia, no los bytes del vídeo.
+
+### Guardar como otro proyecto de trayectoria
+
+En **Exportar → Nombre del proyecto → Guardar como proyecto de trayectoria** se crea un proyecto independiente, accesible en Trayectorias y Biblioteca. Cada paso aporta sus trazadas y señales; además se conserva una copia completa de todos los pasos, vehículos, dibujos, preguntas y la referencia de la grabación. Desde el proyecto, **Reabrir explicación de clase** recupera esa pizarra completa. Los cambios del proyecto de trayectorias y los de la pizarra son copias independientes. Un nuevo guardado desde la pizarra crea otro proyecto y no sobrescribe el original.
+
+PNG y PDF siguen disponibles. El menú Exportar también permite abrir o descargar el MP4 ya grabado. Las nuevas referencias se incluyen y validan al importar copias de seguridad.
