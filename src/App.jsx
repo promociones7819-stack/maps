@@ -1,3 +1,4 @@
+import {trajectoryBoardDocument} from './trajectoryBoard.js';
 // SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
 // SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
 import DidacticBoard from './DidacticBoard.jsx';
@@ -1291,6 +1292,7 @@ export default function App() {
         <div className="location-chip"><span className="pin-icon">⌖</span><div><strong>Bizkaia, Euskadi</strong><small>Vista inicial · mapa real</small></div><span className="chip-live">LIVE</span></div>
         <div className="workspace-switch" role="tablist" aria-label="Modo de trabajo"><button role="tab" aria-selected={workspaceMode === 'routes'} className={workspaceMode === 'routes' ? 'on' : ''} onClick={() => setWorkspace('routes')}>{t("Ibilbideak","Trayectorias")}</button><button role="tab" aria-selected={workspaceMode === 'gpx-review'} className={workspaceMode === 'gpx-review' ? 'on' : ''} onClick={() => setWorkspace('gpx-review')}>{t("GPX / Saioak","Revisar recorrido GPX")}</button></div>
         {workspaceMode === 'routes' ? <>
+        <button className="pizarra-copy-launch" disabled={!mapReady||recording||liveLesson||!routes.some(r=>r.points.length)} onClick={()=>{setPlaying(false);stopNarration();mapRef.current?.stop();setBoardSeed({document:trajectoryBoardDocument(routes,conflictMarkers,currentProject.name)});setBoardOpen(true);}}>↗ {t('Ibilbideak arbelean ireki','Abrir trazadas en pizarra')}<small style={{display:'block',fontWeight:400,marginTop:4}}>{t('Uneko proiektuaren ibilbideen eta seinaleen kopia','Copia las trazadas y señales del proyecto actual')}</small></button>
         <button className="pizarra-launch" disabled={!mapReady||recording||liveLesson} onClick={()=>{setPlaying(false);stopNarration();mapRef.current?.stop();setBoardOpen(true);}}>◉ {t('Arbel didaktikoa','Pizarra didáctica')}<small style={{display:'block',fontWeight:400,marginTop:4}}>{t('Mapa bakarrik · behin-behinekoa · grabaziorik gabe','Solo mapa · temporal · sin grabación')}</small></button>
         <div className="section-title"><div><span className="eyebrow">CAPAS DE RECORRIDO</span><span className="count-badge">{routes.length}/4</span></div><button className="add-route" onClick={addRoute} disabled={routes.length >= 4} aria-label="Crear trayectoria" title={routes.length >= 4 ? 'Ya tienes las cuatro trayectorias' : 'Crear trayectoria'}>+</button></div>
         <div className="route-list">

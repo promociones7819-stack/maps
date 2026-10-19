@@ -53,7 +53,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
  useEffect(()=>{const bar=panelRef.current.querySelector('.board-tools');const measure=()=>panelRef.current?.style.setProperty('--board-tools-bottom',`${bar.offsetTop+bar.offsetHeight+12}px`);const resize=new ResizeObserver(measure);resize.observe(bar);measure();return()=>resize.disconnect();},[]);
  stateRef.current={items:state.items,tool:presenting?'pointer':tool,draftPath,selected,signal,color,editor,vehicle,drawing,exporting,activeStep:state.activeStep};
  const commit=items=>dispatch({type:'set',items});
- const selectTool=next=>{setTool(next);setDraftPath(null);setLocating(false);if(ringRef.current)ringRef.current.hidden=true;};
+ const selectTool=next=>{setTool(next);setLocating(false);if(ringRef.current)ringRef.current.hidden=true;};
  const remove=id=>{pauseMotion();delete playbackRef.current[id];commit(items=>items.filter(i=>i.id!==id).map(i=>i.routeId===id?{...i,routeId:null}:i));setSelected(null);setDraftPath(null);};
  const close=()=>{if(state.steps.some(s=>s.items.length||s.question||s.answer)&&!confirm(t('Pizarra itxi eta behin-behineko elementuak baztertu?','¿Salir de la pizarra y descartar los elementos temporales?')))return;onClose();};
  const closeRef=useRef(close);closeRef.current=close;
@@ -101,7 +101,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    if(s.tool==='erase'){if(hit)remove(hit.properties.id);return;}
    if(s.tool==='edit'){if(hit)setSelected(hit.properties.id);return;}
    if(s.tool==='route'||s.tool==='arrow'){
-    const active=s.items.find(i=>i.id===s.draftPath);
+    const active=s.items.find(i=>i.id===s.draftPath&&i.type===s.tool);
     if(active){commit(items=>items.map(i=>i.id===active.id?{...i,points:[...i.points,point]}:i));if(s.tool==='arrow'){setDraftPath(null);}}
     else {const id=crypto.randomUUID();commit(items=>[...items,{id,type:s.tool,points:[point],color:s.color}]);setDraftPath(id);setSelected(id);}
    }else if(s.tool==='vehicle'){
@@ -217,7 +217,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
    <div className="board-pointer" ref={ringRef} hidden/>
    <nav className="board-tools board-ui" aria-label={t('Arbelaren tresnak','Herramientas de pizarra')}>
     <div className="board-groups">{[['basic','Erakuslea','Puntero'],['vehicles','Ibilgailuak','Vehículos'],['draw','Marraztu','Dibujar'],['signals','Seinaleak','Señales'],['explain','Azaldu','Explicar']].map(([id,eu,es])=><button key={id} aria-pressed={group===id} onClick={()=>{setGroup(id);beginTool({basic:'pointer',vehicles:'vehicle',draw:'route',signals:'signal',explain:'pointer'}[id]);}}>{t(eu,es)}</button>)}</div>
-    <div className="board-subtools">{tools.filter(([id])=>({basic:['move','edit','erase'],draw:['route','arrow','edit','erase'],signals:['signal','note','edit','erase'],explain:['note'],vehicles:[]}[group]).includes(id)).map(([id,eu,es,icon])=><button key={id} aria-pressed={tool===id} onClick={()=>{if(id==='signal')setEditor({...structuredClone(signal),type:'signal-template'});beginTool(id);}}><b aria-hidden="true">{icon}</b>{t(eu,es)}</button>)}
+    <div className="board-subtools"><button aria-pressed={tool==='move'} onClick={()=>beginTool('move')}>{t('Mapa mugitu','Mover mapa')}</button>{draftPath&&state.items.some(i=>i.id===draftPath)&&!['route','arrow'].includes(tool)&&<button onClick={()=>{const path=state.items.find(i=>i.id===draftPath);setGroup('draw');beginTool(path.type);setSelected(path.id);}}>{t('Trazua jarraitu','Continuar trazo')}</button>}{tools.filter(([id])=>({basic:['edit','erase'],draw:['route','arrow','edit','erase'],signals:['signal','note','edit','erase'],explain:['note'],vehicles:[]}[group]).includes(id)).map(([id,eu,es,icon])=><button key={id} aria-pressed={tool===id} onClick={()=>{if(id==='signal')setEditor({...structuredClone(signal),type:'signal-template'});beginTool(id);}}><b aria-hidden="true">{icon}</b>{t(eu,es)}</button>)}
     {group==='signals'&&<><button onClick={()=>{setSignal(s=>({...s,signalCode:'SEMÁFORO',title:t('Semaforoa','Semáforo')}));beginTool('signal');}}>{t('Semaforoa','Semáforo')}</button><button aria-pressed={!showSignals} onClick={()=>setShowSignals(!showSignals)}>{showSignals?t('Seinaleak ezkutatu','Ocultar señales'):t('Seinaleak erakutsi','Mostrar señales')}</button></>}
     <button aria-expanded={locating} onClick={()=>{const p=mapRef.current?.getCenter();if(!p)return;setView({lat:p.lat.toFixed(6),lng:p.lng.toFixed(6)});setLocating(!locating);}}>{t('Koordenatuak','Coordenadas')}</button></div>
    </nav>
