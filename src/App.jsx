@@ -1,4 +1,4 @@
-import {geoTileUrl} from './mapTiles.js';
+import {rasterTileUrl,rasterSource,rasterName,rasterAttribution,rasterCache} from './mapTiles.js';
 import AutosaveStatus from './AutosaveStatus.jsx';
 import {registerAutosave,writeChanged,readSession,validBoardRecovery,SESSION_KEY,BOARD_DRAFT_KEY,reportAutosave} from './autosave.js';
 import ActionIcon from './ActionIcon.jsx';
@@ -41,8 +41,7 @@ const SIGNAL_CATALOG = [
 ];
 const ARROWS = [{ value: 'right', label: 'Derecha', icon: '→' }, { value: 'straight', label: 'Recto', icon: '↑' }, { value: 'left', label: 'Izquierda', icon: '←' }, { value: 'up-right', label: 'Diagonal derecha', icon: '↗' }, { value: 'down-right', label: 'Salida derecha', icon: '↘' }];
 const START = [-2.9352, 43.2631];
-const EUSKADI_TILES = geoTileUrl('{z}','{x}','{y}');
-const geoEuskadiSource = { type: 'raster', tiles: [EUSKADI_TILES], maxzoom: 20, tileSize: 256, attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi' };
+
 const nextRouteColor = routes => COLORS.find(color => !routes.some(route => route.color.toLowerCase() === color)) || COLORS[0];
 const narrationVoiceFor = (voices, language) => {
   const prefix = language === 'eu' ? 'eu' : 'es';
@@ -349,7 +348,7 @@ export default function App() {
   const [height, setHeight] = useState(120);
   const [follow, setFollow] = useState(true);
   const [cameraView, setCameraView] = useState('top');
-  const [mapProvider, setMapProvider] = useState(() => localStorage.getItem('traza-bizkaia-map-provider') === 'mapbox' && localStorage.getItem('traza-bizkaia-mapbox-token')?.startsWith('pk.') ? 'mapbox' : 'geoEuskadi');
+  const [mapProvider, setMapProvider] = useState(() => localStorage.getItem('traza-bizkaia-map-provider')==='pnoa'?'pnoa':localStorage.getItem('traza-bizkaia-map-provider') === 'mapbox' && localStorage.getItem('traza-bizkaia-mapbox-token')?.startsWith('pk.') ? 'mapbox' : 'geoEuskadi');
   const [mapToken, setMapToken] = useState(() => localStorage.getItem('traza-bizkaia-mapbox-token') || '');
   const [mapTokenDraft, setMapTokenDraft] = useState(() => localStorage.getItem('traza-bizkaia-mapbox-token') || '');
   const [mapSettingsOpen, setMapSettingsOpen] = useState(false);
@@ -392,7 +391,7 @@ export default function App() {
       catch { setMapError('No se pudo guardar la configuración del mapa en este navegador.'); return; }
       setMapToken(token);
     } else {
-      localStorage.setItem('traza-bizkaia-map-provider', 'geoEuskadi');
+      localStorage.setItem('traza-bizkaia-map-provider', provider==='pnoa'?'pnoa':'geoEuskadi');
       setMapboxTokenError('');
     }
     setMapError('');
@@ -481,7 +480,7 @@ export default function App() {
       const minX = tileX(northWest.lng, level), maxX = tileX(southEast.lng, level);
       const minY = tileY(northWest.lat, level), maxY = tileY(southEast.lat, level);
       for (let x = minX; x <= maxX; x += 1) for (let y = minY; y <= maxY; y += 1) {
-        tiles.push(geoTileUrl(level,x,y));
+        tiles.push(rasterTileUrl(mapProvider,level,x,y));
       }
     }
     if (tiles.length > 1800) {
@@ -491,7 +490,7 @@ export default function App() {
     setOfflineDownloading(true);
     setOfflineMessage(`Preparando ${tiles.length} imágenes aéreas…`);
     try {
-      const cache = await caches.open('ortofoto-euskadi-v1');
+      const cache = await caches.open(rasterCache(mapProvider));
       const missing = [];
       for (const url of tiles) if (!await cache.match(url)) missing.push(url);
       let cursor = 0, complete = 0, failed = 0;
@@ -575,7 +574,7 @@ export default function App() {
       } : { style: {
         version: 8,
         sources: {
-          'basemap-source': geoEuskadiSource,
+          'basemap-source': rasterSource(mapProvider),
         },
         layers: [{ id: 'basemap-layer', type: 'raster', source: 'basemap-source' }],
       } }),
@@ -1019,7 +1018,7 @@ export default function App() {
       videoCanvas.height = canvas.height;
       const context = videoCanvas.getContext('2d');
       if (!context || !videoCanvas.captureStream) throw new Error('Canvas recording is unavailable');
-      const attribution = mapRef.current.getContainer().querySelector('.maplibregl-ctrl-attrib-inner')?.innerText?.replace(/\s+/g, ' ').trim() || '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi';
+      const attribution = mapRef.current.getContainer().querySelector('.maplibregl-ctrl-attrib-inner')?.innerText?.replace(/\s+/g, ' ').trim() || rasterAttribution(mapProvider);
       const composeFrame = () => {
         context.drawImage(canvas, 0, 0, videoCanvas.width, videoCanvas.height);
         const fontSize = Math.max(11, Math.round(videoCanvas.width / 110));
@@ -1294,7 +1293,7 @@ export default function App() {
   };
   const createBoardMap=node=>{
     const original=mapRef.current,center=original.getCenter(),isMapbox=mapProvider==='mapbox';
-    const map=new (isMapbox?MapboxGLMap:MapLibreMap)({container:node,...(isMapbox?{preserveDrawingBuffer:true}:{canvasContextAttributes:{preserveDrawingBuffer:true}}),style:isMapbox?'mapbox://styles/mapbox/satellite-streets-v12':{version:8,sources:{'basemap-source':geoEuskadiSource},layers:[{id:'basemap-layer',type:'raster',source:'basemap-source'}]},center:[center.lng,center.lat],zoom:original.getZoom(),bearing:original.getBearing(),pitch:original.getPitch(),attributionControl:false,cooperativeGestures:false,maxZoom:isMapbox?22:20});
+    const map=new (isMapbox?MapboxGLMap:MapLibreMap)({container:node,...(isMapbox?{preserveDrawingBuffer:true}:{canvasContextAttributes:{preserveDrawingBuffer:true}}),style:isMapbox?'mapbox://styles/mapbox/satellite-streets-v12':{version:8,sources:{'basemap-source':rasterSource(mapProvider)},layers:[{id:'basemap-layer',type:'raster',source:'basemap-source'}]},center:[center.lng,center.lat],zoom:original.getZoom(),bearing:original.getBearing(),pitch:original.getPitch(),attributionControl:false,cooperativeGestures:false,maxZoom:isMapbox?22:20});
     map.addControl(isMapbox?new MapboxNavigationControl():new NavigationControl(),'top-right');
     map.addControl(isMapbox?new MapboxAttributionControl({compact:true}):new AttributionControl({compact:true}),'bottom-right');
     return map;
@@ -1303,9 +1302,9 @@ export default function App() {
     {boardOpen&&<DidacticBoard onSaveTrajectory={(name,document,view)=>{if(!validBoardDocument(document))throw Error("La explicación no tiene un formato válido.");createNamedProject(name,boardTrajectoryProject(document,name),view);}} seed={boardSeed} createMap={createBoardMap} Marker={mapProvider==='mapbox'?MapboxMarker:MapLibreMarker} catalog={SIGNAL_CATALOG} signalDefinition={signalDefinition} signalHtml={markerFaceHtml} SignalFace={SignalFace} arrows={ARROWS} defaultDraft={defaultMarkerDraft('')} language={language} onClose={()=>{setBoardOpen(false);setBoardSeed(null);}}/>}
     <LegacyImport/><header className="topbar">
       <div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><div className="brand-name">TRAZA<span> / BIZKAIA</span></div><div className="brand-subtitle">Estudio de recorridos aéreos</div></div></div>
-      <div className="topbar-right"><AutosaveStatus language={language}/><AccountControls language={language} disabled={recording||liveLesson}/><button className="topbar-action students-launch" disabled={recording||liveLesson} onClick={()=>{setPlaying(false);stopNarration();mapRef.current?.stop();setStudentsOpen(true);}}><ActionIcon name="users"/>{t("Ikasleak","Alumnos")}</button><button className="library-launch" disabled={recording||liveLesson} onClick={showLibrary}>▤ {t("Liburutegia","Biblioteca")}</button><span className="map-status"><i className={mapReady && !mapError ? 'status-dot ready' : 'status-dot'} />{mapProvider === 'mapbox' ? 'Mapbox Satélite' : 'Ortofoto geoEuskadi'}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
+      <div className="topbar-right"><AutosaveStatus language={language}/><AccountControls language={language} disabled={recording||liveLesson}/><button className="topbar-action students-launch" disabled={recording||liveLesson} onClick={()=>{setPlaying(false);stopNarration();mapRef.current?.stop();setStudentsOpen(true);}}><ActionIcon name="users"/>{t("Ikasleak","Alumnos")}</button><button className="library-launch" disabled={recording||liveLesson} onClick={showLibrary}>▤ {t("Liburutegia","Biblioteca")}</button><span className="map-status"><i className={mapReady && !mapError ? 'status-dot ready' : 'status-dot'} />{mapProvider === 'mapbox' ? 'Mapbox Satélite' : `Ortofoto ${rasterName(mapProvider)}`}</span><button className="icon-button" title="Centrar en Bizkaia" onClick={() => mapRef.current?.flyTo({ center: START, zoom: 10.1, pitch: 0, bearing: 0, duration: 900 })}><span className="crosshair">⌖</span></button></div>
     </header>
-    {libraryOpen&&<RouteLibrary entries={libraryEntries} language={language} onLanguage={setLanguage} error={libraryError} onClose={()=>setLibraryOpen(false)} onOpen={openLibraryEntry} onDelete={removeLibraryEntry} onBackups={openBackupScreen} busy={libraryBusy} onNavigate={next=>{setLibraryOpen(false);if(next==='students')setStudentsOpen(true);else setWorkspace(next);}} onNew={next=>{setLibraryOpen(false);createProject();if(next==='gpx-review')setWorkspaceMode('gpx-review');}}/>}
+    {libraryOpen&&<RouteLibrary mapProvider={mapProvider} entries={libraryEntries} language={language} onLanguage={setLanguage} error={libraryError} onClose={()=>setLibraryOpen(false)} onOpen={openLibraryEntry} onDelete={removeLibraryEntry} onBackups={openBackupScreen} busy={libraryBusy} onNavigate={next=>{setLibraryOpen(false);if(next==='students')setStudentsOpen(true);else setWorkspace(next);}} onNew={next=>{setLibraryOpen(false);createProject();if(next==='gpx-review')setWorkspaceMode('gpx-review');}}/>}
     {studentsOpen&&<StudentsScreen language={language} onBeforeSave={flushBackup} onBeforeDelete={async()=>{await flushBackup();clearTimeout(librarySaveTimer.current);}} onDeleted={()=>{sessionStorage.setItem('rutasad-after-student-delete','1');window.location.reload();}} onClose={()=>setStudentsOpen(false)} onBackups={openBackupScreen} onOpenRoute={entry=>{setStudentsOpen(false);openLibraryEntry(entry);}} onMap={next=>{setStudentsOpen(false);setWorkspaceMode('gpx-review');setPlaying(false);requestAnimationFrame(()=>document.querySelector(next==='racebox'?'.racebox-panel':'.folder-workspace')?.scrollIntoView({block:'start'}));}}/>}
     {backupOpen&&<BackupScreen language={language} onClose={()=>{setBackupOpen(false);showLibrary();}} onBeforeExport={flushBackup} onBeforeRestore={()=>clearTimeout(librarySaveTimer.current)}/>}
     <section className="workspace">
@@ -1405,11 +1404,11 @@ export default function App() {
         <div ref={mapNode} className="map-canvas" />
         {workspaceMode==='routes'&&visibleConflictMarker&&<aside className="trajectory-conflict-popup" aria-label="Punto conflictivo"><small>{visibleConflictMarker.signalCode} · {signalDefinition(visibleConflictMarker.signalCode).name}</small><SignalFace marker={visibleConflictMarker}/><strong>{visibleConflictMarker.title||signalDefinition(visibleConflictMarker.signalCode).name}</strong>{visibleConflictMarker.description&&<p>{visibleConflictMarker.description}</p>}<button disabled={recording&&playing} onClick={()=>editMarker(visibleConflictMarker)}>Editar señal</button></aside>}
         {workspaceMode === 'gpx-review' && playing && currentGpxIncident && currentGpxIncident.showInVideo!==false && <div className="gpx-live-note"><span>INCIDENCIA {currentGpxIncidentIndex + 1} · REVISIÓN</span>{currentGpxIncident.signalCode&&<SignalFace marker={currentGpxIncident} compact/>}<strong>{currentGpxIncident.title}</strong><p>{currentGpxIncident.note}</p></div>}
-        {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba que el token público esté activo y que la cuenta permita cargar el estilo. También puedes volver a geoEuskadi.' : 'Comprueba la conexión a geoEuskadi y vuelve a intentarlo.'}</small><button className="map-retry" disabled={recording||liveLesson} onClick={()=>setMapRetry(n=>n+1)}>{t('Berriz saiatu','Reintentar mapa')}</button></div></div>}
-        <div className="map-top-tools"><button className="map-pill map-source-button" onClick={() => setMapSettingsOpen(!mapSettingsOpen)} aria-expanded={mapSettingsOpen}><span className="satellite-icon">▧</span><span>MAPA: {mapProvider === 'mapbox' ? 'MAPBOX' : 'GEOEUSKADI'}</span><span className="pill-divider" /><span>⚙</span></button>{workspaceMode === 'routes' ? <button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button> : <button className={`map-tool ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}><span>＋</span> Marcar error</button>}<button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading || mapProvider === 'mapbox'} title={mapProvider === 'mapbox' ? 'La descarga offline está disponible con geoEuskadi' : ''}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
-        {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => { setMapTokenDraft(event.target.value); setMapboxTokenError(''); }} /><small className="map-token-help">Usa un token público (pk.) con permisos styles:read y fonts:read. Se guarda en este navegador y se envía a Mapbox para cargar el mapa. No uses un token secreto (sk.).</small>{mapboxTokenError && <div className="mapbox-token-error" role="alert">{mapboxTokenError}</div>}<div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" onClick={() => selectMapProvider('mapbox')}>Usar Mapbox</button></div></div>}
+        {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba que el token público esté activo y que la cuenta permita cargar el estilo. También puedes volver a geoEuskadi.' : `Comprueba la conexión a ${rasterName(mapProvider)} y vuelve a intentarlo.`}</small><button className="map-retry" disabled={recording||liveLesson} onClick={()=>setMapRetry(n=>n+1)}>{t('Berriz saiatu','Reintentar mapa')}</button>{mapProvider==='geoEuskadi'&&<button className="map-retry" disabled={recording||liveLesson} onClick={()=>selectMapProvider('pnoa')}>{t('PNOA erabili · doakoa','Usar PNOA · gratuito')}</button>}</div></div>}
+        <div className="map-top-tools"><button className="map-pill map-source-button" onClick={() => setMapSettingsOpen(!mapSettingsOpen)} aria-expanded={mapSettingsOpen}><span className="satellite-icon">▧</span><span>MAPA: {mapProvider === 'mapbox' ? 'MAPBOX' : mapProvider==='pnoa'?'PNOA · IGN':'GEOEUSKADI'}</span><span className="pill-divider" /><span>⚙</span></button>{workspaceMode === 'routes' ? <button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button> : <button className={`map-tool ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}><span>＋</span> Marcar error</button>}<button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading || mapProvider === 'mapbox'} title={mapProvider === 'mapbox' ? 'La descarga offline está disponible con geoEuskadi y PNOA' : ''}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
+        {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider==='pnoa'?'selected':''} onClick={()=>selectMapProvider('pnoa')}>PNOA · IGN <small>{t('Ortoargazkia · doakoa · gakorik gabe','Ortofoto · gratuito · sin clave')}</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => { setMapTokenDraft(event.target.value); setMapboxTokenError(''); }} /><small className="map-token-help">Usa un token público (pk.) con permisos styles:read y fonts:read. Se guarda en este navegador y se envía a Mapbox para cargar el mapa. No uses un token secreto (sk.).</small>{mapboxTokenError && <div className="mapbox-token-error" role="alert">{mapboxTokenError}</div>}<div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" onClick={() => selectMapProvider('mapbox')}>Usar Mapbox</button></div></div>}
         {offlineMessage && <div className="offline-map-status" role="status">{offlineMessage}</div>}
-        <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>{mapProvider === 'mapbox' ? 'Mapbox Satellite · Bizkaia' : 'Ortofoto geoEuskadi · Bizkaia'}</span></div>
+        <div className="map-bottom-left"><span className="north">N</span><span className="scale-line" /><span>{mapProvider === 'mapbox' ? 'Mapbox Satellite · Bizkaia' : `Ortofoto ${rasterName(mapProvider)}`}</span></div>
         {mapReady && <div className="map-hint">{placingGpxIncident ? <><b>＋</b> Haz clic para colocar la señal o punto crítico <button onClick={()=>{gpxRelocationRef.current=null;setPlacingGpxIncident(false);}}>{t("Utzi","Cancelar")}</button></> : placingMarker ? <><b>＋</b> Haz clic en el mapa para colocar la señal <button onClick={cancelMarkerPlacement}>{t("Utzi","Cancelar")}</button></> : workspaceMode === 'gpx-review' ? <><b>●</b> {gpxReview.points.length ? 'Recorrido GPX · marca los errores para revisarlos' : 'Importa un GPX para comenzar la revisión'}</> : mode === 'add' ? <><b>＋</b> Haz clic en el mapa para marcar el siguiente punto</> : <><b>⌘</b> Desplaza y acerca el mapa · Selecciona una ruta</>}</div>}
         {playing && <div className="flight-badge"><span className="pulse-dot" /> {workspaceMode === 'gpx-review' ? 'REVISIÓN EN DIRECTO' : 'VUELO EN DIRECTO'} <span>·</span> {workspaceMode === 'gpx-review' ? gpxReview.name : activeRoute?.name}</div>}
       </section>

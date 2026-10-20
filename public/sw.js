@@ -13,9 +13,10 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
 
-  if (url.origin === 'https://www.geo.euskadi.eus' && url.pathname.includes(ORTHO_PATH)) {
+  const pnoa=url.origin==='https://www.ign.es'&&url.pathname==='/wmts/pnoa-ma'&&url.searchParams.get('LAYER')==='OI.OrthoimageCoverage';
+  if (pnoa || (url.origin === 'https://www.geo.euskadi.eus' && url.pathname.includes(ORTHO_PATH))) {
     event.respondWith((async () => {
-      const cache = await caches.open(ORTHO_CACHE);
+      const cache = await caches.open(pnoa?'ortofoto-pnoa-v1':ORTHO_CACHE);
       const cached = await cache.match(request);
       if (cached) return cached;
       try {
