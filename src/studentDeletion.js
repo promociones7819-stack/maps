@@ -1,3 +1,4 @@
+import {suspendAutosave,SESSION_KEY} from './autosave.js';
 import {FICHA_KEY,CLASS_CONTEXT_KEY,readStudents,validateStudents} from './students.js';
 import {listLessons,listLibraryReviews,commitStudentDeletion} from './lessonStore.js';
 import {convert} from './RaceBoxPanel.jsx';
@@ -46,8 +47,9 @@ export async function deleteStudent(studentId,{desktop=window.trazaDesktop}={}){
  const write=values=>{for(const key of Object.keys(localStorage))if(key.startsWith(prefix)&&!(key in values))localStorage.removeItem(key);for(const [key,value] of Object.entries(values))localStorage.setItem(key,value);};
  // Native disk and localStorage failures happen before the atomic IndexedDB
  // deletion; failures roll the metadata back without loading video blobs.
+ delete nextStorage[SESSION_KEY];const resumeAutosave=suspendAutosave();
  try{if(desktop)await desktop.saveLibrary(nextStorage);write(nextStorage);await commitStudentDeletion({sessionIds:owned.map(s=>s.id),libraryIds:removedLibrary,libraryItems:remainingLibrary,videoIds});}
- catch(error){let failed=false;try{write(storage);if(desktop)await desktop.saveLibrary(storage);}catch{failed=true;}throw Error(failed?'No se ha completado el borrado. Conserva la copia de seguridad y vuelve a abrir la app.':`No se ha eliminado el alumno. ${error.message||''}`);}
+ catch(error){resumeAutosave();let failed=false;try{write(storage);if(desktop)await desktop.saveLibrary(storage);}catch{failed=true;}throw Error(failed?'No se ha completado el borrado. Conserva la copia de seguridad y vuelve a abrir la app.':`No se ha eliminado el alumno. ${error.message||''}`);}
  if(ids.has(storage[`${prefix}ficha-active-student`]))sessionStorage.removeItem('ficha-autoescuela-active-class');
  if(ids.has(sessionStorage.getItem('ficha-autoescuela-open-student')))sessionStorage.removeItem('ficha-autoescuela-open-student');
  window.dispatchEvent(new Event('rutasad:students-changed'));window.dispatchEvent(new Event('rutasad:lessons-changed'));

@@ -1,6 +1,9 @@
 import {chromium,webkit} from '@playwright/test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';
 const browser=await (process.env.BOARD_BROWSER==='webkit'?webkit:chromium).launch();try{
  const page=await browser.newPage({viewport:{width:1440,height:1050},acceptDownloads:true}),errors=[];page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
+
+ // Deterministic raster isolates editor behavior from external map availability.
+ await page.route('https://www.geo.euskadi.eus/**',route=>route.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNoWNDwHwAF5AKg5G/M8gAAAABJRU5ErkJggg==','base64')}));
  await page.addInitScript(()=>{if(!localStorage.getItem('expanded-board-seed')){localStorage.setItem('expanded-board-seed','1');localStorage.setItem('traza-bizkaia-language','es');}navigator.mediaDevices.getUserMedia=()=>{window.boardMic=true;throw Error('No microphone in board');};});
  await page.goto('http://localhost:5173');await page.getByRole('button',{name:'Entrar en la aplicación'}).click();await page.waitForFunction(()=>document.querySelector('.pizarra-launch')&&!document.querySelector('.pizarra-launch').disabled);const original=await page.evaluate(()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith('traza-bizkaia-project')).map(k=>[k,localStorage.getItem(k)])));
  await page.locator('.pizarra-launch').click();const board=page.getByRole('dialog',{name:'Pizarra didáctica',exact:true});await board.getByRole('status').filter({hasText:'Señala sobre el mapa'}).waitFor();const box=await board.locator('.board-map').boundingBox(),click=(x,y)=>page.mouse.click(box.x+box.width*x,box.y+box.height*y);

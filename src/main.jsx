@@ -1,7 +1,8 @@
+import {checkpointAutosave,finishAutosave,hasActiveWork,reportAutosave,REVISION_KEY} from './autosave.js';
 // SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
 // SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
 import React from 'react';
-import {watchDataFolder} from './dataFolder.js';
+import {watchDataFolder,saveDataFolder,reconnectDataFolder} from './dataFolder.js';
 
 import {Capacitor} from '@capacitor/core';
 import { createRoot } from 'react-dom/client';
@@ -19,22 +20,24 @@ function connectDesktopLibrary() {
   let saveTimer;
   const scheduleSave = () => {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => desktop.saveLibrary(librarySnapshot()).catch(error => console.error('No se pudo guardar la biblioteca:', error)), 350);
+    reportAutosave('saving');saveTimer = setTimeout(() => desktop.saveLibrary(librarySnapshot()).then(()=>reportAutosave('saved')).catch(error => reportAutosave('error',error.message)), 350);
   };
   const originalSetItem = Storage.prototype.setItem;
   const originalRemoveItem = Storage.prototype.removeItem;
   Storage.prototype.setItem = function (key, value) {
     originalSetItem.call(this, key, value);
-    if (key.startsWith(STORAGE_PREFIX)) scheduleSave();
+    if (this===localStorage&&key.startsWith(STORAGE_PREFIX)){originalSetItem.call(localStorage,REVISION_KEY,String(Math.max(Date.now(),Number(localStorage.getItem(REVISION_KEY)||0)+1)));scheduleSave();}
   };
   Storage.prototype.removeItem = function (key) {
     originalRemoveItem.call(this, key);
-    if (key.startsWith(STORAGE_PREFIX)) scheduleSave();
+    if (this===localStorage&&key.startsWith(STORAGE_PREFIX)){originalSetItem.call(localStorage,REVISION_KEY,String(Math.max(Date.now(),Number(localStorage.getItem(REVISION_KEY)||0)+1)));scheduleSave();}
   };
   window.addEventListener('beforeunload', () => {
     clearTimeout(saveTimer);
-    desktop.saveLibraryBeforeClose(librarySnapshot());
+    checkpointAutosave();
+    if(!desktop.saveLibraryBeforeClose(librarySnapshot()))reportAutosave('error','No se pudo guardar en el disco.');
   });
+  desktop.onPrepareClose?.(async id=>{try{await finishAutosave();await saveDataFolder();clearTimeout(saveTimer);if(!desktop.saveLibraryBeforeClose(librarySnapshot()))throw Error('No se pudo guardar en el disco.');desktop.completeClose(id,true);}catch(e){reportAutosave('error',e.message);desktop.completeClose(id,false,e.message);}});
 }
 
 async function start() {
@@ -57,12 +60,18 @@ async function start() {
   if (window.trazaDesktop) {
     try {
       const library = await window.trazaDesktop.loadLibrary();
-      for (const [key, value] of Object.entries(library)) {
+      const localRevision=Number(localStorage.getItem(REVISION_KEY)||0),diskRevision=Number(library[REVISION_KEY]||0);
+      for (const [key, value] of Object.entries(localRevision>diskRevision?{}:library)) {
         if (key.startsWith(STORAGE_PREFIX) && typeof value === 'string') localStorage.setItem(key, value);
       }
     } catch (error) { console.error('No se pudo abrir la biblioteca local:', error); }
     connectDesktopLibrary();
   }
+  window.addEventListener('rutasad:retry-save',async()=>{try{await checkpointAutosave();if(window.trazaDesktop)await window.trazaDesktop.saveLibrary(librarySnapshot());await saveDataFolder();reportAutosave('saved');}catch(e){reportAutosave('error',e.message);}});
+  window.addEventListener('pagehide',()=>{checkpointAutosave();saveDataFolder().catch(e=>reportAutosave('error',e.message));});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){checkpointAutosave();saveDataFolder().catch(e=>reportAutosave('error',e.message));}});
+  window.addEventListener('beforeunload',event=>{checkpointAutosave();if(!window.trazaDesktop&&hasActiveWork()){event.preventDefault();event.returnValue='';}});
+  if(!window.trazaDesktop)reconnectDataFolder().catch(e=>reportAutosave('error',e.message));
   const openApp = async () => {
     const { default: App } = await import('./App.jsx');
     root.render(<React.StrictMode><App /></React.StrictMode>);

@@ -3,7 +3,7 @@ let active=null,timer,saveQueue=Promise.resolve();
 export const DATA_FILE='RutasAD-datos.json';
 const digest=async bytes=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),n=>n.toString(16).padStart(2,'0')).join('');
 const emit=(state)=>{window.dispatchEvent(new CustomEvent('rutasad:data-folder',{detail:state}));};
-async function handleStore(mode,handle){const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('rutasad-data-folder',1);r.onupgradeneeded=()=>r.result.createObjectStore('handles');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});return new Promise((resolve,reject)=>{const tx=db.transaction('handles',mode==='get'?'readonly':'readwrite'),r=mode==='get'?tx.objectStore('handles').get('data'):tx.objectStore('handles').put(handle,'data');let result;r.onsuccess=()=>result=r.result;tx.oncomplete=()=>{db.close();resolve(result);};tx.onerror=()=>{db.close();reject(tx.error);};});}
+async function handleStore(mode,handle,key='data'){const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('rutasad-data-folder',1);r.onupgradeneeded=()=>r.result.createObjectStore('handles');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});return new Promise((resolve,reject)=>{const tx=db.transaction('handles',mode==='get'?'readonly':'readwrite'),r=mode==='get'?tx.objectStore('handles').get(key):tx.objectStore('handles').put(handle,key);let result;r.onsuccess=()=>result=r.result;tx.oncomplete=()=>{db.close();resolve(result);};tx.onerror=()=>{db.close();reject(tx.error);};});}
 export const dataFolderStatus=()=>active?{name:active.handle.name,message:active.message||'Carpeta conectada',error:false}:{name:'',message:'',error:false};
 export async function chooseDataFolder(reopen=false){
  if(!window.showDirectoryPicker)throw Error('Usa Chrome para guardar en una carpeta. En RutasAD para Mac los datos se guardan automáticamente en este Mac; utiliza las copias para compartir.');
@@ -35,10 +35,10 @@ async function writeDataFolder(target){
   if((old?await digest(await old.arrayBuffer()):null)!==target.lastDigest)throw Error('La copia de la carpeta ha cambiado desde otro dispositivo. Vuelve a abrirla antes de guardar.');
   const file=await target.handle.getFileHandle(DATA_FILE,{create:true}),writer=await file.createWritable();
   try{await writer.write(data);await writer.close();}catch(e){await writer.abort().catch(()=>{});throw e;}
-  target.lastModified=(await file.getFile()).lastModified;target.lastDigest=await digest(new TextEncoder().encode(data));target.message='Copia actualizada · '+new Date().toLocaleTimeString();if(active===target)emit(dataFolderStatus());
+  target.lastModified=(await file.getFile()).lastModified;target.lastDigest=await digest(new TextEncoder().encode(data));await handleStore('put',target.lastDigest,'lastDigest');target.message='Copia actualizada · '+new Date().toLocaleTimeString();if(active===target)emit(dataFolderStatus());
  }catch(e){if(active===target){active=null;emit({name:target.handle.name,message:e.message,error:true});}throw e;}
 }
-export function scheduleDataSave(){if(!active||timer)return;timer=setTimeout(()=>{timer=null;saveDataFolder().catch(()=>{});},3000);}
+export function scheduleDataSave(){if(!active||timer)return;timer=setTimeout(()=>{timer=null;saveDataFolder().catch(()=>{});},1000);}
 export function watchDataFolder(){
  const original=Storage.prototype.setItem,remove=Storage.prototype.removeItem;
  Storage.prototype.setItem=function(key,value){original.call(this,key,value);if(this===localStorage&&key.startsWith('traza-bizkaia-'))scheduleDataSave();};
@@ -46,3 +46,5 @@ export function watchDataFolder(){
  for(const type of ['rutasad:metadata-changed','rutasad:students-changed'])window.addEventListener(type,scheduleDataSave);
  window.addEventListener('pagehide',()=>{if(active){clearTimeout(timer);saveDataFolder().catch(()=>{});}});
 }
+
+export async function reconnectDataFolder(){const handle=await handleStore('get');if(!handle)return;if(await handle.queryPermission({mode:'readwrite'})!=='granted'){emit({name:handle.name,message:'Los cambios están en este navegador. Pulsa Reabrir carpeta para actualizar la copia en disco.',error:true});return;}const previousDigest=await handleStore('get',null,'lastDigest');let file;try{file=await(await handle.getFileHandle(DATA_FILE)).getFile();}catch(e){if(e.name!=='NotFoundError')throw e;}if(file?.size>256*1024*1024)throw Error('La copia supera 256 MB.');const current=file?await digest(await file.arrayBuffer()):null;if(current!==previousDigest)throw Error('La copia de la carpeta ha cambiado. Abre la carpeta para revisarla; se conserva la recuperación de este navegador.');active={handle,lastModified:file?.lastModified??null,lastDigest:current,message:'Carpeta reconectada'};await saveDataFolder();}

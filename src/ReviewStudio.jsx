@@ -1,3 +1,4 @@
+import {registerAutosave} from './autosave.js';
 import ClipEditor from './ClipEditor.jsx';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {pointAt,speedAt,timeline} from './reviewTime.js';
@@ -32,7 +33,8 @@ export default function ReviewStudio({review,onReview,progress,onProgress,playin
  const [finalView,setFinalView]=useState(false),[exporting,setExporting]=useState(false),[exportProgress,setExportProgress]=useState(0),[result,setResult]=useState('');
  useEffect(()=>{if(['large','split'].includes(review.media?.layout))setLayout(review.media.layout);},[review.media?.id,review.media?.layout]);
  const changeLayout=value=>{setLayout(value);try{localStorage.setItem('rutasad-pip-layout',value);}catch{}if(review.media)onReview({...review,media:{...review.media,layout:value}});};
- const exportAbort=useRef(null),resultRef=useRef('');
+ const exportAbort=useRef(null),resultRef=useRef(''),movieDoneRef=useRef(null);
+ useEffect(()=>registerAutosave('movie-export',{busy:()=>!!exportAbort.current,finish:()=>movieDoneRef.current}),[]);
  useEffect(()=>()=>{exportAbort.current?.abort();if(resultRef.current)URL.revokeObjectURL(resultRef.current);},[]);
  useEffect(()=>{if(resultRef.current)URL.revokeObjectURL(resultRef.current);resultRef.current='';setResult('');},[review.media?.id,review.media?.videoStartUtc,review.incidents,layout]);
  useEffect(()=>{const panel=videoRef.current?.closest(".map-panel");if(!panel)return;panel.classList.toggle("movie-preview",finalView);requestAnimationFrame(()=>onMapResize?.());return()=>{panel.classList.remove("movie-preview");requestAnimationFrame(()=>onMapResize?.());};},[finalView]);
@@ -66,7 +68,7 @@ export default function ReviewStudio({review,onReview,progress,onProgress,playin
  return <>
   {clipOpen&&<ClipEditor review={review} progress={progress} onProgress={onProgress} playing={playing} onPlaying={onPlaying} onRange={setPreviewRange} onClose={()=>{onPlaying(false);setPreviewRange(null);setClipOpen(false);}} onBoard={seed=>{setClipOpen(false);onBoard(seed);}} videoUrl={videoUrl} language={language}/>}
   {!live&&review.points.length>0&&<div className="pip-layout-selector" role="group" aria-label={t('Bideoaren tamaina','Tamaño del vídeo')}><button disabled={exporting} aria-pressed={layout==='large'} onClick={()=>changeLayout('large')}>{t('Handia','Grande')}</button><button disabled={exporting} aria-pressed={layout==='split'} onClick={()=>changeLayout('split')}>{t('Pantaila erdia','Media pantalla')}</button></div>}
-  {finalView&&<div className="movie-toolbar"><button disabled={exporting} onClick={()=>setFinalView(false)}>{t("Itzuli","Volver")}</button><button disabled={exporting} onClick={()=>{if(progress>=1)onProgress(0);onPlaying(!playing);}}>{playing?'Ⅱ':'▶'}</button><button disabled={exporting||position.gap} onClick={mark}>＋ {t("Puntu kritikoa","Punto crítico")}</button><button disabled={exporting} onClick={exportMovie}>{t("MP4 esportatu","Exportar MP4")}</button>{exporting&&<><span>{Math.round(exportProgress*100)}%</span><button onClick={()=>exportAbort.current?.abort()}>{t("Utzi","Cancelar")}</button></>}{result&&!exporting&&<a download="traza-mapa-pip.mp4" href={result}>{t("MP4 deskargatu","Descargar MP4")}</a>}{message&&<p role="status">{message}</p>}<small>{t("Mapa, ibilbidea, PIP bideoa eta puntu kritikoak. Mantendu pantaila piztuta.","Mapa, recorrido, vídeo PIP y puntos críticos. Mantén la pantalla encendida.")}</small></div>}
+  {finalView&&<div className="movie-toolbar"><button disabled={exporting} onClick={()=>setFinalView(false)}>{t("Itzuli","Volver")}</button><button disabled={exporting} onClick={()=>{if(progress>=1)onProgress(0);onPlaying(!playing);}}>{playing?'Ⅱ':'▶'}</button><button disabled={exporting||position.gap} onClick={mark}>＋ {t("Puntu kritikoa","Punto crítico")}</button><button disabled={exporting} onClick={()=>{movieDoneRef.current=exportMovie();}}>{t("MP4 esportatu","Exportar MP4")}</button>{exporting&&<><span>{Math.round(exportProgress*100)}%</span><button onClick={()=>exportAbort.current?.abort()}>{t("Utzi","Cancelar")}</button></>}{result&&!exporting&&<a download="traza-mapa-pip.mp4" href={result}>{t("MP4 deskargatu","Descargar MP4")}</a>}{message&&<p role="status">{message}</p>}<small>{t("Mapa, ibilbidea, PIP bideoa eta puntu kritikoak. Mantendu pantaila piztuta.","Mapa, recorrido, vídeo PIP y puntos críticos. Mantén la pantalla encendida.")}</small></div>}
   {review.points.length>0&&<aside className="telemetry-hud" aria-label={t('Telemetria','Telemetría')}>
    <strong>{format(velocity.value)} <small>km/h{velocity.estimated?' ≈':''}</small></strong>
    <div><span>{t('Luzetarakoa','Longitudinal')} X</span><b>{format(force('x'),3)} g</b></div>

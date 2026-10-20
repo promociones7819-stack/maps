@@ -1,3 +1,4 @@
+import {suspendAutosave} from './autosave.js';
 import ActionIcon from './ActionIcon.jsx';
 // SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
 // SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
@@ -48,7 +49,7 @@ export function AccountControls({language='eu',disabled=false}){
 }
 export function LegacyImport(){
  const [available,setAvailable]=useState(window.rutasLegacyAvailable),[error,setError]=useState('');if(!available)return null;
- return <aside className="legacy-import"><strong>Datos anteriores de este navegador</strong><p>Puedes recuperar la biblioteca anterior en tu cuenta administradora. Sustituirá los datos actuales de esta cuenta en este navegador. Las otras cuentas comenzarán vacías.</p><button onClick={()=>{try{if(!confirm('¿Recuperar los datos anteriores en esta cuenta? Sustituirá su biblioteca actual de este navegador. Los originales se conservarán.'))return;window.claimRutasLegacy();location.reload();}catch(e){setError(e.message);}}}>Conservar mis datos anteriores</button><button onClick={()=>setAvailable(false)}>Más adelante</button>{error&&<p role="alert">{error}</p>}</aside>;
+ return <aside className="legacy-import"><strong>Datos anteriores de este navegador</strong><p>Puedes recuperar la biblioteca anterior en tu cuenta administradora. Sustituirá los datos actuales de esta cuenta en este navegador. Las otras cuentas comenzarán vacías.</p><button onClick={()=>{try{if(!confirm('¿Recuperar los datos anteriores en esta cuenta? Sustituirá su biblioteca actual de este navegador. Los originales se conservarán.'))return;suspendAutosave();window.claimRutasLegacy();location.reload();}catch(e){setError(e.message);}}}>Conservar mis datos anteriores</button><button onClick={()=>setAvailable(false)}>Más adelante</button>{error&&<p role="alert">{error}</p>}</aside>;
 }
 export function monitorAccount(user){
  const lock=()=>{document.body.replaceChildren();location.replace('/');};

@@ -1,3 +1,4 @@
+import {BOARD_DRAFT_KEY,SESSION_KEY,validBoardRecovery,validSession,suspendAutosave} from './autosave.js';
 import {validBoardDocument} from './boardModel.js';
 import {BOARD_CASES_KEY,validBoardCases} from './boardModel.js';
 import {listLessons,listLibraryReviews,replaceBackupRecords} from './lessonStore.js';
@@ -36,6 +37,8 @@ export function parseBackup(input){
  }
  storage[`${prefix}projects`]=JSON.stringify({...index,projects:index.projects.map(({legacy,...project})=>project)});
  if(storage[`${prefix}students`]){const students=json(storage[`${prefix}students`]);if(!array(students,10000)||students.some(s=>!s||!text(s.id)||['__proto__','constructor','prototype'].includes(s.id)||!text(s.name)))fail();}
+ if(storage[BOARD_DRAFT_KEY]&&!validBoardRecovery(json(storage[BOARD_DRAFT_KEY])))fail();
+ if(storage[SESSION_KEY]&&!validSession(json(storage[SESSION_KEY])))fail();
  if(storage[BOARD_CASES_KEY]&&!validBoardCases(json(storage[BOARD_CASES_KEY])))fail();
  if(storage[FICHA_KEY])validateStudents(json(storage[FICHA_KEY]));
  const sessions=input.version===2?input.sessions||[]:[],library=input.version===2?input.library||[]:[];
@@ -58,6 +61,7 @@ export function mergeBackupStorage(current,incoming,update=false){
  const next={...current},oldIndex=current[`${prefix}projects`]?json(current[`${prefix}projects`]):{projects:[]},newIndex=json(incoming[`${prefix}projects`]);
  const oldIds=new Set(oldIndex.projects.map(p=>p.id));
  for(const [key,value] of Object.entries(incoming)){
+  if(key===BOARD_DRAFT_KEY||key===SESSION_KEY){if(update||!(key in current))next[key]=value;continue;}
   if(key===`${prefix}projects`||key===`${prefix}students`||key===FICHA_KEY||key===BOARD_CASES_KEY)continue;
   const project=newIndex.projects.find(p=>key===`${prefix}project-${p.id}`||key===`${prefix}project-${p.id}-markers`||key===`${prefix}project-${p.id}-gpx-review`||key===`${prefix}project-${p.id}-board`);
   if(project){if(!oldIds.has(project.id)||update)next[key]=value;}else if(!(key in current))next[key]=value;
@@ -75,8 +79,9 @@ const writeStorage=storage=>{for(const key of Object.keys(localStorage))if(key.s
 export async function restoreBackup(input,{update=false,desktop=window.trazaDesktop}={}){
  const backup=parseBackup(input),storage=backupStorage(),[sessions,library]=await Promise.all([listLessons(),listLibraryReviews()]);
  const merged=mergeBackupStorage(storage,backup.storage,update),records={sessions:mergeItems(sessions,backup.sessions,update),library:mergeItems(library,backup.library,update)};
+ const resumeAutosave=suspendAutosave();
  let recordsWritten=false;
  try{writeStorage(merged);await replaceBackupRecords(records);recordsWritten=true;if(desktop)await desktop.saveLibrary(merged);}
- catch(error){let rollbackError;try{writeStorage(storage);}catch(e){rollbackError=e;}if(recordsWritten)try{await replaceBackupRecords({sessions,library});}catch(e){rollbackError=e;}if(desktop)try{await desktop.saveLibrary(storage);}catch(e){rollbackError=e;}throw Error(rollbackError?'No se pudo completar la restauración. No cierres la aplicación; conserva tu archivo de copia.':`No se pudo restaurar. Se han conservado los datos anteriores. ${error.message||''}`);}
+ catch(error){resumeAutosave();let rollbackError;try{writeStorage(storage);}catch(e){rollbackError=e;}if(recordsWritten)try{await replaceBackupRecords({sessions,library});}catch(e){rollbackError=e;}if(desktop)try{await desktop.saveLibrary(storage);}catch(e){rollbackError=e;}throw Error(rollbackError?'No se pudo completar la restauración. No cierres la aplicación; conserva tu archivo de copia.':`No se pudo restaurar. Se han conservado los datos anteriores. ${error.message||''}`);}
  return backupSummary(backup);
 }

@@ -97,10 +97,18 @@ ipcMain.handle('movie:begin',async(_event,suggestedName)=>{const result=await di
 ipcMain.handle('movie:write',async(_event,id,bytes)=>{const entry=movieWrites.get(id);if(!entry)throw Error('La exportación no está abierta.');if(!(bytes instanceof ArrayBuffer)||bytes.byteLength>32*1024*1024)throw Error('Bloque de vídeo inválido.');await entry.handle.writeFile(Buffer.from(bytes));});
 ipcMain.handle('movie:finish',async(_event,id)=>{const entry=movieWrites.get(id);if(!entry)throw Error('La exportación no está abierta.');await entry.handle.sync();await entry.handle.close();entry.closed=true;await fs.promises.rename(entry.temporary,entry.target);movieWrites.delete(id);return path.dirname(entry.target)===path.resolve(videoDirectory)?{url:`traza://app/__recordings/${encodeURIComponent(path.basename(entry.target))}`} : {};});
 ipcMain.handle('movie:abort',async(_event,id)=>{const entry=movieWrites.get(id);if(!entry)return;if(!entry.closed)await entry.handle.close().catch(()=>{});await fs.promises.unlink(entry.temporary).catch(()=>{});movieWrites.delete(id);});
-app.on('before-quit',()=>{for(const entry of movieWrites.values()){void entry.handle.close().catch(()=>{});try{fs.unlinkSync(entry.temporary);}catch{}}movieWrites.clear();});
+app.on('will-quit',()=>{for(const entry of movieWrites.values()){void entry.handle.close().catch(()=>{});try{fs.unlinkSync(entry.temporary);}catch{}}movieWrites.clear();});
 
 const distDirectory = path.join(app.getAppPath(), 'dist');
 
+let quitting=false;
+const closingWindows=new Map();
+app.on('before-quit',()=>{quitting=true;});
+ipcMain.on('autosave:close-ready',(event,result)=>{
+ const pending=closingWindows.get(event.sender.id);if(!pending||result?.id!==pending.id)return;
+ if(result.ok===true){pending.ready=true;pending.window.close();if(quitting)app.quit();}
+ else{closingWindows.delete(event.sender.id);quitting=false;void dialog.showMessageBox(pending.window,{type:'error',title:'No se pudo guardar',message:'RutasAD sigue abierta para proteger tu trabajo.',detail:String(result?.error||'Revisa el espacio y los permisos de la carpeta e inténtalo de nuevo.').slice(0,1000)});}
+});
 async function createWindow() {
   ensureDataDirectories();
   const window = new BrowserWindow({
@@ -118,6 +126,8 @@ async function createWindow() {
     },
   });
 
+  window.on('close',event=>{const pending=closingWindows.get(window.webContents.id);if(pending?.ready)return;event.preventDefault();if(pending)return;const id=require('node:crypto').randomUUID();closingWindows.set(window.webContents.id,{window,id,ready:false});window.webContents.send('autosave:prepare-close',id);});
+  const rendererId=window.webContents.id;window.on('closed',()=>closingWindows.delete(rendererId));
   attachBluetooth(window);
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);

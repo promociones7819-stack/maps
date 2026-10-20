@@ -1,3 +1,4 @@
+import {registerAutosave} from './autosave.js';
 import React,{useEffect,useRef,useState} from 'react';
 import {FICHA_KEY,migrateStudents,readStudents,writeStudents,importFicha,PERMITS,newClass,updateClass,selectClass,linkPreviousStudent} from './students.js';
 import {listLessons,listLibraryReviews,saveLesson} from './lessonStore.js';
@@ -13,7 +14,9 @@ export default function StudentsScreen({language,onClose,onBackups,onMap,onOpenR
  const iframe=useRef(null),input=useRef(null),root=useRef(null);
  const student=db.students[selected],pdata=student?.permits[permit],classes=[...(pdata?.history||[])].sort((a,b)=>b.date.localeCompare(a.date)),entry=classes.find(e=>e.id===classId);
  const refresh=()=>{try{setDb(readStudents());}catch(e){setError(e.message);}listLessons().then(setSessions).catch(e=>setError(e.message));};
+ const studentSaveRef=useRef(null);
  const flushFrame=()=>{if(iframe.current?.contentWindow?.RutasFicha){iframe.current.contentWindow.RutasFicha.flush();writeStudents(readStudents());refresh();}};
+ studentSaveRef.current=flushFrame;useEffect(()=>registerAutosave('students',{checkpoint:()=>studentSaveRef.current(),finish:()=>studentSaveRef.current()}),[]);
  const leave=callback=>{flushFrame();callback();};
  useEffect(()=>{
   const old=document.activeElement,siblings=[document.querySelector('.workspace'),document.querySelector('.topbar')].filter(Boolean);siblings.forEach(e=>e.inert=true);root.current.querySelector('button')?.focus();
