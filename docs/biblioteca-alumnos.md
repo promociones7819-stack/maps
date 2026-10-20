@@ -1,6 +1,6 @@
 # Biblioteca por alumno
 
-En Biblioteca, selecciona un alumno para consultar sus rutas GPX y trayectorias. Se incluyen los recorridos vinculados a sus clases y las sesiones grabadas con su identificador, aunque dos alumnos tengan el mismo nombre.
+En Biblioteca, pulsa Alumnos para ver las tarjetas de los alumnos dados de alta. Pulsa una tarjeta para consultar juntos sus recorridos y trayectorias asignados, separados en dos secciones. Volver a alumnos regresa al listado. Se incluyen los recorridos vinculados a sus clases y las sesiones grabadas con su identificador, aunque dos alumnos tengan el mismo nombre.
 
 Cada tarjeta tiene Asignar. Marca uno o varios alumnos y selecciona una clase existente para cada uno. Si un alumno todavía no tiene clases, créala desde Alumnos. Asignar varias veces el mismo recorrido a la misma clase no añade duplicados.
 
