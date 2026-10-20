@@ -1,3 +1,4 @@
+import {geoTileUrl} from './mapTiles.js';
 import AutosaveStatus from './AutosaveStatus.jsx';
 import {registerAutosave,writeChanged,readSession,validBoardRecovery,SESSION_KEY,BOARD_DRAFT_KEY,reportAutosave} from './autosave.js';
 import ActionIcon from './ActionIcon.jsx';
@@ -40,7 +41,7 @@ const SIGNAL_CATALOG = [
 ];
 const ARROWS = [{ value: 'right', label: 'Derecha', icon: '→' }, { value: 'straight', label: 'Recto', icon: '↑' }, { value: 'left', label: 'Izquierda', icon: '←' }, { value: 'up-right', label: 'Diagonal derecha', icon: '↗' }, { value: 'down-right', label: 'Salida derecha', icon: '↘' }];
 const START = [-2.9352, 43.2631];
-const EUSKADI_TILES = 'https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/{z}/{y}/{x}';
+const EUSKADI_TILES = geoTileUrl('{z}','{x}','{y}');
 const geoEuskadiSource = { type: 'raster', tiles: [EUSKADI_TILES], maxzoom: 20, tileSize: 256, attribution: '© Eusko Jaurlaritza / Gobierno Vasco · geoEuskadi' };
 const nextRouteColor = routes => COLORS.find(color => !routes.some(route => route.color.toLowerCase() === color)) || COLORS[0];
 const narrationVoiceFor = (voices, language) => {
@@ -355,6 +356,7 @@ export default function App() {
   const [mapboxTokenError, setMapboxTokenError] = useState('');
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState('');
+  const [mapRetry,setMapRetry]=useState(0);
   const [progress, setProgress] = useState(0);
   const [recording, setRecording] = useState(false);
   const [audioFile, setAudioFile] = useState(null);
@@ -479,7 +481,7 @@ export default function App() {
       const minX = tileX(northWest.lng, level), maxX = tileX(southEast.lng, level);
       const minY = tileY(northWest.lat, level), maxY = tileY(southEast.lat, level);
       for (let x = minX; x <= maxX; x += 1) for (let y = minY; y <= maxY; y += 1) {
-        tiles.push(`https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/${level}/${y}/${x}`);
+        tiles.push(geoTileUrl(level,x,y));
       }
     }
     if (tiles.length > 1800) {
@@ -606,6 +608,7 @@ export default function App() {
       map.addLayer({ id: 'gpx-vehicle-point', type: 'circle', source: 'gpx-vehicle', paint: { 'circle-radius': 8, 'circle-color': '#ef7c32', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 } });
       setMapReady(true);
     });
+    map.on('sourcedata',event=>{if(event.sourceId==='basemap-source'&&event.sourceDataType==='content')setMapError('');});
     map.on('error', event => {
       if (!event.error?.message || (!isMapbox && event.sourceId !== 'basemap-source')) return;
       const status = event.error.status;
@@ -695,7 +698,7 @@ export default function App() {
         mapRef.current = null;
       }
     };
-  }, [mapProvider, mapToken]);
+  }, [mapProvider, mapToken,mapRetry]);
 
   useEffect(() => { if (mapReady) updateSources(routes, activeId); }, [mapReady, routes, activeId, updateSources]);
   useEffect(() => {
@@ -1402,7 +1405,7 @@ export default function App() {
         <div ref={mapNode} className="map-canvas" />
         {workspaceMode==='routes'&&visibleConflictMarker&&<aside className="trajectory-conflict-popup" aria-label="Punto conflictivo"><small>{visibleConflictMarker.signalCode} · {signalDefinition(visibleConflictMarker.signalCode).name}</small><SignalFace marker={visibleConflictMarker}/><strong>{visibleConflictMarker.title||signalDefinition(visibleConflictMarker.signalCode).name}</strong>{visibleConflictMarker.description&&<p>{visibleConflictMarker.description}</p>}<button disabled={recording&&playing} onClick={()=>editMarker(visibleConflictMarker)}>Editar señal</button></aside>}
         {workspaceMode === 'gpx-review' && playing && currentGpxIncident && currentGpxIncident.showInVideo!==false && <div className="gpx-live-note"><span>INCIDENCIA {currentGpxIncidentIndex + 1} · REVISIÓN</span>{currentGpxIncident.signalCode&&<SignalFace marker={currentGpxIncident} compact/>}<strong>{currentGpxIncident.title}</strong><p>{currentGpxIncident.note}</p></div>}
-        {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba que el token público esté activo y que la cuenta permita cargar el estilo. También puedes volver a geoEuskadi.' : 'Comprueba la conexión a geoEuskadi y vuelve a intentarlo.'}</small></div></div>}
+        {mapError && <div className="map-overlay"><div className="map-error"><strong>{mapProvider === 'mapbox' ? 'No se ha podido cargar Mapbox' : 'No se ha podido cargar la ortofoto'}</strong><p>{mapError}</p><small>{mapProvider === 'mapbox' ? 'Comprueba que el token público esté activo y que la cuenta permita cargar el estilo. También puedes volver a geoEuskadi.' : 'Comprueba la conexión a geoEuskadi y vuelve a intentarlo.'}</small><button className="map-retry" disabled={recording||liveLesson} onClick={()=>setMapRetry(n=>n+1)}>{t('Berriz saiatu','Reintentar mapa')}</button></div></div>}
         <div className="map-top-tools"><button className="map-pill map-source-button" onClick={() => setMapSettingsOpen(!mapSettingsOpen)} aria-expanded={mapSettingsOpen}><span className="satellite-icon">▧</span><span>MAPA: {mapProvider === 'mapbox' ? 'MAPBOX' : 'GEOEUSKADI'}</span><span className="pill-divider" /><span>⚙</span></button>{workspaceMode === 'routes' ? <button className={`map-tool ${mode === 'add' ? 'active' : ''}`} onClick={() => { setMode(mode === 'add' ? 'select' : 'add'); setPlaying(false); }}><span>＋</span> Añadir punto</button> : <button className={`map-tool ${placingGpxIncident ? 'active' : ''}`} onClick={startGpxIncidentPlacement}><span>＋</span> Marcar error</button>}<button className="map-tool offline-map-button" onClick={downloadOfflineArea} disabled={offlineDownloading || mapProvider === 'mapbox'} title={mapProvider === 'mapbox' ? 'La descarga offline está disponible con geoEuskadi' : ''}><span>⇩</span> {offlineDownloading ? 'Guardando zona…' : 'Guardar zona offline'}</button></div>
         {mapSettingsOpen && <div className="map-settings-card"><div className="map-settings-heading"><strong>Fuente del mapa</strong><button aria-label="Cerrar configuración del mapa" onClick={() => setMapSettingsOpen(false)}>×</button></div><div className="map-provider-options"><button className={mapProvider === 'geoEuskadi' ? 'selected' : ''} onClick={() => selectMapProvider('geoEuskadi')}>GeoEuskadi <small>Ortofoto de Euskadi · sin token</small></button><button className={mapProvider === 'mapbox' ? 'selected' : ''} onClick={() => { if (mapToken) selectMapProvider('mapbox'); }}>Mapbox Satellite <small>Imágenes satélite de Mapbox</small></button></div><label className="map-token-label" htmlFor="mapbox-public-token">Token público de Mapbox</label><input id="mapbox-public-token" className="map-token-input" type="text" autoComplete="off" spellCheck="false" placeholder="pk.…" value={mapTokenDraft} onChange={event => { setMapTokenDraft(event.target.value); setMapboxTokenError(''); }} /><small className="map-token-help">Usa un token público (pk.) con permisos styles:read y fonts:read. Se guarda en este navegador y se envía a Mapbox para cargar el mapa. No uses un token secreto (sk.).</small>{mapboxTokenError && <div className="mapbox-token-error" role="alert">{mapboxTokenError}</div>}<div className="map-settings-actions"><button onClick={clearMapboxToken} disabled={!mapToken && !mapTokenDraft}>Borrar token</button><button className="mapbox-apply-button" onClick={() => selectMapProvider('mapbox')}>Usar Mapbox</button></div></div>}
         {offlineMessage && <div className="offline-map-status" role="status">{offlineMessage}</div>}

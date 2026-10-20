@@ -1,8 +1,9 @@
+import {geoTileUrl} from './mapTiles.js';
 import {readStudents,migrateStudents} from './students.js';
 import {studentUsesEntry,assignLibraryEntry,usesEntry} from './libraryStudents.js';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 
-const tileUrl=(z,x,y)=>`https://www.geo.euskadi.eus/geoeuskadi/rest/services/U11/WMTS_ORTO/MapServer/WMTS/tile/1.0.0/U11_WMTS_ORTO/default/GoogleMapsCompatible/${z}/${y}/${x}`;
+const tileUrl=geoTileUrl;
 const world=([lon,lat],z)=>{const s=256*2**z,phi=Math.max(-85,Math.min(85,lat))*Math.PI/180;return [(lon+180)/360*s,(1-Math.asinh(Math.tan(phi))/Math.PI)/2*s];};
 export function coverGeometry(coordinates){
  let valid=coordinates.filter(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite));if(!valid.length)return null;const step=Math.max(1,Math.ceil(valid.length/1200));valid=valid.filter((_,i)=>i%step===0||i===valid.length-1);

@@ -142,7 +142,9 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   session.defaultSession.on('will-download',(_event,item)=>{const raw=item.getFilename(),directory=organized.downloadFolder(dataDirectory,raw);if(!directory)return;organized.ensure(dataDirectory);const extension=path.extname(raw).toLowerCase(),name=cleanFileName(raw,extension);item.setSavePath(organized.uniqueFile(directory,name));});
+  const serveMapTile=require('./map-tiles.cjs')({directory:path.join(appDataDirectory,'cache-ortofoto'),fetchTile:(url,options)=>net.fetch(url,options)});
   protocol.handle('traza', async request => {
+    if(new URL(request.url).pathname.startsWith('/__geo/'))return serveMapTile(request);
     if(new URL(request.url).hostname==='app'&&['/__workspace/','/__recordings/'].some(prefix=>new URL(request.url).pathname.startsWith(prefix))){
       try{
         const recording=new URL(request.url).pathname.startsWith('/__recordings/'),name=decodeURIComponent(new URL(request.url).pathname.slice(recording?'/__recordings/'.length:'/__workspace/'.length));if(recording&&(path.basename(name)!==name||!name.toLowerCase().endsWith('.mp4')))return new Response('Archivo no disponible',{status:404});const file=recording?path.join(videoDirectory,name):workspaceFile(name),stat=await fs.promises.lstat(file);if(!stat.isFile())return new Response('Archivo no disponible',{status:404});
