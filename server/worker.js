@@ -99,7 +99,7 @@ export default {async fetch(request,env){
    const bootstrap=`<script src="/account-storage.js"></script><script>window.installRutasAccount(${JSON.stringify(publicUser(u)).replace(/</g,'\\u003c')});</script>`;
    const headers=new Headers(response.headers);headers.delete('Content-Length');headers.delete('Content-Encoding');response=new Response(html.replace(/<head[^>]*>/i,match=>match+bootstrap),{status:response.status,headers});
   }
-  const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('X-Content-Type-Options','nosniff');headers.set('Referrer-Policy','same-origin');headers.set('X-Frame-Options','SAMEORIGIN');
+  const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('X-Content-Type-Options','nosniff');headers.set('Referrer-Policy','strict-origin-when-cross-origin');headers.set('X-Frame-Options','SAMEORIGIN');
   return new Response(response.body,{status:response.status,headers});
  }catch(error){console.error('Auth request failed',error.name);return json({error:'No se pudo completar la operación. Inténtalo de nuevo.'},500);}
 }};

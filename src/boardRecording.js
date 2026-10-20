@@ -1,3 +1,4 @@
+import {assertMapExportAllowed} from './googleMaps.js';
 // SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
 // SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
 import {rememberBoardMedia} from './boardMedia.js';
@@ -5,6 +6,7 @@ import {renderBoardCanvas} from './boardExport.js';
 import {openMovieSink} from './workspace.js';
 // One serialized render and write queue; no full-length video is held in memory on Chrome/Mac.
 export async function startBoardRecording({snapshot,withAudio=true,onError=()=>{},onSeconds=()=>{}}){
+ assertMapExportAllowed(snapshot().map);
  const mime=['video/mp4;codecs="avc1.42E01E,mp4a.40.2"','video/mp4;codecs=avc1,mp4a.40.2','video/mp4'].find(m=>globalThis.MediaRecorder?.isTypeSupported(m));
  if(!mime)throw Error('Este navegador no admite grabación MP4. Usa Chrome actualizado o RutasAD.');
  let pendingBytes=0;

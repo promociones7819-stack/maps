@@ -141,6 +141,8 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Identify the native app to OSM; Chromium's normal HTTP cache honors tile freshness.
+  session.defaultSession.webRequest.onBeforeSendHeaders({urls:['https://tile.openstreetmap.org/*']},(details,callback)=>callback({requestHeaders:{...details.requestHeaders,'User-Agent':`RutasAD/${app.getVersion()} (+https://maps.promociones7819.workers.dev/)`}}));
   session.defaultSession.on('will-download',(_event,item)=>{const raw=item.getFilename(),directory=organized.downloadFolder(dataDirectory,raw);if(!directory)return;organized.ensure(dataDirectory);const extension=path.extname(raw).toLowerCase(),name=cleanFileName(raw,extension);item.setSavePath(organized.uniqueFile(directory,name));});
   const serveMapTile=require('./map-tiles.cjs')({directory:path.join(appDataDirectory,'cache-ortofoto'),fetchTile:(url,options)=>net.fetch(url,options)});
   const servePnoaTile=require('./map-tiles.cjs')({directory:path.join(appDataDirectory,'cache-ortofoto-pnoa'),fetchTile:(url,options)=>net.fetch(url,options),provider:'pnoa'});
