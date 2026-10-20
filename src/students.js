@@ -3,10 +3,12 @@ export const FICHA_KEY='traza-bizkaia-ficha-autoescuela-v2';
 export const PERMITS=['AM','A1/A2','B','C1/C','D1/D'];
 const object=v=>v&&typeof v==='object'&&!Array.isArray(v);
 const safeId=id=>typeof id==='string'&&id.length>0&&id.length<=200&&!['__proto__','constructor','prototype'].includes(id);
+const validRouteLinks=links=>links==null||(Array.isArray(links)&&links.length<=1000&&links.every(r=>object(r)&&typeof r.key==='string'&&typeof r.name==='string'&&['routes','reviews'].includes(r.kind)&&safeId(r.projectId)));
 export function validateStudents(db){
  if(!object(db)||!object(db.students)||Object.keys(db.students).length>10000)throw Error('Copia de alumnos no válida.');
  for(const [id,s] of Object.entries(db.students)){
   if(!safeId(id)||!s||s.id!==id||typeof s.name!=='string'||!s.name.trim()||s.name.length>500||!object(s.permits))throw Error('Datos del alumno no válidos.');
+  if(!validRouteLinks(s.rutas))throw Error('Vínculos de recorridos no válidos.');
   if(s.rutasadPreviousIds!=null&&(!Array.isArray(s.rutasadPreviousIds)||s.rutasadPreviousIds.some(id=>!safeId(id)||id===s.id)))throw Error('Vínculos de alumnos no válidos.');
   for(const [key,p] of Object.entries(s.permits)){
    if(!PERMITS.includes(key)||!object(p)||!Array.isArray(p.history)||p.history.length>10000||!object(p.theory)||!object(p.practical))throw Error('Permiso no válido.');
@@ -35,7 +37,7 @@ export function importFicha(data){
  const incoming=validateStudents({students:data.students}),db=migrateStudents();let added=0,updated=0;
  for(const [id,s] of Object.entries(incoming.students)){
   if(!Object.hasOwn(db.students,id)){db.students[id]=s;added++;}
-  else if(Date.parse(s.updatedAt)>Date.parse(db.students[id].updatedAt||0)){const next=structuredClone(s),previous=db.students[id];if(previous.rutasadPreviousIds)next.rutasadPreviousIds=[...new Set([...(next.rutasadPreviousIds||[]),...previous.rutasadPreviousIds])];for(const [permit,p] of Object.entries(next.permits))for(const entry of p.history){const old=previous.permits[permit]?.history.find(c=>c.id===entry.id);if(old?.rutas){const links=new Map(old.rutas.map(r=>[r.key,r]));for(const r of entry.rutas||[])links.set(r.key,r);entry.rutas=[...links.values()];}}db.students[id]=next;updated++;}
+  else if(Date.parse(s.updatedAt)>Date.parse(db.students[id].updatedAt||0)){const next=structuredClone(s),previous=db.students[id];if(previous.rutas){const links=new Map(previous.rutas.map(r=>[r.key,r]));for(const r of next.rutas||[])links.set(r.key,r);next.rutas=[...links.values()];}if(previous.rutasadPreviousIds)next.rutasadPreviousIds=[...new Set([...(next.rutasadPreviousIds||[]),...previous.rutasadPreviousIds])];for(const [permit,p] of Object.entries(next.permits))for(const entry of p.history){const old=previous.permits[permit]?.history.find(c=>c.id===entry.id);if(old?.rutas){const links=new Map(old.rutas.map(r=>[r.key,r]));for(const r of entry.rutas||[])links.set(r.key,r);entry.rutas=[...links.values()];}}db.students[id]=next;updated++;}
  }
  writeStudents(db);return {added,updated};
 }
@@ -54,6 +56,7 @@ export async function linkPreviousStudent(previousId,studentId){
  if(!previous||!student||previousId===studentId||Object.keys(previous.permits).length)throw Error('Selecciona un alumno anterior sin permisos.');
  const {listLessons,saveLesson}=await import('./lessonStore.js');
  for(const session of await listLessons())if(session.studentId===previousId)await saveLesson({...session,studentId,studentName:student.name});
+ student.rutas=[...new Map([...(student.rutas||[]),...(previous.rutas||[])].map(r=>[r.key,r])).values()];
  student.rutasadPreviousIds=[...new Set([...(student.rutasadPreviousIds||[]),previousId])];student.updatedAt=new Date().toISOString();delete db.students[previousId];writeStudents(db);
  const legacy=JSON.parse(localStorage.getItem('traza-bizkaia-students')||'[]');localStorage.setItem('traza-bizkaia-students',JSON.stringify(legacy.filter(s=>s.id!==previousId)));window.dispatchEvent(new Event('rutasad:lessons-changed'));
 }

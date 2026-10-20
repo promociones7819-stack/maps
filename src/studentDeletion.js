@@ -5,7 +5,7 @@ import {convert} from './RaceBoxPanel.jsx';
 const prefix='traza-bizkaia-';
 const snapshot=()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith(prefix)).map(k=>[k,localStorage.getItem(k)]));
 const keys=r=>[r.key,r.sessionId&&`lesson:${r.sessionId}`,r.libraryId&&`review:${r.libraryId}`].filter(Boolean);
-const links=s=>Object.values(s.permits||{}).flatMap(p=>(p.history||[]).flatMap(c=>c.rutas||[]));
+const links=s=>[...(s.rutas||[]),...Object.values(s.permits||{}).flatMap(p=>(p.history||[]).flatMap(c=>c.rutas||[]))];
 const matches=(r,set)=>keys(r).some(k=>set.has(k));
 // Build changes by UUID, never by a person's display name. Reusable trajectories
 // and original files are not owned by a student just because a class uses them.
@@ -31,7 +31,8 @@ export async function deleteStudent(studentId,{desktop=window.trazaDesktop}={}){
   if(remove){removedLibrary.push(item.id);rememberVideo(r);}else remainingLibrary.push(item);
  }
  const next=structuredClone(db);for(const id of ids)delete next.students[id];
- for(const s of Object.values(next.students))for(const p of Object.values(s.permits))for(const c of p.history||[])if(c.rutas)c.rutas=(c.rutas||[]).flatMap(r=>{const replacement=keys(r).map(k=>replacements.get(k)).find(Boolean);return replacement?[replacement.ref]:matches(r,deleted)?[]:[r];});
+ const cleanLinks=refs=>(refs||[]).flatMap(r=>{const replacement=keys(r).map(k=>replacements.get(k)).find(Boolean);return replacement?[replacement.ref]:matches(r,deleted)?[]:[r];});
+ for(const s of Object.values(next.students)){if(s.rutas)s.rutas=cleanLinks(s.rutas);for(const p of Object.values(s.permits))for(const c of p.history||[])if(c.rutas)c.rutas=cleanLinks(c.rutas);}
  validateStudents(next);
  const nextStorage={...storage,[FICHA_KEY]:JSON.stringify(next)};
  if(nextStorage[`${prefix}students`])nextStorage[`${prefix}students`]=JSON.stringify(JSON.parse(nextStorage[`${prefix}students`]).filter(s=>!ids.has(s.id)));
