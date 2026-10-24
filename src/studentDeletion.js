@@ -19,7 +19,8 @@ export async function deleteStudent(studentId,{desktop=window.trazaDesktop}={}){
  for(const key of ownLinks)if(!otherLinks.has(key)&&!key.startsWith('route:'))deleted.add(key);
  for(const item of library)if(ownedIds.has(item.id)||ownedIds.has(item.review?.sessionId)||((ids.has(item.studentId)||ids.has(item.review?.studentId))&&!matches({...item.review,key:`review:${item.id}`},otherLinks))){for(const key of [...keys(item.review||{}),`review:${item.id}`])deleted.add(key);}
  const replacements=new Map(),remainingLibrary=[],removedLibrary=[],candidateVideos=new Set();
- const rememberVideo=r=>{if(r?.media?.id)candidateVideos.add(r.media.id);};
+ const videoIdsFor=r=>new Set([r?.media?.id,...(r?.parts||[]).map(p=>p.media?.id)].filter(Boolean));
+ const rememberVideo=r=>{for(const id of videoIdsFor(r))candidateVideos.add(id);};
  // A track used by another pupil becomes an anonymous library item. Its former
  // owner's history is removed and the other class keeps a working reference.
  for(const s of owned){rememberVideo(s);const aliases=[`lesson:${s.id}`,...library.filter(i=>i.id===s.id||i.review?.sessionId===s.id).flatMap(i=>[...keys(i.review),`review:${i.id}`])];if(aliases.some(key=>otherLinks.has(key))){
@@ -42,8 +43,8 @@ export async function deleteStudent(studentId,{desktop=window.trazaDesktop}={}){
  }
  if(nextStorage[`${prefix}library-opened`]){const opened=JSON.parse(nextStorage[`${prefix}library-opened`]);for(const key of deleted)delete opened[key];nextStorage[`${prefix}library-opened`]=JSON.stringify(opened);}
  const remainingSessions=sessions.filter(s=>!ids.has(s.studentId)),retainedVideos=new Set();
- for(const r of [...remainingSessions,...remainingLibrary.map(i=>i.review)])if(r.media?.id)retainedVideos.add(r.media.id);
- for(const [key,value] of Object.entries(nextStorage))if(key.startsWith(`${prefix}project-`)&&key.endsWith('-gpx-review')){const r=JSON.parse(value);if(r.media?.id)retainedVideos.add(r.media.id);}
+ for(const r of [...remainingSessions,...remainingLibrary.map(i=>i.review)])for(const id of videoIdsFor(r))retainedVideos.add(id);
+ for(const [key,value] of Object.entries(nextStorage))if(key.startsWith(`${prefix}project-`)&&key.endsWith('-gpx-review')){const r=JSON.parse(value);for(const id of videoIdsFor(r))retainedVideos.add(id);}
  const videoIds=[...candidateVideos].filter(id=>!retainedVideos.has(id));
  const write=values=>{for(const key of Object.keys(localStorage))if(key.startsWith(prefix)&&!(key in values))localStorage.removeItem(key);for(const [key,value] of Object.entries(values))localStorage.setItem(key,value);};
  // Native disk and localStorage failures happen before the atomic IndexedDB

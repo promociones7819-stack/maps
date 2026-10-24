@@ -1,3 +1,5 @@
+import HomeLogo from './HomeLogo.jsx';
+import HelpControls from './HelpControls.jsx';
 import {registerAutosave,writeChanged,BOARD_DRAFT_KEY,reportAutosave} from './autosave.js';
 import {boardMediaFile} from './boardMedia.js';
 import {startBoardRecording} from './boardRecording.js';
@@ -231,7 +233,7 @@ export default function DidacticBoard({createMap,Marker,catalog,signalDefinition
   </>}
  </>;
  return createPortal(<section ref={panelRef} className={`didactic-board ${presenting?'board-presenting':''}`} role="dialog" aria-modal="true" aria-label={t('Arbel didaktikoa','Pizarra didáctica')}>
-  <header className="board-header"><div><strong>RutasAD <span>/ {t('Arbel didaktikoa','Pizarra didáctica')}</span></strong><small>{caseId?caseName:t('Autogordetzea · proiektutik bereizita','Autoguardado · independiente del proyecto')}</small></div><div className="board-header-actions board-ui"><button disabled={capturing||captureBusy} onClick={openCases}>{t('Azalpenak','Mis explicaciones')}</button><button disabled={capturing||captureBusy} onClick={()=>{setModal('save');if(!caseName)setCaseName(t('Azalpen berria','Nueva explicación'));}}>{t('Gorde azalpena','Guardar explicación')}</button><button aria-pressed={presenting} onClick={()=>{setPresenting(!presenting);setEditor(null);setLocating(false);setDraftPath(null);}}>{presenting?t('Arbela editatu','Editar pizarra'):t('Aurkeztu','Presentar')}</button><button onClick={close}>{t('Pizarratik irten','Salir de pizarra')}</button></div></header>
+  <header className="board-header"><HomeLogo language={language} width={120}/><div><strong>RutasAD <span>/ {t('Arbel didaktikoa','Pizarra didáctica')}</span></strong><small>{caseId?caseName:t('Autogordetzea · proiektutik bereizita','Autoguardado · independiente del proyecto')}</small></div><div className="board-header-actions board-ui"><HelpControls language={language}/> <button disabled={capturing||captureBusy} onClick={openCases}>{t('Azalpenak','Mis explicaciones')}</button><button disabled={capturing||captureBusy} onClick={()=>{setModal('save');if(!caseName)setCaseName(t('Azalpen berria','Nueva explicación'));}}>{t('Gorde azalpena','Guardar explicación')}</button><button aria-pressed={presenting} onClick={()=>{setPresenting(!presenting);setEditor(null);setLocating(false);setDraftPath(null);}}>{presenting?t('Arbela editatu','Editar pizarra'):t('Aurkeztu','Presentar')}</button><button onClick={close}>{t('Pizarratik irten','Salir de pizarra')}</button></div></header>
   <div className="board-stage" onPointerMove={pointerMove} onPointerLeave={()=>{if(ringRef.current)ringRef.current.hidden=true;}}>
    <div className="board-map" ref={container}/>
    {ready&&state.sourceClip&&<BoardClipPlayer frozen={capturing&&capturePaused} clip={state.sourceClip} initialUrl={seed?.document?.sourceClip?.libraryId===state.sourceClip.libraryId?seed.videoUrl:null} map={mapRef.current} Marker={Marker} language={language}/>}

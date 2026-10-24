@@ -1,3 +1,4 @@
+import {loadVideoWatermark,drawVideoWatermark} from './videoWatermark.js';
 import {assertMapExportAllowed} from './googleMaps.js';
 // SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
 // SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
@@ -18,7 +19,7 @@ export async function startBoardRecording({snapshot,withAudio=true,onError=()=>{
   sink=await openMovieSink({suggestedName:'RutasAD-clase-pizarra-'+new Date().toISOString().replace(/[:.]/g,'-')+'.mp4'});
   if(withAudio){if(!navigator.mediaDevices?.getUserMedia)throw Error('El micrófono no está disponible.');mic=await navigator.mediaDevices.getUserMedia({audio:true});}
   const map=snapshot().map,gl=map?.getCanvas().getContext('webgl2')||map?.getCanvas().getContext('webgl');if(!gl?.getContextAttributes()?.preserveDrawingBuffer)throw Error('El mapa no conserva la imagen necesaria para grabar. Vuelve a abrir la pizarra.');if(!map?.loaded())await new Promise((resolve,reject)=>{const done=()=>{if(!map.loaded())return;clearTimeout(timeout);map.off('idle',done);resolve();};const timeout=setTimeout(()=>{map.off('idle',done);reject(Error('El mapa sigue cargando. Espera y vuelve a grabar.'));},20000);map.on('idle',done);done();});
-  const first=await renderBoardCanvas({...snapshot(),frame:true}),ratio=Math.min(1,1280/first.width,720/first.height);canvas.width=Math.max(2,Math.round(first.width*ratio/2)*2);canvas.height=Math.max(2,Math.round(first.height*ratio/2)*2);ctx.drawImage(first,0,0,canvas.width,canvas.height);
+  const watermark=await loadVideoWatermark();const first=await renderBoardCanvas({...snapshot(),frame:true}),ratio=Math.min(1,1280/first.width,720/first.height);canvas.width=Math.max(2,Math.round(first.width*ratio/2)*2);canvas.height=Math.max(2,Math.round(first.height*ratio/2)*2);ctx.drawImage(first,0,0,canvas.width,canvas.height);drawVideoWatermark(ctx,watermark,canvas.width,canvas.height);
   stream=canvas.captureStream(15);mic?.getAudioTracks().forEach(t=>stream.addTrack(t));recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2500000});
   let resolveDone,rejectDone;const done=new Promise((resolve,reject)=>{resolveDone=resolve;rejectDone=reject;});done.catch(()=>{});
   const fail=error=>{if(failed)return;failed=error;onError(error);if(recorder.state!=='inactive')recorder.stop();};
@@ -30,7 +31,7 @@ export async function startBoardRecording({snapshot,withAudio=true,onError=()=>{
     // Include live PIP video and map-only teaching pointer, never the controls.
     const v=s.video;if(v?.readyState>=2&&v.style.visibility!=='hidden'){const r=v.getBoundingClientRect();ctx.drawImage(v,(r.left-mapRect.left)*scale*sx,(r.top-mapRect.top)*scale*sy,r.width*scale*sx,r.height*scale*sy);}
     if(s.gps&&!s.gps.hidden){const r=s.gps.getBoundingClientRect();ctx.fillStyle='#167ab4';ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc((r.left+r.width/2-mapRect.left)*scale*sx,(r.top+r.height/2-mapRect.top)*scale*sy,8,0,Math.PI*2);ctx.fill();ctx.stroke();}
-    if(s.pointer&&!s.pointer.hidden){const r=s.pointer.getBoundingClientRect(),x=(r.left+r.width/2-mapRect.left)*scale*sx,y=(r.top+r.height/2-mapRect.top)*scale*sy;ctx.strokeStyle='#ffe06a';ctx.lineWidth=4;ctx.beginPath();ctx.arc(x,y,18*scale*sx,0,Math.PI*2);ctx.stroke();}frames++;
+    if(s.pointer&&!s.pointer.hidden){const r=s.pointer.getBoundingClientRect(),x=(r.left+r.width/2-mapRect.left)*scale*sx,y=(r.top+r.height/2-mapRect.top)*scale*sy;ctx.strokeStyle='#ffe06a';ctx.lineWidth=4;ctx.beginPath();ctx.arc(x,y,18*scale*sx,0,Math.PI*2);ctx.stroke();}drawVideoWatermark(ctx,watermark,canvas.width,canvas.height);frames++;
    }catch(e){fail(e);}finally{rendering=false;}}
    if(!sink&&elapsed>=300){onError(Error('Se alcanzó el límite de cinco minutos. Se ha finalizado la grabación; descarga el MP4. Para clases largas usa Chrome o RutasAD.'));recorder.stop();return;}timer=setTimeout(draw,66);
   };

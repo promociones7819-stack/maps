@@ -24,3 +24,7 @@ Crear D1, aplicar `server/schema.sql`, añadir el binding AUTH y sembrar el admi
 5. `node tests/web-access.mjs`
 
 El test cubre creación en el panel, errores de acceso, control de rol y Origin, aislamiento de datos en el mismo navegador y en la ficha, creación de alumno/clase, exportación de copia, bloqueo/activación/cambio de PIN/eliminación, revocación de sesiones y límite de intentos. Las demás pruebas de la app usan Vite en local sin activar la puerta de acceso de producción.
+
+## Licencias y caducidad desde 0.17
+
+Ver docs/ACTUALIZACION-0.17.md. Aplicar la migración de migrations/ una sola vez con Wrangler y guardar una copia previa de D1. No reinicializar usuarios ni reutilizar el firmante de Elorrieta. Los administradores y los usuarios anteriores conservan su acceso. Los instaladores nuevos necesitan una licencia propia de RutasAD.

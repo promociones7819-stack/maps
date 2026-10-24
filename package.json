@@ -1,12 +1,12 @@
 {
   "name": "bizkaia-aerial-routes",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/sync-legal.mjs && vite build",
+    "build": "node scripts/check-installation.mjs && node scripts/sync-help.mjs && node scripts/sync-legal.mjs && vite build",
     "preview": "vite preview",
     "desktop:dev": "node scripts/electron-dev.cjs",
     "icon:mac": "node scripts/make-icon.cjs",
@@ -22,7 +22,11 @@
     "test:map-recording": "node tests/map-recording.mjs",
     "package:win": "npm run build && electron-builder --win nsis --x64 --publish never",
     "test:board": "node tests/board-model.mjs && node tests/board-expanded.mjs && node tests/didactic-board.mjs && node tests/didactic-board-mobile.mjs",
-    "test:board-recording": "node tests/board-recording.mjs && BOARD_DISK=1 node tests/board-recording.mjs && node tests/desktop-board-recording.mjs"
+    "test:board-recording": "node tests/board-recording.mjs && BOARD_DISK=1 node tests/board-recording.mjs && node tests/desktop-board-recording.mjs",
+    "test:licensing": "node tests/licensing.mjs",
+    "test:fast": "node tests/fast-movie.mjs",
+    "domain": "node scripts/configure-domain.mjs",
+    "test:upgrade": "node tests/upgrade-preservation.mjs && node tests/review-assembly.mjs && node tests/licensing.mjs && node tests/web-expiry.mjs"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^8.3.0",
@@ -33,6 +37,7 @@
     "@capacitor/share": "^8.0.3",
     "mapbox-gl": "^3.32.0",
     "maplibre-gl": "^6.13.0",
+    "mediabunny": "^1.62.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
@@ -72,13 +77,13 @@
       "icon": "build/icon.icns",
       "identity": null,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "RutasAD usa el micrófono si eliges grabar voz para las clases.",
-        "NSBluetoothAlwaysUsageDescription": "RutasAD necesita Bluetooth para conectar con tu RaceBox Mini o Mini S y recibir los datos de la práctica."
+        "NSMicrophoneUsageDescription": "RutasAD usa el micr\u00f3fono si eliges grabar voz para las clases.",
+        "NSBluetoothAlwaysUsageDescription": "RutasAD necesita Bluetooth para conectar con tu RaceBox Mini o Mini S y recibir los datos de la pr\u00e1ctica."
       }
     },
     "dmg": {
       "title": "RutasAD",
-      "artifactName": "RutasAD.dmg",
+      "artifactName": "RutasAD-${version}-Mac-AppleSilicon.dmg",
       "contents": [
         {
           "x": 140,
@@ -93,7 +98,7 @@
         }
       ]
     },
-    "copyright": "Copyright © 2026 Aitor Delgado Martínez · AD Mobility",
+    "copyright": "Copyright \u00a9 2026 Aitor Delgado Mart\u00ednez \u00b7 AD Mobility",
     "win": {
       "target": [
         {
@@ -114,9 +119,10 @@
       "createStartMenuShortcut": true,
       "artifactName": "RutasAD-${version}-Windows-x64-Setup.${ext}",
       "deleteAppDataOnUninstall": false
-    }
+    },
+    "afterPack": "scripts/after-pack.cjs"
   },
   "license": "SEE LICENSE IN LICENSE",
-  "author": "Aitor Delgado Martínez (AD Mobility)",
-  "description": "RutasAD: recorridos, vídeo y pizarra didáctica para formación vial"
+  "author": "Aitor Delgado Mart\u00ednez (AD Mobility)",
+  "description": "RutasAD: recorridos, v\u00eddeo y pizarra did\u00e1ctica para formaci\u00f3n vial"
 }

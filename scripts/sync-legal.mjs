@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('..',import.meta.url));
 const read=file=>fs.readFile(path.join(root,file),'utf8');
 const lock=JSON.parse(await read('package-lock.json'));
-const sections=[`AVISOS DE COMPONENTES DE TERCEROS — RutasAD
+const sections=[await read('legal/MAPAS-Y-DERECHOS.txt'),await read('legal/vendor-mediabunny-source.txt'),`AVISOS DE COMPONENTES DE TERCEROS — RutasAD
 
 La licencia propia de RutasAD solo se aplica a las aportaciones originales de su
 titular. Los siguientes componentes conservan sus derechos y condiciones propios.

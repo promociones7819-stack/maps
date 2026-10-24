@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
 // SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
 import LegalNotice from './LegalNotice.jsx';
+import HelpControls from './HelpControls.jsx';
 import React,{useState} from 'react';
 import './welcome.css';
 
@@ -17,7 +18,7 @@ export default function Welcome({ onEnter }) {
             <p>{t('Planifikatu aireko ibilbideak, berrikusi benetako GPX ibilbideak eta prestatu saioetarako bideoak.','Planifica trayectorias aéreas, revisa recorridos reales con GPX y prepara vídeos para tus clases.')}</p>
           </div>
           <button className="welcome-enter" onClick={onEnter}>{t('Aplikazioan sartu','Entrar en la aplicación')} <span aria-hidden="true">→</span></button>
-          <LegalNotice language={language}/>
+          <HelpControls language={language}/><LegalNotice language={language}/>
         </section>
         <aside className="welcome-art" aria-label="AD Mobility, formación y auditoría vial">
           <img src="./ad-mobility-logo.png" alt="AD Mobility · Formación y Auditoría Vial" />

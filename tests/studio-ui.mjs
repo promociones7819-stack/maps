@@ -2,7 +2,7 @@ import {chromium,webkit} from '@playwright/test';
 import assert from 'node:assert/strict';
 for(const browserType of [chromium,webkit].filter(b=>!process.env.BROWSER||b.name()===process.env.BROWSER)){
  const browser=await browserType.launch({headless:true});const page=await browser.newPage({viewport:{width:834,height:1194}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto('http://localhost:5173');await page.getByRole('button',{name:'Aplikazioan sartu'}).click();await page.getByRole('tab',{name:'GPX / Saioak'}).click();
+ await page.goto((process.env.TEST_URL||'http://localhost:5173'));await page.getByRole('button',{name:'Aplikazioan sartu'}).click();await page.getByRole('tab',{name:'GPX / Saioak'}).click();
  const panel=page.locator('.racebox-panel');await panel.getByRole('textbox',{name:'Ikasle berria'}).fill('Ane Studio');await panel.locator('.lesson-new-student button').click();
  const gpx='<gpx xmlns="http://www.topografix.com/GPX/1/1"><trk><trkseg><trkpt lat="43.26" lon="-2.93"><time>2026-10-13T10:00:00Z</time></trkpt><trkpt lat="43.2601" lon="-2.9301"><time>2026-10-13T10:00:02Z</time></trkpt><trkpt lat="43.261" lon="-2.931"><time>2026-10-13T10:00:08Z</time></trkpt></trkseg></trk></gpx>';
  await panel.getByLabel('GPX',{exact:true}).setInputFiles({name:'studio.gpx',mimeType:'application/gpx+xml',buffer:Buffer.from(gpx)});

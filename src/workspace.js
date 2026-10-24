@@ -1,3 +1,4 @@
+import {assembleReview,capturedParts,validateAssembly} from './reviewAssembly.js';
 let active;
 const native=()=>window.trazaDesktop?.chooseWorkspace;
 const db=()=>new Promise((ok,no)=>{const r=indexedDB.open('rutasad-workspace',1);r.onupgradeneeded=()=>r.result.createObjectStore('handles');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
@@ -29,6 +30,11 @@ export async function loadWorkspaceSelection(gpx,video){
  let review;
  if(gpx==='RutasAD-proyecto.json'){const p=JSON.parse(await workspaceText(gpx));if(p.format!=='rutasad-project'||p.version!==1||!Array.isArray(p.review?.points)||!Array.isArray(p.review?.incidents))throw Error('Proyecto RutasAD inválido.');review=p.review;if(review.points.length<2||review.points.some(p=>!Array.isArray(p.coordinates)||p.coordinates.length!==2||!p.coordinates.every(Number.isFinite)||Math.abs(p.coordinates[0])>180||Math.abs(p.coordinates[1])>90||(p.time!=null&&!Number.isFinite(p.time))))throw Error('Posiciones del proyecto inválidas.');if(review.incidents.some(i=>!Array.isArray(i.coordinates)||i.coordinates.length!==2||!i.coordinates.every(Number.isFinite)||typeof i.title!=='string'||typeof i.note!=='string'))throw Error('Incidencias del proyecto inválidas.');}
  else review=parseWorkspaceGpx(await workspaceText(gpx),gpx.replace(/\.gpx$/i,''));
+ validateAssembly(review);
+ if(review.parts?.length){
+  const parts=capturedParts(review).map(p=>({...p,media:p.media?{...p.media,id:crypto.randomUUID(),workspace:true,workspaceName:active.name}:null}));
+  return assembleReview(review,parts);
+ }
  const file=active.files.find(f=>f.name===(video||review.media?.name));
  if(file)review.media={...(review.media||{}),id:crypto.randomUUID(),name:file.name,size:file.size,workspace:true,workspaceName:active.name,videoStartUtc:review.media?.name===file.name&&review.media?.size===file.size?(review.media.videoStartUtc??review.points[0]?.time):review.points[0]?.time};
  else if(review.media)review.media={...review.media,id:crypto.randomUUID(),workspace:true};
@@ -37,5 +43,5 @@ export async function loadWorkspaceSelection(gpx,video){
 export async function openMovieSink({suggestedName='RutasAD-mapa-pip.mp4'}={}){
  if(window.trazaDesktop?.beginMovie){const token=await window.trazaDesktop.beginMovie(suggestedName);if(!token)throw new DOMException('Cancelado','AbortError');return {name:token.name,write:async blob=>window.trazaDesktop.writeMovie(token.id,await blob.arrayBuffer()),close:()=>window.trazaDesktop.finishMovie(token.id),abort:()=>window.trazaDesktop.abortMovie(token.id)};}
  if(!window.showSaveFilePicker)return null;
- const h=await window.showSaveFilePicker({suggestedName,id:'rutasad-export',...(active?.handle?{startIn:active.handle}:{}),types:[{description:'Vídeo MP4',accept:{'video/mp4':['.mp4']}}]});const writable=await h.createWritable();return {name:h.name,handle:h,write:b=>writable.write(b),close:()=>writable.close(),abort:()=>writable.abort(),file:()=>h.getFile()};
+ const h=await window.showSaveFilePicker({suggestedName,id:'traza-bizkaia-export',...(active?.handle?{startIn:active.handle}:{}),types:[{description:'Vídeo MP4',accept:{'video/mp4':['.mp4']}}]});const writable=await h.createWritable();return {name:h.name,handle:h,write:b=>writable.write(b),close:()=>writable.close(),abort:()=>writable.abort(),file:()=>h.getFile()};
 }

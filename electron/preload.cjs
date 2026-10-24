@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('trazaDesktop', Object.freeze({
+  licenseStatus:()=>ipcRenderer.invoke('license:status'),
+  pasteLicense:()=>ipcRenderer.invoke('license:paste'),
+  activateLicense:key=>ipcRenderer.invoke('license:activate',key),
   onPrepareClose:callback=>{const listener=(_event,id)=>callback(id);ipcRenderer.on('autosave:prepare-close',listener);return ()=>ipcRenderer.removeListener('autosave:prepare-close',listener);},
   completeClose:(id,ok,error)=>ipcRenderer.send('autosave:close-ready',{id,ok,error}),
   onBluetoothDevices:callback=>{const listener=(_event,data)=>callback(data);ipcRenderer.on('bluetooth:devices',listener);return ()=>ipcRenderer.removeListener('bluetooth:devices',listener);},

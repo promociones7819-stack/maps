@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
 // SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
-const { app, BrowserWindow, ipcMain, protocol, net, shell, session, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net, shell, session, dialog, safeStorage, clipboard, Menu } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -18,6 +18,12 @@ const backupDirectory=organized.folders(dataDirectory).backups;
 const appDataDirectory = path.join(dataDirectory, '.datos-de-la-aplicacion');
 
 app.setPath('userData', appDataDirectory);
+const licensing=require('./licensing.cjs')({app,safeStorage});
+ipcMain.handle('license:status',()=>licensing.status());
+ipcMain.handle('license:activate',(_event,key)=>licensing.activate(String(key||'').slice(0,100)));
+ipcMain.handle('license:paste',async()=>{const text=(await clipboard.readText()).trim();const compact=text.toUpperCase().replace(/[\s\u200B-\u200D\uFEFF\-\u2010-\u2015\u2212]/g,'');if(text.length>100||! /^(?:(?:ADMIN|EEM|PRE))?[A-F0-9]{32}$/.test(compact))throw Error('Copia una clave de licencia válida antes de pulsar Pegar.');return text;});
+const handle=ipcMain.handle.bind(ipcMain);ipcMain.handle=(channel,handler)=>handle(channel,(event,...args)=>{if((channel.startsWith('workspace:')||channel.startsWith('movie:')||channel.startsWith('bluetooth:')||['library:load','files:save-video','files:save-gpx'].includes(channel))&&!licensing.check().valid)throw Error('Licencia no activa.');return handler(event,...args);});
+
 
 function ensureDataDirectories() {
   organized.ensure(dataDirectory);
@@ -128,9 +134,10 @@ async function createWindow() {
 
   window.on('close',event=>{const pending=closingWindows.get(window.webContents.id);if(pending?.ready)return;event.preventDefault();if(pending)return;const id=require('node:crypto').randomUUID();closingWindows.set(window.webContents.id,{window,id,ready:false});window.webContents.send('autosave:prepare-close',id);});
   const rendererId=window.webContents.id;window.on('closed',()=>closingWindows.delete(rendererId));
-  attachBluetooth(window);
+  attachBluetooth(window,()=>licensing.check().valid);
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    if (/^https?:\/\//i.test(url)||url.startsWith('mailto:admobility26@gmail.com')) shell.openExternal(url);
+    if(/^traza:\/\/app\/(manual\.html|licencia\.html|THIRD-PARTY-NOTICES\.txt|LICENSE\.txt|runtime-licenses\.html)$/.test(url)){const child=new BrowserWindow({parent:window,width:1000,height:800,title:'RutasAD · Ayuda',webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});child.webContents.setWindowOpenHandler(({url:next})=>{if(/^https?:\/\//i.test(next)||next.startsWith('mailto:admobility26@gmail.com'))shell.openExternal(next);return{action:'deny'};});void child.loadURL(url);}
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', (event, url) => {
@@ -141,16 +148,19 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{role:'appMenu'},{role:'editMenu'},{role:'windowMenu'}]));
   // Identify the native app to OSM; Chromium's normal HTTP cache honors tile freshness.
   session.defaultSession.webRequest.onBeforeSendHeaders({urls:['https://tile.openstreetmap.org/*']},(details,callback)=>callback({requestHeaders:{...details.requestHeaders,'User-Agent':`RutasAD/${app.getVersion()} (+https://maps.promociones7819.workers.dev/)`}}));
   session.defaultSession.on('will-download',(_event,item)=>{const raw=item.getFilename(),directory=organized.downloadFolder(dataDirectory,raw);if(!directory)return;organized.ensure(dataDirectory);const extension=path.extname(raw).toLowerCase(),name=cleanFileName(raw,extension);item.setSavePath(organized.uniqueFile(directory,name));});
   const serveMapTile=require('./map-tiles.cjs')({directory:path.join(appDataDirectory,'cache-ortofoto'),fetchTile:(url,options)=>net.fetch(url,options)});
   const servePnoaTile=require('./map-tiles.cjs')({directory:path.join(appDataDirectory,'cache-ortofoto-pnoa'),fetchTile:(url,options)=>net.fetch(url,options),provider:'pnoa'});
   protocol.handle('traza', async request => {
+    if(new URL(request.url).pathname==='/runtime-licenses.html'){const target=app.isPackaged?path.join(process.resourcesPath,'legal','Chromium-notices.html'):path.join(__dirname,'..','node_modules','electron','dist','LICENSES.chromium.html');return net.fetch(pathToFileURL(target).toString());}
     if(new URL(request.url).pathname.startsWith('/__pnoa/'))return servePnoaTile(request);
     if(new URL(request.url).pathname.startsWith('/__geo/'))return serveMapTile(request);
     if(new URL(request.url).hostname==='app'&&['/__workspace/','/__recordings/'].some(prefix=>new URL(request.url).pathname.startsWith(prefix))){
       try{
+        if(!licensing.check().valid)return new Response('Licencia no activa',{status:403});
         const recording=new URL(request.url).pathname.startsWith('/__recordings/'),name=decodeURIComponent(new URL(request.url).pathname.slice(recording?'/__recordings/'.length:'/__workspace/'.length));if(recording&&(path.basename(name)!==name||!name.toLowerCase().endsWith('.mp4')))return new Response('Archivo no disponible',{status:404});const file=recording?path.join(videoDirectory,name):workspaceFile(name),stat=await fs.promises.lstat(file);if(!stat.isFile())return new Response('Archivo no disponible',{status:404});
         const size=stat.size,range=request.headers.get('range');let start=0,end=size-1,status=200;const headers={'Accept-Ranges':'bytes','Content-Type':({'.mp4':'video/mp4','.m4v':'video/mp4','.mov':'video/quicktime','.webm':'video/webm'})[path.extname(file).toLowerCase()]||'application/octet-stream'};
         if(range){const match=/^bytes=(\d*)-(\d*)$/.exec(range);if(!match||(!match[1]&&!match[2]))return new Response(null,{status:416,headers:{'Content-Range':`bytes */${size}`}});start=match[1]?Number(match[1]):Math.max(0,size-Number(match[2]));end=match[1]&&match[2]?Math.min(size-1,Number(match[2])):size-1;if(start>end||start>=size)return new Response(null,{status:416,headers:{'Content-Range':`bytes */${size}`}});status=206;headers['Content-Range']=`bytes ${start}-${end}/${size}`;}
@@ -165,7 +175,7 @@ app.whenReady().then(async () => {
     return net.fetch(pathToFileURL(filePath).toString());
   });
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
-    callback(permission === 'media' && details.mediaTypes?.includes('audio'));
+    callback((permission === 'media' && details.mediaTypes?.includes('audio'))||(permission==='bluetooth'&&licensing.check().valid&&_webContents.getURL().startsWith('traza://app/')));
   });
   await createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

@@ -10,11 +10,11 @@ ipcMain.handle('bluetooth:select',(event,{requestId,deviceId})=>{
  const entry=requests.get(event.sender.id);if(!entry||entry.id!==requestId||!entry.devices.some(d=>d.deviceId===deviceId))throw Error('El dispositivo ya no está disponible.');finish(event.sender,deviceId,'selected');
 });
 ipcMain.handle('bluetooth:cancel',(event,requestId)=>{if(requests.get(event.sender.id)?.id===requestId)finish(event.sender);});
-module.exports=function attachBluetooth(window){
+module.exports=function attachBluetooth(window,allowed=()=>true){
  const contents=window.webContents,id=contents.id;
  contents.on('select-bluetooth-device',(event,devices,callback)=>{
   event.preventDefault();
-  if(!contents.getURL().startsWith('traza://app/')){callback('');return;}
+  if(!allowed()||!contents.getURL().startsWith('traza://app/')){callback('');return;}
   let entry=requests.get(contents.id);
   if(!entry){entry={id:randomUUID(),callback,devices:[],timer:setTimeout(()=>finish(contents,'','timeout'),60000)};requests.set(contents.id,entry);}
   entry.callback=callback;entry.devices=devices.map(d=>({deviceId:d.deviceId,deviceName:d.deviceName||''}));

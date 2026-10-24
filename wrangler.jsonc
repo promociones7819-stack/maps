@@ -16,5 +16,10 @@
       "database_name": "rutasad-auth",
       "database_id": "b4769b34-1321-4f6f-bfc4-74af49ff2713"
     }
-  ]
+  ],
+  "vars": {
+    "PUBLIC_ORIGIN": "https://maps.promociones7819.workers.dev"
+  },
+  "account_id": "2e217cab4139eeb9cb7a294fd080ab99",
+  "workers_dev": true
 }

@@ -42,6 +42,7 @@ function connectDesktopLibrary() {
 
 async function start() {
   const root = createRoot(document.getElementById('root'));
+  if(window.trazaDesktop?.licenseStatus){const {default:DesktopLicense}=await import('./DesktopLicense.jsx');let status;try{status=await window.trazaDesktop.licenseStatus();}catch(e){status={valid:false,error:e.message};}if(!status.valid)await new Promise(resolve=>root.render(<DesktopLicense initial={status} onReady={resolve}/>));setInterval(async()=>{try{const state=await window.trazaDesktop.licenseStatus();if(!state.valid){await finishAutosave();root.render(<DesktopLicense initial={state} onReady={()=>location.reload()}/>);}}catch{}},600000);}
   if (import.meta.env.PROD && 'serviceWorker' in navigator && !window.trazaDesktop && !Capacitor.isNativePlatform()) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
   if (import.meta.env.PROD && !window.trazaDesktop && !Capacitor.isNativePlatform()) {
@@ -73,15 +74,14 @@ async function start() {
   window.addEventListener('beforeunload',event=>{checkpointAutosave();if(!window.trazaDesktop&&hasActiveWork()){event.preventDefault();event.returnValue='';}});
   if(!window.trazaDesktop)reconnectDataFolder().catch(e=>reportAutosave('error',e.message));
   const openApp = async () => {
+    if(window.trazaDesktop?.licenseStatus){const state=await window.trazaDesktop.licenseStatus();if(!state.valid){const{default:DesktopLicense}=await import('./DesktopLicense.jsx');root.render(<DesktopLicense initial={state} onReady={()=>window.dispatchEvent(new Event('rutasad:home'))}/>);return;}}
     const { default: App } = await import('./App.jsx');
     root.render(<React.StrictMode><App /></React.StrictMode>);
   };
-  if (window.trazaDesktop || sessionStorage.getItem('rutasad-after-student-delete')==='1') {
-    await openApp();
-  } else {
-    const { default: Welcome } = await import('./Welcome.jsx');
-    root.render(<React.StrictMode><Welcome onEnter={openApp} /></React.StrictMode>);
-  }
+  let goingHome=false;
+  const showHome=async()=>{if(goingHome)return;goingHome=true;try{await finishAutosave();await saveDataFolder();if(window.trazaDesktop)await window.trazaDesktop.saveLibrary(librarySnapshot());const{default:Welcome}=await import('./Welcome.jsx');root.render(<React.StrictMode><Welcome onEnter={openApp}/></React.StrictMode>);}catch(e){reportAutosave('error',e.message);}finally{goingHome=false;}};
+  window.addEventListener('rutasad:home',showHome);
+  window.addEventListener('message',e=>{if(e.origin===location.origin&&e.data==='rutasad:home')window.dispatchEvent(new Event('rutasad:home'));});
+  if(window.trazaDesktop||sessionStorage.getItem('rutasad-after-student-delete')==='1')await openApp();else await showHome();
 }
-
 start();

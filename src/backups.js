@@ -1,3 +1,4 @@
+import {validateAssembly} from './reviewAssembly.js';
 import {BOARD_DRAFT_KEY,SESSION_KEY,validBoardRecovery,validSession,suspendAutosave} from './autosave.js';
 import {validBoardDocument} from './boardModel.js';
 import {BOARD_CASES_KEY,validBoardCases} from './boardModel.js';
@@ -5,6 +6,7 @@ import {listLessons,listLibraryReviews,replaceBackupRecords} from './lessonStore
 import {validateTrack} from './racebox.js';
 import {FICHA_KEY,validateStudents,mergeStudents} from './students.js';
 const prefix='traza-bizkaia-';
+const desktopSnapshot=()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith('traza-bizkaia-')).map(k=>[k,localStorage.getItem(k)]));
 export const backupStorage=()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith(prefix)).map(k=>[k,localStorage.getItem(k)]));
 const array=(value,max=10000)=>Array.isArray(value)&&value.length<=max;
 const text=value=>typeof value==='string'&&value.length>0&&value.length<=500;
@@ -15,6 +17,8 @@ function reviewValid(review){
  if(!review||!array(review.points,100000)||!array(review.incidents,10000))fail();
  for(const p of review.points)if(!p||!coordinates(p.coordinates)||(p.time!=null&&!Number.isFinite(p.time)))fail();
  for(const i of review.incidents)if(!i||!coordinates(i.coordinates)||typeof i.title!=='string'||typeof i.note!=='string')fail();
+ try{validateAssembly(review);}catch{fail();}
+ if(review.parts!=null){if(!array(review.parts,100)||new Set(review.parts.map(p=>p.id)).size!==review.parts.length)fail();for(const p of review.parts){if(!text(p.id)||!text(p.name)||p.parts)fail();reviewValid({...p,incidents:p.incidents||[]});if(!Number.isFinite(p.startTime)||!Number.isFinite(p.endTime)||!Number.isFinite(p.shift)||p.endTime<=p.startTime)fail();}}
  if(review.name!=null&&typeof review.name!=='string')fail();
  if(review.media!=null&&(!review.media||typeof review.media!=='object'||typeof review.media.name!=='string'))fail();
 }
@@ -81,7 +85,7 @@ export async function restoreBackup(input,{update=false,desktop=window.trazaDesk
  const merged=mergeBackupStorage(storage,backup.storage,update),records={sessions:mergeItems(sessions,backup.sessions,update),library:mergeItems(library,backup.library,update)};
  const resumeAutosave=suspendAutosave();
  let recordsWritten=false;
- try{writeStorage(merged);await replaceBackupRecords(records);recordsWritten=true;if(desktop)await desktop.saveLibrary(merged);}
- catch(error){resumeAutosave();let rollbackError;try{writeStorage(storage);}catch(e){rollbackError=e;}if(recordsWritten)try{await replaceBackupRecords({sessions,library});}catch(e){rollbackError=e;}if(desktop)try{await desktop.saveLibrary(storage);}catch(e){rollbackError=e;}throw Error(rollbackError?'No se pudo completar la restauración. No cierres la aplicación; conserva tu archivo de copia.':`No se pudo restaurar. Se han conservado los datos anteriores. ${error.message||''}`);}
+ try{writeStorage(merged);await replaceBackupRecords(records);recordsWritten=true;if(desktop)await desktop.saveLibrary(desktopSnapshot());}
+ catch(error){resumeAutosave();let rollbackError;try{writeStorage(storage);}catch(e){rollbackError=e;}if(recordsWritten)try{await replaceBackupRecords({sessions,library});}catch(e){rollbackError=e;}if(desktop)try{await desktop.saveLibrary(desktopSnapshot());}catch(e){rollbackError=e;}throw Error(rollbackError?'No se pudo completar la restauración. No cierres la aplicación; conserva tu archivo de copia.':`No se pudo restaurar. Se han conservado los datos anteriores. ${error.message||''}`);}
  return backupSummary(backup);
 }

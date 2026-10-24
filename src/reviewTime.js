@@ -11,7 +11,7 @@ export function pointAt(points,fraction,clock=timeline(points)) {
  while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(points[mid].time<=time)lo=mid;else hi=mid-1;}
  const a=points[lo],b=points[lo+1];
  // Interpolate only within one continuous segment; never bridge a BLE gap.
- if(b&&a.segment===b.segment&&b.time>a.time){const f=(time-a.time)/(b.time-a.time);return {index:lo,point:{...a,time,coordinates:a.coordinates.map((v,i)=>v+(b.coordinates[i]-v)*f)},time};}
+ if(b&&a.segment===b.segment&&b.time>a.time){const f=(time-a.time)/(b.time-a.time);return {index:lo,point:{...a,time,...(Number.isFinite(a.sourceTime)&&Number.isFinite(b.sourceTime)?{sourceTime:a.sourceTime+(b.sourceTime-a.sourceTime)*f}:{}),coordinates:a.coordinates.map((v,i)=>v+(b.coordinates[i]-v)*f)},time};}
  return {index:lo,point:a,time,gap:!!b&&time>a.time&&a.segment!==b.segment};
 }
 export function pointFraction(points,index,c=timeline(points)) {return c.timed?(points[index].time-c.start)/(c.end-c.start):index/Math.max(1,points.length-1);}

@@ -1,3 +1,4 @@
+import {mapExportCredit} from './mapTiles.js';
 import {assertMapExportAllowed} from './googleMaps.js';
 // SPDX-FileCopyrightText: 2026 Aitor Delgado Martínez · AD Mobility
 // SPDX-License-Identifier: LicenseRef-RutasAD-Educational-NonCommercial-1.0
@@ -41,7 +42,7 @@ export async function renderBoardCanvas({map,items,markers,name,step,answerVisib
  // Allocate room for all notes instead of silently clipping an explanation.
  const lines=textLines(ctx,notes,width-36);const footerHeight=frame?180:Math.max(180,lines.length*20+92);
  let output=canvas;if(footerHeight>180){output=document.createElement('canvas');output.width=width;output.height=height+footerHeight;const c=output.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,width,output.height);c.drawImage(canvas,0,0);}
- const c=output.getContext('2d');c.fillStyle='#193e31';c.font='13px sans-serif';(frame?lines.slice(0,5):lines).forEach((line,n)=>c.fillText(line,18,height+56+n*20));const end=height+56+(frame?Math.min(5,lines.length):lines.length)*20;c.fillStyle='#536e60';c.font='11px sans-serif';const attribution=(map.getContainer().querySelector('.maplibregl-ctrl-attrib-inner,.mapboxgl-ctrl-attrib-inner')?.textContent||map.getStyle().sources['basemap-source']?.attribution||'Mapbox · © OpenStreetMap').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim();c.fillText('RutasAD · © Aitor Delgado Martínez · '+attribution,18,Math.max(end+20,output.height-18),width-36);
+ const c=output.getContext('2d');c.fillStyle='#193e31';c.font='13px sans-serif';(frame?lines.slice(0,5):lines).forEach((line,n)=>c.fillText(line,18,height+56+n*20));const end=height+56+(frame?Math.min(5,lines.length):lines.length)*20;c.fillStyle='#536e60';c.font='11px sans-serif';const attribution=mapExportCredit(map);c.fillText('RutasAD · © Aitor Delgado Martínez · '+attribution,18,Math.max(end+20,output.height-18),width-36);
  return output;
 }
 export async function exportBoard(options){

@@ -71,3 +71,8 @@
 .google-budget-warning{position:absolute;z-index:6;top:68px;right:18px;max-width:340px;background:#fff0cc;border:1px solid #d6a031;border-radius:8px;padding:12px;color:#624810;text-align:left;font-size:13px}.google-data-credit{font-size:14px}
 
 .map-provider-help{display:block;font-size:11px;line-height:1.5;color:#52685b;margin:10px 0}.map-provider-help a{text-decoration:underline}.map-provider-options button{font-size:12px;min-height:64px}.map-provider-options small{font-size:10px}
+
+/* Added assembly and fast export controls. */
+.map-provider-help{display:block;font-size:11px;line-height:1.5;color:#52685b;margin:10px 0}.map-provider-help a{text-decoration:underline}.map-provider-options button{font-size:12px;min-height:64px}.map-provider-options small{font-size:10px}
+
+.assembly-panel{margin:12px 0;border:1px solid #bdd0c5;border-radius:10px;background:#f1f6f2;padding:10px;font-size:13px}.assembly-panel summary{cursor:pointer;font-weight:700;padding:8px;background:#dcece3;border-radius:7px}.assembly-panel ol{padding:0;list-style:none;max-height:330px;overflow:auto}.assembly-panel li{padding:10px;border-top:1px solid #c5d9cf}.assembly-panel li strong,.assembly-panel li small{display:block;overflow-wrap:anywhere}.assembly-panel li>div{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.assembly-panel button{padding:7px 10px;background:#176253;color:white;border-radius:6px}.assembly-panel button:disabled{opacity:.4}.movie-toolbar label{display:flex;align-items:center;gap:8px;font-size:13px}

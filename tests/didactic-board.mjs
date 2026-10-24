@@ -10,7 +10,7 @@ try{
   localStorage.setItem('traza-bizkaia-project-board-test',JSON.stringify([{id:'original-route',name:'Trayectoria original',color:'#e36b4d',points:[[-2.935,43.263],[-2.934,43.264]],narration:'Conservar explicación'}]));localStorage.setItem('traza-bizkaia-project-board-test-markers','[]');
   navigator.mediaDevices.getUserMedia=()=>{window.boardMicrophoneCalled=true;throw Error('The board must not access the microphone');};const NativeRecorder=window.MediaRecorder;window.MediaRecorder=class extends NativeRecorder{constructor(...args){window.boardRecorderCalled=true;super(...args);}};
  });
- await page.goto('http://localhost:5173');await page.getByRole('button',{name:'Entrar en la aplicación'}).click();
+ await page.goto((process.env.TEST_URL||'http://localhost:5173'));await page.getByRole('button',{name:'Entrar en la aplicación'}).click();
  const launch=page.getByRole('button',{name:'Pizarra didáctica',exact:false});await launch.waitFor();await page.getByRole('button',{name:'Enfocar',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('.pizarra-launch').disabled);await page.waitForTimeout(1000);
  const snapshot=()=>page.evaluate(async()=>({storage:Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith('traza-bizkaia-')&&!k.startsWith('traza-bizkaia-autosave-')&&k!=='traza-bizkaia-board-autosave').map(k=>[k,localStorage.getItem(k)])),lessons:await(await import('/src/lessonStore.js')).listLessons(),library:await(await import('/src/lessonStore.js')).listLibraryReviews()}));
  const before=await snapshot();await launch.click();const board=page.getByRole('dialog',{name:'Pizarra didáctica',exact:true});await board.waitFor();await board.getByRole('status').filter({hasText:'Señala sobre el mapa'}).waitFor();

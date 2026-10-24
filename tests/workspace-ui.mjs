@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch();const page=await browser.newPage();page.setDefaultTimeout(15000);
 try{
- await page.goto('http://localhost:5173');const fixture=await fs.readFile('tests/fixtures/dashcam-test.mp4');await page.evaluate(async video=>{
+ await page.goto((process.env.TEST_URL||'http://localhost:5173'));const fixture=await fs.readFile('tests/fixtures/dashcam-test.mp4');await page.evaluate(async video=>{
   const root=await navigator.storage.getDirectory(),folder=await root.getDirectoryHandle('class-test',{create:true});
   const write=async(n,b)=>{const f=await folder.getFileHandle(n,{create:true}),w=await f.createWritable();await w.write(b);await w.close();};
   await write('route.gpx','<gpx><trk><trkseg><trkpt lat="43.26" lon="-2.93"><time>2026-10-15T10:00:00Z</time></trkpt><trkpt lat="43.261" lon="-2.931"><time>2026-10-15T10:00:06Z</time></trkpt></trkseg></trk></gpx>');await write('route.mp4',new Uint8Array(video));await write('final.mp4','KEEP');

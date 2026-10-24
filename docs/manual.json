@@ -1,0 +1,348 @@
+[
+  {
+    "id": "start",
+    "es": [
+      "1. Primeros pasos",
+      "RutasAD permite preparar trayectorias, explicar situaciones en una pizarra, revisar GPX con vídeo PIP y gestionar alumnos y clases.",
+      "Web: accede con el correo y contraseña que facilite el administrador. Windows y Mac: introduce una licencia de RutasAD en la primera apertura con Internet. EEM y PRE son de un equipo; ADMIN permite varios equipos y no caduca.",
+      "En el inicio elige Euskara o Castellano y pulsa Entrar en la aplicación. Manual y Contacto están disponibles también en el inicio y en el mapa. Pulsar el logo regresa al inicio conservando el trabajo mediante autoguardado; si hay una grabación, se finaliza antes de salir."
+    ],
+    "eu": [
+      "1. Lehen urratsak",
+      "RutasADrekin ibilbideak prestatu, zirkulazio-egoerak arbelean azaldu, GPX eta PIP bideoa berrikusi eta ikasleak eta eskolak kudea ditzakezu.",
+      "Webean, sartu administratzailearen helbide eta pasahitzarekin. Windows eta Mac: lehen aldian aktibatu RutasADren lizentzia Internetekin. EEM eta PRE gakoak ordenagailu bakarrerako dira; ADMIN gakoak hainbat equipo baimentzen ditu eta ez da iraungitzen.",
+      "Hasieran aukeratu Euskara edo Castellano eta sakatu Aplikazioan sartu. Eskuliburua eta Kontaktua hasieran eta mapan ere badaude. Logoan sakatzean hasierara itzuliko zara, lana autogordeta; grabatzen ari bazara, grabazioa amaituko da lehenik."
+    ]
+  },
+  {
+    "id": "maps",
+    "es": [
+      "2. Mover el mapa y elegir el fondo",
+      "Arrastra el mapa con el ratón y usa la rueda o los botones + y − para acercar o alejar. En pizarra elige Mover mapa para desplazarte sin dibujar.",
+      "Abre Fuente del mapa: geoEuskadi muestra ortofotos de Euskadi; PNOA · IGN ofrece ortofoto alternativa; OpenStreetMap muestra calles. Cambiar el fondo conserva las trazadas.",
+      "Si un proveedor falla, prueba otro. La antigüedad y cobertura varían. No se garantiza el servicio ni que la imagen represente el estado actual de la vía. La descarga de zonas está disponible solo para los fondos que lo permiten; no descargues masivamente OpenStreetMap.",
+      "Mantén visibles los créditos del mapa. Las trazadas y señales añadidas son material didáctico superpuesto; no modifican la cartografía oficial ni constituyen indicaciones oficiales de tráfico.",
+      "Buscar lugar permite encontrar un pueblo o una calle antes de dibujar. Google y Mapbox siguen siendo opcionales si configuras sus cuentas; sus condiciones y costes son propios. La exportación de mapas Google está deshabilitada; usa un fondo permitido para grabar."
+    ],
+    "eu": [
+      "2. Mapa mugitu eta atzeko planoa aukeratu",
+      "Arrastatu mapa saguarekin. Erabili gurpila edo + eta − botoiak hurbiltzeko eta urruntzeko. Arbelean aukeratu Mapa mugitu, marraztu gabe lekuz aldatzeko.",
+      "Ireki maparen iturria: geoEuskadik Euskadiko ortoargazkiak erakusten ditu; PNOA · IGN beste ortoargazki-iturri bat da; OpenStreetMapek kaleak erakusten ditu. Atzeko planoa aldatzean trazadurak mantentzen dira.",
+      "Hornitzaile batek huts egiten badu, probatu beste bat. Irudien data eta estaldura aldakorrak dira. Zerbitzua eta bidearen egungo egoera ez daude bermatuta. Baimendutako iturrietan soilik deskarga daitezke eremuak; ez egin OpenStreetMapen deskarga masiborik.",
+      "Mantendu maparen kredituak ikusgai. Gehitutako trazadurak eta seinaleak material didaktikoa dira: ez dute kartografia ofiziala aldatzen eta ez dira trafikoko jarraibide ofizialak.",
+      "Lekua bilatu aukerarekin herria edo kalea aurki dezakezu marraztu aurretik. Google eta Mapbox aukerakoak dira, beren kontu eta baldintzekin. Google mapen esportazioa desgaituta dago; erabili baimendutako hondo bat grabatzeko."
+    ]
+  },
+  {
+    "id": "projects",
+    "es": [
+      "3. Proyectos y biblioteca",
+      "Crea o selecciona un proyecto de trayectoria. Usa un nombre reconocible: cruce, localidad o situación. Cada proyecto puede contener varias trazadas y puntos conflictivos.",
+      "Biblioteca reúne Trayectorias y Pizarras. Busca por nombre, ordena y pulsa Abrir. Eliminar borra el elemento elegido tras la confirmación; comprueba el nombre antes de aceptar. No equivale a borrar todos los archivos MP4 del disco.",
+      "Para trabajar en otra situación, crea otro proyecto en lugar de sobrescribir una explicación que quieras conservar."
+    ],
+    "eu": [
+      "3. Proiektuak eta liburutegia",
+      "Sortu edo aukeratu ibilbide-proiektu bat. Eman izen argia: bidegurutzea, herria edo egoera. Proiektu bakoitzak hainbat trazadura eta puntu gatazkatsu izan ditzake.",
+      "Liburutegiak Ibilbideak eta Arbelak biltzen ditu. Bilatu izenaren arabera, ordenatu eta sakatu Ireki. Ezabatu aukerak hautatutako elementua kentzen du berretsi ondoren; egiaztatu izena onartu aurretik. Horrek ez ditu diskoko MP4 fitxategi guztiak ezabatzen.",
+      "Beste egoera bat lantzeko, sortu beste proiektu bat gorde nahi duzun azalpena gainidatzi ordez."
+    ]
+  },
+  {
+    "id": "paths",
+    "es": [
+      "4. Dibujar y corregir trayectorias",
+      "Selecciona una capa o trazada y activa Añadir puntos en el mapa. Coloca los puntos en el orden de circulación. Cambia el color o el nombre de cada trazada para distinguir vehículos o alternativas.",
+      "Para corregir un error, selecciona el punto en el mapa o en Punto del itinerario. Puedes arrastrarlo, Recolocar, Adelantar, Retrasar o Eliminar ese punto. No necesitas borrar toda la trazada.",
+      "Mientras colocas puntos la vista no vuelve por sí sola al origen. Usa el ratón para moverla o Enfocar cuando quieras recentrar. Finaliza el modo de añadir antes de seleccionar otra herramienta."
+    ],
+    "eu": [
+      "4. Trazadurak marraztu eta zuzendu",
+      "Aukeratu geruza edo trazadura eta aktibatu mapan puntuak gehitzeko aukera. Jarri puntuak zirkulazioaren ordenan. Aldatu trazaduraren kolorea edo izena, ibilgailuak eta aukerak bereizteko.",
+      "Akats bat zuzentzeko, hautatu puntua mapan edo ibilbideko puntuen zerrendan. Arrastatu, birkokatu, aurreratu, atzeratu edo puntu hori ezabatu dezakezu. Ez da trazadura osoa ezabatu behar.",
+      "Puntuak jartzean ikuspegia ez da berez hasierara itzultzen. Mugitu saguarekin edo erabili fokuratzeko aukera berriz zentratu nahi duzunean. Amaitu puntuak gehitzeko modua beste tresna bat aukeratu aurretik."
+    ]
+  },
+  {
+    "id": "signals",
+    "es": [
+      "5. Señales y puntos conflictivos",
+      "Añade un punto conflictivo donde quieras explicar una incidencia. Abre su editor para elegir entre las señales y situaciones del catálogo: prioridad, STOP, ceda el paso, semáforos, velocidad, dirección y las demás categorías disponibles.",
+      "En velocidad máxima introduce el límite concreto. En dirección escribe destinos y elige las flechas. Añade una nota clara sobre la maniobra o el error que quieras comentar. Puedes editar o recolocar posteriormente el elemento.",
+      "Las explicaciones de la reproducción aparecen al alcanzar su punto. Comprueba en una prueba corta que el orden y la posición son correctos antes de una grabación larga."
+    ],
+    "eu": [
+      "5. Seinaleak eta puntu gatazkatsuak",
+      "Gehitu puntu gatazkatsu bat gorabehera azaldu nahi duzun lekuan. Ireki editorea katalogoko seinaleak eta egoerak aukeratzeko: lehentasuna, STOP, utzi pasatzen, semaforoak, abiadura, norabidea eta gainerako kategoriak.",
+      "Gehieneko abiaduran sartu muga zehatza. Norabidean idatzi helmugak eta aukeratu geziak. Gehitu maniobrari edo akatsari buruzko ohar argia. Elementua geroago editatu edo birkokatu dezakezu.",
+      "Erreprodukzioko azalpenak dagokien puntura iristean agertzen dira. Grabazio luze bat egin aurretik, egiaztatu proba labur batean ordena eta kokapena zuzenak direla."
+    ]
+  },
+  {
+    "id": "playback",
+    "es": [
+      "6. Reproducción y cámara",
+      "Reproduce la trayectoria para revisar el recorrido y los puntos conflictivos. Ajusta la cámara y la vista antes de comenzar la explicación.",
+      "Pausar imagen detiene el avance visual; Reanudar imagen continúa. Durante una grabación la voz sigue grabándose aunque la imagen esté pausada. Puedes usar el puntero sobre el mapa para explicar sin señalar los botones de la aplicación.",
+      "El puntero didáctico pertenece al mapa. No lo confundas con el cursor normal del sistema ni con las herramientas de edición."
+    ],
+    "eu": [
+      "6. Erreprodukzioa eta kamera",
+      "Erreproduzitu ibilbidea trazadura eta puntu gatazkatsuak berrikusteko. Doitu kamera eta ikuspegia azalpena hasi aurretik.",
+      "Irudia pausatzeak aurrerapen bisuala gelditzen du; irudia berrabiatzeak jarraitzen du. Grabazioan ahotsa grabatzen jarraitzen da irudia pausatuta egon arren. Erabili erakuslea mapan, aplikazioaren botoiak seinalatu gabe azaltzeko.",
+      "Erakusle didaktikoa mapari dagokio. Ez nahastu sistemako kurtsore arruntarekin edo edizio-tresnekin."
+    ]
+  },
+  {
+    "id": "board",
+    "es": [
+      "7. Abrir la pizarra",
+      "Pizarra didáctica abre un espacio para explicar una situación. Trazadas a pizarra copia las trazadas y señales del proyecto preparado, para analizarlas sin modificar el proyecto de origen.",
+      "La pizarra conserva un borrador de recuperación mediante autoguardado. Para conservar una explicación con nombre en Biblioteca, usa Guardar explicación. Salir de pizarra puede descartar los elementos temporales si aceptas su confirmación.",
+      "Volver al inicio mediante el logo conserva el borrador: no sustituye el guardado con nombre cuando quieras archivar una explicación."
+    ],
+    "eu": [
+      "7. Arbela ireki",
+      "Arbel didaktikoa aukerak egoera bat azaltzeko gunea irekitzen du. Trazadurak arbelera aukerak prestatutako proiektuko trazadurak eta seinaleak kopiatzen ditu, jatorrizko proiektua aldatu gabe aztertzeko.",
+      "Arbelak berreskuratzeko zirriborroa autogordetzen du. Azalpen bat izenarekin Liburutegian gordetzeko, erabili Gorde azalpena. Arbeletik irtetean, aldi baterako elementuak bazter daitezke berrespena onartuz gero.",
+      "Logoaren bidez hasierara itzultzean zirriborroa mantentzen da; azalpena artxibatzeko, gorde izenarekin ere."
+    ]
+  },
+  {
+    "id": "tools",
+    "es": [
+      "8. Herramientas de pizarra",
+      "Elige Puntero para señalar y Mover mapa para desplazarte. Dibuja trazadas, flechas y formas; coloca vehículos, señales, semáforos y notas. Selecciona un elemento para ajustar su posición, tamaño, orientación o propiedades según su tipo.",
+      "Si cambias a Mover mapa mientras dibujas una trayectoria, puedes volver a la herramienta y continuar la misma trazada. Finalizar inicia una nueva. Deshacer permite corregir acciones recientes.",
+      "Los vehículos pueden seguir trazadas y los semáforos cambiar de fase para representar una situación. Usa Editar para preparar y Presentar para explicar con menos controles."
+    ],
+    "eu": [
+      "8. Arbeleko tresnak",
+      "Aukeratu Erakuslea seinalatzeko eta Mapa mugitu lekuz aldatzeko. Marraztu trazadurak, geziak eta formak; jarri ibilgailuak, seinaleak, semaforoak eta oharrak. Hautatu elementua eta doitu kokapena, tamaina, orientazioa edo bere motako propietateak.",
+      "Trazadura marraztean Mapa mugitu aukerara aldatzen bazara, tresnara itzuli eta trazadura bera jarrai dezakezu. Amaitu aukerak trazadura berria hastea ahalbidetzen du. Desegin aukerarekin azken ekintzak zuzendu ditzakezu.",
+      "Ibilgailuek trazadurak jarrai ditzakete eta semaforoek fasea alda dezakete egoera antzezteko. Erabili Editatu prestatzeko eta Aurkeztu kontrol gutxiagorekin azaltzeko."
+    ]
+  },
+  {
+    "id": "steps",
+    "es": [
+      "9. Pasos, preguntas y respuestas",
+      "Divide una explicación en pasos: situación inicial, pregunta, maniobra y solución. Cada paso mantiene sus propios elementos y textos. Selecciona el paso antes de modificarlo.",
+      "Añade una pregunta y una respuesta. Durante la clase muestra primero la pregunta y revela la respuesta cuando corresponda. Puedes ordenar o eliminar pasos; revisa el resultado antes de guardar.",
+      "Guarda la explicación en Pizarras o como proyecto de trayectoria cuando quieras continuar con las herramientas de ese modo. El original del que partiste sigue siendo independiente."
+    ],
+    "eu": [
+      "9. Urratsak, galderak eta erantzunak",
+      "Banatu azalpena urratsetan: hasierako egoera, galdera, maniobra eta irtenbidea. Urrats bakoitzak bere elementuak eta testuak ditu. Hautatu urratsa aldatu aurretik.",
+      "Gehitu galdera eta erantzuna. Eskolan erakutsi lehenik galdera eta agerrarazi erantzuna dagokionean. Urratsak ordenatu edo ezaba ditzakezu; berrikusi emaitza gorde aurretik.",
+      "Gorde azalpena Arbeletan edo ibilbide-proiektu gisa, modu horretako tresnekin jarraitu nahi baduzu. Abiapuntuko jatorrizkoa independentea da."
+    ]
+  },
+  {
+    "id": "recording",
+    "es": [
+      "10. Grabar y exportar MP4",
+      "Antes de una clase larga haz una prueba breve: comprueba mapa, micrófono, volumen y espacio libre. Autoriza el micrófono solo si vas a grabar la voz. Selecciona el destino cuando se solicite.",
+      "En pizarra pulsa Grabar clase. Pausar imagen mantiene el audio y permite explicar sobre la situación detenida; Reanudar imagen continúa. Finalizar y guardar MP4 cierra el archivo. Espera al mensaje de finalización antes de cerrar la app.",
+      "Las trayectorias también permiten grabación de la explicación. Mantén la pantalla encendida y evita suspender el equipo o cambiar de pestaña mientras grabas. Si el navegador no admite MP4, utiliza Chrome compatible o el instalable.",
+      "El MP4 es un archivo separado del proyecto y de la copia JSON. Conserva sus créditos cartográficos. No grabes ni distribuyas voces o información personal sin la autorización o base legal correspondiente.",
+      "Los nuevos vídeos incluyen el logo del cliente como marca de agua discreta en la esquina superior izquierda. No sustituye los créditos del mapa ni modifica los vídeos antiguos."
+    ],
+    "eu": [
+      "10. MP4 grabatu eta esportatu",
+      "Eskola luze baten aurretik egin proba laburra: egiaztatu mapa, mikrofonoa, bolumena eta diskoan dagoen lekua. Baimendu mikrofonoa ahotsa grabatu nahi baduzu soilik. Aukeratu helmuga eskatzen zaizunean.",
+      "Arbelean sakatu Grabatu eskola. Irudia pausatzean audioak jarraitzen du eta gelditutako egoera azal dezakezu; irudia berrabiatzean aurrera jarraitzen du. MP4 amaitu eta gordetzeko aukerak fitxategia ixten du. Itxaron amaierako mezuari aplikazioa itxi aurretik.",
+      "Ibilbideetan ere azalpena graba daiteke. Mantendu pantaila piztuta eta ez eseki ordenagailua edo aldatu fitxa grabatzean. Nabigatzaileak MP4 onartzen ez badu, erabili Chrome bateragarria edo instalatutako aplikazioa.",
+      "MP4a proiektutik eta JSON kopiatik bereizitako fitxategia da. Mantendu kartografiaren kredituak. Ez grabatu edo zabaldu ahotsik edo datu pertsonalik dagokion baimenik edo lege-oinarririk gabe.",
+      "Bideo berriek bezeroaren logoa dute ur-marka diskretu gisa, goiko ezkerreko izkinan. Ez ditu maparen kredituak ordezkatzen eta ez ditu aurreko bideoak aldatzen."
+    ]
+  },
+  {
+    "id": "exports",
+    "es": [
+      "11. PNG, PDF y proyectos",
+      "En pizarra utiliza PNG o PDF para una imagen o documento del estado actual. Comprueba el paso seleccionado y si la respuesta debe verse. Las exportaciones incorporan créditos del mapa y de la aplicación.",
+      "Guardar explicación conserva los elementos editables en Biblioteca. Guardar como trayectoria crea un proyecto para continuar en ese modo. Exportar un MP4, PNG o PDF no sustituye al guardado editable.",
+      "El botón Imprimir / PDF de este manual usa la impresión del sistema para guardar el idioma elegido como PDF."
+    ],
+    "eu": [
+      "11. PNG, PDF eta proiektuak",
+      "Arbelean erabili PNG edo PDF uneko egoeraren irudia edo dokumentua lortzeko. Egiaztatu hautatutako urratsa eta erantzuna ikusgai egon behar duen. Esportazioek maparen eta aplikazioaren kredituak jasotzen dituzte.",
+      "Gorde azalpena aukerak elementu editagarriak Liburutegian gordetzen ditu. Ibilbide gisa gordetzeak modu horretan jarraitzeko proiektua sortzen du. MP4, PNG edo PDF esportatzeak ez du gordetze editagarria ordezkatzen.",
+      "Eskuliburuko Inprimatu / PDF botoiak sistemaren inprimaketa erabiltzen du aukeratutako hizkuntza PDF gisa gordetzeko."
+    ]
+  },
+  {
+    "id": "storage",
+    "es": [
+      "12. Autoguardado y ubicación de los datos",
+      "El indicador Guardado informa del autoguardado. Si aparece un error, revisa espacio, permisos y disponibilidad de la carpeta. No des por guardado un trabajo cuando el indicador muestra error.",
+      "Windows y Mac: los archivos se organizan en Documentos/RutasAD: Biblioteca de recorridos.json, Vídeos MP4, Exportaciones y App/Copias de seguridad. El perfil interno contiene ajustes y activación; no lo borres ni lo compartas.",
+      "Chrome: la biblioteca pertenece al perfil y la cuenta local de ese navegador. Si eliges una carpeta, vuelve a autorizarla cuando Chrome lo pida. Sin carpeta autorizada los datos pueden quedar solo en el navegador. No borres sus datos sin exportar antes una copia.",
+      "No hay sincronización automática entre ordenadores. Cambiar el nombre o mover una carpeta puede romper referencias: vuelve a localizar los archivos."
+    ],
+    "eu": [
+      "12. Autogordetzea eta datuen kokapena",
+      "Gordeta adierazleak autogordetzearen egoera erakusten du. Errorea agertzen bada, egiaztatu lekua, baimenak eta karpeta eskuragarri dagoen. Ez jo lana gordetzat adierazleak errorea badu.",
+      "Windows eta Mac: fitxategiak Documentos/RutasAD karpetan antolatzen dira: Biblioteca de recorridos.json, Vídeos MP4, Exportaciones eta App/Copias de seguridad. Barneko profilak doikuntzak eta aktibazioa gordetzen ditu; ez ezabatu eta ez partekatu.",
+      "Chrome: liburutegia nabigatzailearen profilari eta tokiko kontuari dagokio. Karpeta aukeratzen baduzu, baimendu berriz Chromek eskatzen duenean. Baimendutako karpetarik gabe, datuak nabigatzailean bakarrik gera daitezke. Ez ezabatu datuak segurtasun-kopia atera aurretik.",
+      "Ez dago ordenagailuen arteko sinkronizazio automatikorik. Karpeta baten izena edo kokapena aldatzeak erreferentziak hautsi ditzake: lokalizatu berriz fitxategiak."
+    ]
+  },
+  {
+    "id": "backups",
+    "es": [
+      "13. Copias de seguridad y traslado",
+      "En Biblioteca abre Copias de seguridad y descarga una copia JSON. Guárdala en otro disco o ubicación segura. Copia por separado los vídeos y otros archivos originales: el JSON no incluye sus bytes.",
+      "Para restaurar, elige Importar copia, revisa la vista previa y decide conservar o actualizar los datos según lo que indique la pantalla. Comprueba nombres y contenido antes de confirmar; exporta primero una copia de los datos actuales.",
+      "Para otro ordenador lleva la copia JSON y los MP4. Cada equipo necesita su propia licencia. Una copia de proyectos no transfiere ni reactiva la licencia del equipo original."
+    ],
+    "eu": [
+      "13. Segurtasun-kopiak eta lekualdaketa",
+      "Liburutegian ireki Segurtasun-kopiak eta deskargatu JSON kopia. Gorde beste disko edo kokapen seguru batean. Kopiatu bideoak eta jatorrizko beste fitxategiak bereizita: JSONak ez ditu haien byteak barne hartzen.",
+      "Berreskuratzeko, aukeratu kopia inportatzea, berrikusi aurrebista eta erabaki datuak mantendu edo eguneratu, pantailako azalpenen arabera. Egiaztatu izenak eta edukia berretsi aurretik; atera lehenik uneko datuen kopia.",
+      "Beste ordenagailu batera eramateko, eraman JSON kopia eta MP4ak. Ekipo bakoitzak bere lizentzia behar du. Proiektuen kopiak ez du jatorrizko ekipoaren lizentzia transferitzen edo berraktibatzen."
+    ]
+  },
+  {
+    "id": "licenses",
+    "es": [
+      "14. Licencias y renovación",
+      "EEM y PRE activan un equipo una sola vez; ADMIN permite varios equipos y no caduca. Puedes pegar la clave completa con su prefijo. Conserva el perfil de la app: perder las credenciales de una licencia normal puede requerir una nueva clave.",
+      "La primera activación necesita Internet. Después se comprueba al abrir y cada diez minutos; permite como máximo 30 días sin una comprobación correcta, sin superar la caducidad. Una licencia bloqueada se detecta al conectar; sin conexión puede durar hasta que venza el permiso local.",
+      "Para renovar, el administrador amplía la fecha en la web. Vuelve a abrir la app conectado o pulsa Comprobar renovación. No vuelvas a introducir una clave ya utilizada. Si el administrador la bloqueó, también debe desbloquearla.",
+      "La caducidad no borra los proyectos. Mantén la fecha del ordenador correcta y contacta con soporte si falla la activación."
+    ],
+    "eu": [
+      "14. Lizentziak eta berritzea",
+      "EEM eta PRE gakoek ordenagailu bakarra aktibatzen dute behin bakarrik. ADMIN gakoak hainbat ordenagailu baimentzen ditu eta ez da iraungitzen. Itsatsi gako osoa bere aurrizkiarekin. Gorde aplikazioaren profila.",
+      "Lehen aktibazioak Internet behar du. Gero irekitzean eta hamar minuturo egiaztatzen da; gehienez 30 egun igaro daitezke egiaztapen zuzenik gabe, iraungitze-data gainditu gabe. Blokeoa konektatzean hautematen da; konexiorik gabe tokiko baimena iraungi arte iraun dezake.",
+      "Berritzeko, administratzaileak webguneko data luzatzen du. Ireki berriz aplikazioa konektatuta edo sakatu berritzea egiaztatzeko aukera. Ez sartu berriz erabilitako gakoa. Administratzaileak blokeatu badu, desblokeatu ere egin behar du.",
+      "Iraungitzeak ez ditu proiektuak ezabatzen. Mantendu ordenagailuaren data zuzena eta jarri laguntza-zerbitzuarekin harremanetan aktibazioak huts egiten badu."
+    ]
+  },
+  {
+    "id": "admin",
+    "es": [
+      "15. Administración web",
+      "Solo la cuenta administradora ve Administración. Puedes crear usuarios web, bloquearlos, eliminar su acceso o restablecer su contraseña. Cada usuario puede Cambiar mi contraseña; el cambio cierra sus sesiones.",
+      "En Control de licencias indica destinatario, identificador PC y fecha DD-MM-AAAA. 00-00-0000 significa sin fecha límite; ADMIN es permanente. Las claves nuevas se conservan cifradas y pueden consultarse en el registro. Renovar amplía la fecha; bloquear impide nuevas comprobaciones.",
+      "Para sustituir un equipo bloquea su licencia anterior y crea otra. La cuenta web y la licencia de escritorio son independientes. El administrador no recibe los proyectos locales por el hecho de gestionar accesos.",
+      "Filtra por Activas, No activas o Bloqueadas, busca por nombre o clave y descarga el PDF del listado. El PDF contiene claves: consérvalo en privado. Eliminar licencia borra definitivamente la clave y sus activaciones, pero no alumnos ni proyectos. Un equipo sin conexión puede mantener el permiso local hasta 30 días."
+    ],
+    "eu": [
+      "15. Web-administrazioa",
+      "Administratzailearen kontuak soilik ikusten du Administrazioa. Web-erabiltzaileak sortu, blokeatu, sarbidea ezabatu edo pasahitza berrezar dezakezu. Erabiltzaile bakoitzak bere pasahitza alda dezake; aldaketak saioak ixten ditu.",
+      "Lizentzien kontrolean adierazi hartzailea, PC identifikatzailea eta DD-MM-AAAA data. 00-00-0000 mugagabea da; ADMIN iraunkorra da. Gako berriak zifratuta gordetzen dira eta erregistroan kontsulta daitezke. Berritzeak data luzatzen du; blokeoak egiaztapen berriak eragozten ditu.",
+      "Ekipoa ordezkatzeko, blokeatu aurreko lizentzia eta sortu beste bat. Web-kontua eta mahaigaineko lizentzia independenteak dira. Sarbideak kudeatzeak ez dio administratzaileari tokiko proiektuak bidaltzen.",
+      "Iragazi aktiboak, ez-aktiboak edo blokeatuak; bilatu izenez edo gakoez eta deskargatu PDFa. Gorde PDFa leku pribatuan. Lizentzia ezabatzeak gakoa eta aktibazioak behin betiko kentzen ditu, ez ikasleak edo proiektuak. Konexiorik gabe tokiko baimenak 30 egun iraun dezake."
+    ]
+  },
+  {
+    "id": "support",
+    "es": [
+      "16. Problemas frecuentes y contacto",
+      "Mapa vacío: comprueba Internet y cambia de proveedor. Grabación negra o detenida: espera a que cargue el mapa, mantén la ventana visible y haz una prueba corta. Sin voz: revisa permisos de micrófono del sistema y navegador.",
+      "No se encuentra un vídeo: comprueba si moviste o renombraste su carpeta y vuelve a seleccionarlo. Clave rechazada: pega los 32 caracteres completos; si ya se activó, usa Comprobar renovación en ese equipo.",
+      "Pulsa Contacto para escribir a admobility26@gmail.com. Se abrirá tu aplicación de correo; no se envía ningún mensaje automáticamente. Indica sistema, versión, pasos y mensaje de error. No envíes contraseñas, claves de licencia ni datos personales de terceros.",
+      "Consulta también Créditos y licencias al inicio. Las marcas y mapas pertenecen a sus titulares; la licencia de uso de la app no concede derechos exclusivos sobre ellos."
+    ],
+    "eu": [
+      "16. Ohiko arazoak eta kontaktua",
+      "Mapa hutsik: egiaztatu Internet eta aldatu hornitzailea. Grabazioa beltz edo geldirik: itxaron mapa kargatu arte, mantendu leihoa ikusgai eta egin proba laburra. Ahotsik ez: berrikusi sistemako eta nabigatzaileko mikrofono-baimenak.",
+      "Bideoa ez da aurkitzen: egiaztatu karpeta mugitu edo izena aldatu duzun eta hautatu berriz. Gakoa baztertuta: itsatsi 32 karaktereak osorik; dagoeneko aktibatu bada, erabili berritzea egiaztatzeko aukera ekipo horretan.",
+      "Sakatu Kontaktua admobility26@gmail.com helbidera idazteko. Zure posta-aplikazioa irekiko da; ez da mezurik automatikoki bidaltzen. Adierazi sistema, bertsioa, urratsak eta errore-mezua. Ez bidali pasahitzik, lizentzia-gakorik edo hirugarrenen datu pertsonalik.",
+      "Kontsultatu hasierako Kredituak eta lizentziak ere. Markak eta mapak beren titularrenak dira; aplikazioaren erabilera-lizentziak ez du horien gaineko eskubide esklusiborik ematen."
+    ]
+  },
+  {
+    "id": "premium",
+    "es": [
+      "17. Planes y licencias de RutasAD",
+      "La licencia activa mantiene todos los módulos de RutasAD: trayectorias, pizarra, GPX, vídeo, alumnos y RaceBox. No se aplica la edición reducida de Elorrieta.",
+      "Las claves EEM y PRE activan un único equipo. ADMIN permite varios equipos y no caduca. El administrador web puede crear, renovar, bloquear y eliminar licencias; una clave ADMIN no otorga administración web."
+    ],
+    "eu": [
+      "17. RutasADren planak eta lizentziak",
+      "Lizentzia aktiboak RutasADren modulu guztiak mantentzen ditu: ibilbideak, arbela, GPX, bideoa, ikasleak eta RaceBox.",
+      "EEM eta PRE gakoek ordenagailu bakarra aktibatzen dute. ADMIN gakoak hainbat ordenagailu baimentzen ditu eta ez da iraungitzen. Web-administratzaileak lizentziak sor, berritu, blokeatu eta ezaba ditzake. ADMIN gakoak ez du web-administraziorako baimenik ematen."
+    ]
+  },
+  {
+    "id": "montaje-tramos",
+    "es": [
+      "Montaje de varios GPX y vídeos PIP",
+      "En GPX + vídeo, usa Añadir tracks GPX para seleccionar uno o varios archivos con horas completas. En Tramos del montaje puedes abrir, subir, bajar o quitar cada tramo. Los originales se conservan.",
+      "Abre cada tramo y selecciona su vídeo PIP. Ajusta la sincronización por separado. El montaje reproduce los tramos consecutivamente y omite el tiempo transcurrido entre grabaciones. Cada tramo usa un GPX y un vídeo; el vídeo debe cubrir el intervalo elegido.",
+      "Para vídeos largos, guarda todos los GPX y vídeos en una misma carpeta y usa Abrir carpeta. Carga el primero y usa Añadir como tramo para los demás. Guarda el proyecto para recuperar las asociaciones; si mueves la carpeta, selecciónala de nuevo. Los vídeos pequeños seleccionados directamente pueden guardarse localmente; los grandes deben seleccionarse de nuevo o leerse desde la carpeta.",
+      "En Mapa + PIP · MP4 puedes activar Narrar con micrófono y exportar un solo MP4 con el mapa, la ruta, los vídeos PIP, los puntos críticos y la marca de agua. Durante la exportación, Pausar imagen detiene mapa y vídeo mientras el micrófono sigue grabando; Reanudar imagen continúa el recorrido. Mantén la app visible y la pantalla encendida.",
+      "Las copias de seguridad conservan el montaje y sus incidencias, pero no contienen los vídeos originales. Para enviar a pizarra con vídeo, recorta un tramo cada vez."
+    ],
+    "eu": [
+      "GPX eta PIP bideo batzuen muntaketa",
+      "GPX + bideoa atalean, erabili GPX zatiak gehitu ordu osoak dituzten fitxategi bat edo batzuk hautatzeko. Muntaketaren zatiak atalean zatiak ireki, ordenatu edo kendu ditzakezu. Jatorrizko fitxategiak ez dira aldatzen.",
+      "Ireki zati bakoitza eta hautatu bere PIP bideoa. Doitu sinkronizazioa banan-banan. Muntaketak zatiak bata bestearen ondoren erreproduzitzen ditu, grabazioen arteko denbora kenduta. Zati bakoitzak GPX bat eta bideo bat ditu; bideoak hautatutako tartea estali behar du.",
+      "Bideo luzeetarako, jarri GPX eta bideo guztiak karpeta berean eta erabili Karpeta ireki. Kargatu lehenengoa eta gehitu gainerakoak Zati gisa gehitu botoiarekin. Gorde proiektua loturak berreskuratzeko; karpeta mugituz gero, hautatu berriz.",
+      "Mapa + PIP · MP4 ikuspegian, aktibatu Azalpena mikrofonoarekin eta esportatu mapa, ibilbidea, PIP bideoak, puntu kritikoak eta ur-marka MP4 bakarrean. Esportatzean, Irudia pausatu botoiak mapa eta bideoa gelditzen ditu mikrofonoak grabatzen jarraitzen duen bitartean. Irudia jarraitu botoiak ibilbidearekin jarraitzen du. Mantendu aplikazioa ikusgai eta pantaila piztuta.",
+      "Segurtasun-kopiek muntaketa eta gorabeherak gordetzen dituzte, baina ez jatorrizko bideoak. Bideoarekin arbelera bidaltzeko, moztu zati bakarra aldi bakoitzean."
+    ]
+  },
+  {
+    "id": "exportacion-rapida-acceso",
+    "es": [
+      "Exportación rápida y fechas de acceso web",
+      "En Mapa + PIP · MP4, el modo Rápida · mapa fijo procesa el montaje sin reproducirlo en tiempo real. Mantiene el recorrido completo en un mapa fijo y anima la posición del vehículo, la telemetría y los puntos críticos. Conserva el audio original de los vídeos y su velocidad. El rendimiento depende del equipo, de los archivos y de la carga inicial del mapa.",
+      "Para narrar con el micrófono o pausar la imagen mientras hablas, usa Tiempo real · narración. Activar el micrófono selecciona ese modo automáticamente. Los navegadores o archivos no compatibles con la exportación rápida pueden utilizar Tiempo real. Los medios se procesan localmente; no se envían al servidor.",
+      "En Administración, al crear un usuario web debes indicar Acceso hasta en formato DD-MM-AAAA. 00-00-0000 significa sin caducidad. En cada usuario puedes renovar la fecha; la renovación requiere volver a iniciar sesión. Los usuarios que existían antes de esta función mantienen acceso sin caducidad hasta que el administrador les asigne una fecha.",
+      "Cuando vence el acceso, el servidor impide iniciar sesión y acceder a los recursos protegidos. No se borran las bibliotecas locales. El administrador conserva acceso sin caducidad; las fechas de los usuarios web son independientes de las licencias de escritorio."
+    ],
+    "eu": [
+      "Esportazio azkarra eta web-sarbidearen datak",
+      "Mapa + PIP · MP4 ikuspegian, Azkarra · mapa finkoa moduak muntaketa prozesatzen du denbora errealean erreproduzitu gabe. Ibilbide osoa mapa finko batean erakusten du, eta ibilgailuaren kokapena, telemetria eta puntu kritikoak eguneratzen ditu. Bideoen jatorrizko audioa eta abiadura mantentzen ditu. Errendimendua ekipoaren, fitxategien eta maparen hasierako kargaren araberakoa da.",
+      "Mikrofonoarekin azalpenak emateko edo hitz egin bitartean irudia pausatzeko, erabili Denbora errealean · azalpena. Mikrofonoa aktibatzean modu hori automatikoki hautatzen da. Esportazio azkarrarekin bateragarriak ez diren nabigatzaile edo fitxategiekin denbora errealeko modua erabil daiteke. Fitxategiak lokalean prozesatzen dira, ez dira zerbitzarira bidaltzen.",
+      "Administrazioan, web-erabiltzaile bat sortzean, adierazi sarbidearen azken eguna DD-MM-AAAA formatuan. 00-00-0000 balioak iraungitze-datarik ez dagoela esan nahi du. Erabiltzaile bakoitzaren data berritu dezakezu; ondoren saioa berriz hasi behar da. Lehendik zeuden erabiltzaileek mugarik gabeko sarbidea mantentzen dute administratzaileak data ezarri arte.",
+      "Sarbidea iraungitzean zerbitzariak saioa hastea eta baliabide babestuak eskuratzea eragozten du. Tokiko liburutegiak ez dira ezabatzen. Administratzaileak iraungitze-datarik gabeko sarbidea mantentzen du. Web-sarbidearen datak eta mahaigaineko lizentziak independenteak dira."
+    ]
+  },
+  {
+    "id": "students-rutasad",
+    "es": [
+      "Alumnos y clases",
+      "En Alumnos crea o edita la ficha, los permisos y las clases. Una clase puede registrarse aunque no tenga GPX ni vídeo.",
+      "La Biblioteca permite buscar el material asignado por alumno. Usa Asignar para relacionar el mismo recorrido con varios alumnos sin duplicar los originales.",
+      "Cada cuenta web conserva su propio espacio de datos. Para compartir entre equipos usa copias e importación; no se sincronizan automáticamente."
+    ],
+    "eu": [
+      "Ikasleak eta eskolak",
+      "Ikasleak atalean sortu edo editatu fitxa, baimenak eta eskolak. Eskola bat GPXrik edo bideorik gabe ere erregistra daiteke.",
+      "Liburutegian ikasleari esleitutako materiala bila daiteke. Esleitu aukerarekin ibilbide bera hainbat ikaslerekin lotzen da, jatorrizkoak bikoiztu gabe.",
+      "Web-kontu bakoitzak bere datuak ditu. Gailuen artean partekatzeko erabili kopiak eta inportazioa; ez dago sinkronizazio automatikorik."
+    ]
+  },
+  {
+    "id": "gpx-rutasad",
+    "es": [
+      "GPX, vídeo e incidencias",
+      "En Revisar recorrido GPX importa el track, abre el vídeo PIP y ajusta su sincronización. Puedes elegir el PIP grande o media pantalla vertical.",
+      "Edita los puntos críticos con el catálogo completo: señales, semáforos, límites de velocidad y direcciones. Recortar crea una copia del intervalo; el archivo original no se modifica. El tramo se puede enviar a pizarra para añadir trazadas y vehículos."
+    ],
+    "eu": [
+      "GPX, bideoa eta gorabeherak",
+      "GPX berrikuspenean inportatu tracka, ireki PIP bideoa eta doitu sinkronizazioa. PIP handia edo pantaila-erdi bertikala aukera daiteke.",
+      "Editatu puntu kritikoak katalogo osoarekin: seinaleak, semaforoak, abiadura-mugak eta norabideak. Mozteak tartearen kopia sortzen du; jatorrizkoa ez da aldatzen. Bidali tartea arbelera trazatuak eta ibilgailuak gehitzeko."
+    ]
+  },
+  {
+    "id": "racebox-rutasad",
+    "es": [
+      "RaceBox en directo",
+      "Conecta RaceBox Mini o Mini S desde un navegador compatible o la aplicación de escritorio. Autoriza Bluetooth, desconecta la app oficial y espera una posición GPS válida, preferiblemente al aire libre. Safari no dispone de Web Bluetooth.",
+      "Selecciona el alumno y la clase, inicia la sesión, marca incidencias y finaliza para guardar. Se muestran los datos que envíe el dispositivo; no se simula una señal ni una conexión."
+    ],
+    "eu": [
+      "RaceBox zuzenean",
+      "Konektatu RaceBox Mini edo Mini S arakatzaile bateragarri edo mahaigaineko aplikaziotik. Baimendu Bluetooth, deskonektatu aplikazio ofiziala eta itxaron GPS posizio baliodunari, ahal bada kanpoan. Safarik ez du Web Bluetooth.",
+      "Hautatu ikaslea eta eskola, hasi saioa, markatu gorabeherak eta amaitu gordetzeko. Gailuak bidaltzen dituen datuak erakusten dira; ez da seinalerik edo konexiorik simulatzen."
+    ]
+  }
+]

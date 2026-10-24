@@ -1,0 +1,7 @@
+Mediabunny 1.62.1 — Copyright (c) Vanilagy y colaboradores.
+Licencia Mozilla Public License 2.0 (MPL-2.0). Texto íntegro incluido en THIRD-PARTY-NOTICES.txt.
+El código fuente de este componente, sin modificaciones, está disponible en:
+https://github.com/Vanilagy/mediabunny
+https://registry.npmjs.org/mediabunny/-/mediabunny-1.62.1.tgz
+El paquete de esa versión incluye el directorio src con su código fuente.
+Las condiciones de ElorrietaTrack no restringen los derechos concedidos por MPL-2.0 sobre este componente.
